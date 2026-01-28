@@ -14,10 +14,10 @@ import { Subscription } from 'rxjs';
       <h2>{{ isEditMode ? 'Edit' : 'Add New' }} Repair Item</h2>
       <form [formGroup]="repairForm" (ngSubmit)="onSubmit()">
         <div class="form-group">
-          <label for="itemNumber">Item Number</label>
-          <input id="itemNumber" type="text" formControlName="itemNumber" placeholder="e.g., RC-001">
-          <div *ngIf="repairForm.get('itemNumber')?.touched && repairForm.get('itemNumber')?.invalid" class="error">
-            Item number is required.
+          <label for="itemNumber">Display Code (Suggested)</label>
+          <input id="itemNumber" type="text" formControlName="displayNumber" placeholder="e.g., RC-001">
+          <div *ngIf="repairForm.get('displayNumber')?.touched && repairForm.get('displayNumber')?.invalid" class="error">
+            Display code is required.
           </div>
         </div>
 
@@ -119,21 +119,21 @@ export class RepairFormComponent implements OnInit, OnDestroy {
   private subscription: Subscription = new Subscription();
 
   repairForm: FormGroup = this.fb.group({
-    itemNumber: ['', Validators.required],
+    displayNumber: ['', Validators.required],
     itemDescription: ['', Validators.required]
   });
 
   isEditMode = false;
   editingItemId: string | null = null;
 
-  ngOnInit() {
+  async ngOnInit() {
     this.subscription.add(
       this.repairService.editItem$.subscribe(item => {
         if (item) {
           this.isEditMode = true;
           this.editingItemId = item.id!;
           this.repairForm.patchValue({
-            itemNumber: item.itemNumber,
+            displayNumber: item.displayNumber,
             itemDescription: item.itemDescription
           });
         } else {
@@ -141,6 +141,12 @@ export class RepairFormComponent implements OnInit, OnDestroy {
         }
       })
     );
+
+    // Set initial suggested display number
+    if (!this.isEditMode) {
+      const suggested = await this.repairService.getSuggestedDisplayNumber();
+      this.repairForm.patchValue({ displayNumber: suggested });
+    }
   }
 
   ngOnDestroy() {
@@ -151,12 +157,20 @@ export class RepairFormComponent implements OnInit, OnDestroy {
     if (this.repairForm.valid) {
       try {
         if (this.isEditMode && this.editingItemId) {
-          await this.repairService.updateRepairItem(this.editingItemId, this.repairForm.value);
+          await this.repairService.updateRepairItem(this.editingItemId, {
+            displayNumber: this.repairForm.value.displayNumber,
+            itemDescription: this.repairForm.value.itemDescription
+          });
           this.repairService.setEditItem(null);
         } else {
-          await this.repairService.addRepairItem(this.repairForm.value);
+          // Addition: service handles sequence generation
+          await this.repairService.addRepairItem({
+            itemDescription: this.repairForm.value.itemDescription
+            // Service will use the generation logic even if form has a suggested number
+            // but we could also pass the form's displayNumber if we wanted it to be editable and override
+          });
         }
-        this.resetForm();
+        await this.resetForm();
       } catch (error) {
         console.error('Error saving repair item:', error);
       }
@@ -167,9 +181,13 @@ export class RepairFormComponent implements OnInit, OnDestroy {
     this.repairService.setEditItem(null);
   }
 
-  private resetForm() {
+  private async resetForm() {
     this.repairForm.reset();
     this.isEditMode = false;
     this.editingItemId = null;
+
+    // Get new suggestion after reset
+    const suggested = await this.repairService.getSuggestedDisplayNumber();
+    this.repairForm.patchValue({ displayNumber: suggested });
   }
 }

@@ -16,7 +16,7 @@ import { RepairItem } from '../../models/repair-item.model';
           <div class="card-header">
             <div class="header-left">
               <span class="display-number">{{ item.displayNumber }}</span>
-              <span class="item-number">#{{ item.itemNumber }}</span>
+              <span class="rc-day">{{ item.RCDay }}</span>
             </div>
             <div class="header-right">
               <span class="date">{{ item.creationDate?.toDate() | date:'mediumDate' }}</span>
@@ -40,6 +40,7 @@ import { RepairItem } from '../../models/repair-item.model';
           </div>
           <div class="card-content">
             <p>{{ item.itemDescription }}</p>
+            <div class="sequence-info">Sequence: {{ item.itemNumber }}</div>
           </div>
         </div>
       </div>
@@ -54,7 +55,7 @@ import { RepairItem } from '../../models/repair-item.model';
     }
     .grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
       gap: 1.5rem;
     }
     .card {
@@ -78,7 +79,7 @@ import { RepairItem } from '../../models/repair-item.model';
     .header-left {
       display: flex;
       flex-direction: column;
-      gap: 0.2rem;
+      gap: 0.1rem;
     }
     .header-right {
       display: flex;
@@ -94,10 +95,12 @@ import { RepairItem } from '../../models/repair-item.model';
       color: var(--accent-color);
       letter-spacing: 0.05em;
       font-family: 'Courier New', Courier, monospace;
+      font-size: 1.1rem;
     }
-    .item-number {
-      font-size: 0.8rem;
+    .rc-day {
+      font-size: 0.75rem;
       color: rgba(255, 255, 255, 0.5);
+      font-style: italic;
     }
     .date {
       font-size: 0.8rem;
@@ -126,6 +129,12 @@ import { RepairItem } from '../../models/repair-item.model';
     .card-content p {
       margin: 0;
       line-height: 1.6;
+    }
+    .sequence-info {
+      margin-top: 0.5rem;
+      font-size: 0.7rem;
+      color: rgba(255, 255, 255, 0.3);
+      text-align: right;
     }
     .empty-state {
       text-align: center;

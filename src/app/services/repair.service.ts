@@ -21,17 +21,14 @@ export class RepairService {
         return collectionData(this.repairCollection, { idField: 'id' }) as Observable<RepairItem[]>;
     }
 
-    async addRepairItem(item: Omit<RepairItem, 'id' | 'creationDate' | 'displayNumber'>) {
+    async addRepairItem(item: Omit<RepairItem, 'id' | 'creationDate' | 'displayNumber' | 'RCDay' | 'itemNumber'>) {
         const now = new Date();
-        const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-        const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+        const rcDay = this.generateRCDay(now);
 
-        // Query for items created today to find the next sequence number
+        // Query for items with the same RCDay to find the next sequence number
         const q = query(
             this.repairCollection,
-            where('creationDate', '>=', Timestamp.fromDate(startOfDay)),
-            where('creationDate', '<=', Timestamp.fromDate(endOfDay)),
-            orderBy('creationDate', 'asc')
+            where('RCDay', '==', rcDay)
         );
 
         const querySnapshot = await getDocs(q);
@@ -40,10 +37,30 @@ export class RepairService {
 
         const newItem: RepairItem = {
             ...item,
+            itemNumber: sequence,
             creationDate: Timestamp.fromDate(now),
-            displayNumber: displayNumber
+            displayNumber: displayNumber,
+            RCDay: rcDay
         };
         return addDoc(this.repairCollection, newItem);
+    }
+
+    async getSuggestedDisplayNumber(): Promise<string> {
+        const now = new Date();
+        const rcDay = this.generateRCDay(now);
+        const q = query(this.repairCollection, where('RCDay', '==', rcDay));
+        const querySnapshot = await getDocs(q);
+        const sequence = querySnapshot.size + 1;
+        return this.formatDisplayNumber(now, sequence);
+    }
+
+    private generateRCDay(date: Date): string {
+        const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+        const dayOfWeek = days[date.getDay()];
+        const dd = String(date.getDate()).padStart(2, '0');
+        const mm = String(date.getMonth() + 1).padStart(2, '0');
+        const yyyy = date.getFullYear();
+        return `${dayOfWeek}, ${dd}, ${mm}, ${yyyy}`;
     }
 
     private formatDisplayNumber(date: Date, sequence: number): string {
