@@ -1,18 +1,34 @@
 import { Component, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { FormControl, ReactiveFormsModule } from '@angular/forms';
 import { RepairService } from '../../services/repair.service';
-import { Observable } from 'rxjs';
+import { Observable, combineLatest, startWith, map } from 'rxjs';
 import { RepairItem } from '../../models/repair-item.model';
 
 @Component({
   selector: 'app-repair-list',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, ReactiveFormsModule],
   template: `
     <div class="list-container">
-      <h2>Repair Items</h2>
+      <div class="header-section">
+        <h2>Repair Items</h2>
+        <div class="search-container glass">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="search-icon">
+            <circle cx="11" cy="11" r="8"></circle>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+          </svg>
+          <input 
+            type="text" 
+            [formControl]="searchControl" 
+            placeholder="Filter items..."
+            class="search-input"
+          >
+        </div>
+      </div>
+      
       <div class="grid">
-        <div *ngFor="let item of repairItems$ | async" class="card glass">
+        <div *ngFor="let item of filteredItems$ | async" class="card glass">
           <div class="card-header">
             <div class="header-left">
               <span class="display-number">{{ item.displayNumber }}</span>
@@ -44,14 +60,47 @@ import { RepairItem } from '../../models/repair-item.model';
           </div>
         </div>
       </div>
-      <div *ngIf="(repairItems$ | async)?.length === 0" class="empty-state">
-        <p>No repair items yet. Add one above!</p>
+      <div *ngIf="(filteredItems$ | async)?.length === 0" class="empty-state">
+        <p>No matching repair items found.</p>
       </div>
     </div>
   `,
   styles: [`
     .list-container {
       margin-top: 2rem;
+    }
+    .header-section {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 2rem;
+      flex-wrap: wrap;
+      gap: 1rem;
+    }
+    .search-container {
+      display: flex;
+      align-items: center;
+      padding: 0.5rem 1rem;
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      background: rgba(255, 255, 255, 0.05);
+      flex: 1;
+      max-width: 300px;
+    }
+    .search-icon {
+      color: rgba(255, 255, 255, 0.5);
+      margin-right: 0.5rem;
+    }
+    .search-input {
+      background: transparent;
+      border: none;
+      color: white;
+      width: 100%;
+      outline: none;
+      font-size: 1rem;
+    }
+    .search-input::placeholder {
+      color: rgba(255, 255, 255, 0.3);
     }
     .grid {
       display: grid;
@@ -145,7 +194,22 @@ import { RepairItem } from '../../models/repair-item.model';
 })
 export class RepairListComponent {
   private repairService = inject(RepairService);
-  repairItems$: Observable<RepairItem[]> = this.repairService.getRepairItems();
+  searchControl = new FormControl('');
+
+  filteredItems$: Observable<RepairItem[]> = combineLatest([
+    this.repairService.getRepairItems(),
+    this.searchControl.valueChanges.pipe(startWith(''))
+  ]).pipe(
+    map(([items, searchTerm]) => {
+      const term = (searchTerm || '').toLowerCase();
+      if (!term) return items;
+      return items.filter(item =>
+        item.itemDescription.toLowerCase().includes(term) ||
+        item.displayNumber.toLowerCase().includes(term) ||
+        item.RCDay.toLowerCase().includes(term)
+      );
+    })
+  );
 
   onEdit(item: RepairItem) {
     this.repairService.setEditItem(item);
