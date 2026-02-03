@@ -3,6 +3,9 @@ export interface RepairItem {
   itemNumber: number; // Sequence number starting at 1 for each RCDay
   itemDescription: string;
   creationDate: any; // Using any for Firestore compatibility (Timestamp)
-  displayNumber: string; // DDDddMMXXX format
-  RCDay: string; // "DayOfWeek, Day, Month, Year"
+  displayNumber: string;
+  RCDay: string;
+  rcDayNumber: number;
+  tags?: string[];
+  photos?: string[];
 }

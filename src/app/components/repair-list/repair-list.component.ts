@@ -1,65 +1,72 @@
 import { Component, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormControl, ReactiveFormsModule } from '@angular/forms';
+import { Router, RouterLink } from '@angular/router';
 import { RepairService } from '../../services/repair.service';
-import { Observable, combineLatest, startWith, map } from 'rxjs';
+import { Observable, combineLatest, startWith, map, BehaviorSubject } from 'rxjs';
 import { RepairItem } from '../../models/repair-item.model';
+
+type SortOption = 'newest' | 'oldest' | 'number';
 
 @Component({
   selector: 'app-repair-list',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule],
+  imports: [CommonModule, ReactiveFormsModule, RouterLink],
   template: `
     <div class="list-container">
       <div class="header-section">
         <h2>Repair Items</h2>
-        <div class="search-container glass">
-          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="search-icon">
-            <circle cx="11" cy="11" r="8"></circle>
-            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-          </svg>
-          <input 
-            type="text" 
-            [formControl]="searchControl" 
-            placeholder="Filter items..."
-            class="search-input"
-          >
+        <div class="header-controls">
+          <div class="sort-container glass">
+             <select [formControl]="sortControl" class="sort-select">
+               <option value="newest">Newest First</option>
+               <option value="oldest">Oldest First</option>
+               <option value="number">By Item No.</option>
+             </select>
+          </div>
+          <div class="search-container glass">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="search-icon">
+              <circle cx="11" cy="11" r="8"></circle>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+            <input 
+              type="text" 
+              [formControl]="searchControl" 
+              placeholder="Filter items..."
+              class="search-input"
+            >
+          </div>
         </div>
       </div>
       
-      <div class="grid">
-        <div *ngFor="let item of filteredItems$ | async" class="card glass">
-          <div class="card-header">
-            <div class="header-left">
-              <span class="display-number">{{ item.displayNumber }}</span>
-              <span class="rc-day">{{ item.RCDay }}</span>
-            </div>
-            <div class="header-right">
-              <span class="date">{{ item.creationDate?.toDate() | date:'mediumDate' }}</span>
-              <div class="actions">
-                <button (click)="onEdit(item)" class="btn-action btn-edit" title="Edit record">
-                  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
-                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
-                  </svg>
-                </button>
-                <button (click)="onDelete(item.id!)" class="btn-action btn-delete" title="Delete record">
-                  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <polyline points="3 6 5 6 21 6"></polyline>
-                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                    <line x1="10" y1="11" x2="10" y2="17"></line>
-                    <line x1="14" y1="11" x2="14" y2="17"></line>
-                  </svg>
-                </button>
-              </div>
-            </div>
+      <div class="compact-list glass">
+        <div class="list-header">
+          <span class="col-code pointer" (click)="setSort('number')">No. {{ getSortIcon('number') }}</span>
+          <span class="col-desc">Description</span>
+          <span class="col-day">RC Day</span>
+          <span class="col-actions"></span>
+        </div>
+        <div *ngFor="let item of filteredItems$ | async" 
+             class="list-row" 
+             [routerLink]="['/item', item.id]">
+          <div class="col-code">
+            <span class="seq-badge">{{ item.displayNumber }}</span>
           </div>
-          <div class="card-content">
-            <p>{{ item.itemDescription }}</p>
-            <div class="sequence-info">Sequence: {{ item.itemNumber }}</div>
+          <span class="col-desc truncate">{{ item.itemDescription }}</span>
+          <span class="col-day">{{ item.RCDay }}</span>
+          <div class="col-actions actions" (click)="$event.stopPropagation()">
+            <button (click)="onDelete(item.id!)" class="btn-action btn-delete" title="Delete record">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="3 6 5 6 21 6"></polyline>
+                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                <line x1="10" y1="11" x2="10" y2="17"></line>
+                <line x1="14" y1="11" x2="14" y2="17"></line>
+              </svg>
+            </button>
           </div>
         </div>
       </div>
+      
       <div *ngIf="(filteredItems$ | async)?.length === 0" class="empty-state">
         <p>No matching repair items found.</p>
       </div>
@@ -67,28 +74,48 @@ import { RepairItem } from '../../models/repair-item.model';
   `,
   styles: [`
     .list-container {
-      margin-top: 2rem;
+      margin-top: 1rem;
     }
     .header-section {
       display: flex;
       justify-content: space-between;
       align-items: center;
       margin-bottom: 2rem;
-      flex-wrap: wrap;
       gap: 1rem;
+      flex-wrap: wrap;
     }
-    .search-container {
+    .header-controls {
+      display: flex;
+      gap: 1rem;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    .search-container, .sort-container {
       display: flex;
       align-items: center;
       padding: 0.5rem 1rem;
       border-radius: 8px;
-      border: 1px solid rgba(255, 255, 255, 0.1);
       background: rgba(255, 255, 255, 0.05);
-      flex: 1;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    .search-container {
       max-width: 300px;
+      flex: 1;
+    }
+    .sort-select {
+      background: transparent;
+      border: none;
+      color: white;
+      outline: none;
+      cursor: pointer;
+      font-size: 0.9rem;
+    }
+    .sort-select option {
+      background: #1a1a2e;
+      color: white;
     }
     .search-icon {
-      color: rgba(255, 255, 255, 0.5);
+      color: rgba(255, 255, 255, 0.4);
       margin-right: 0.5rem;
     }
     .search-input {
@@ -97,63 +124,64 @@ import { RepairItem } from '../../models/repair-item.model';
       color: white;
       width: 100%;
       outline: none;
-      font-size: 1rem;
     }
-    .search-input::placeholder {
-      color: rgba(255, 255, 255, 0.3);
-    }
-    .grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-      gap: 1.5rem;
-    }
-    .card {
-      padding: 1.5rem;
+    .compact-list {
       border-radius: 12px;
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      transition: transform 0.3s ease;
-      position: relative;
+      overflow: hidden;
     }
-    .card:hover {
-      transform: translateY(-5px);
+    .list-header {
+      display: grid;
+      grid-template-columns: 100px 1fr 200px 80px;
+      padding: 1rem 1.5rem;
+      background: rgba(255, 255, 255, 0.08);
+      font-weight: bold;
+      color: rgba(255, 255, 255, 0.5);
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
     }
-    .card-header {
+    .pointer { cursor: pointer; }
+    .pointer:hover { color: var(--accent-color); }
+    .list-row {
+      display: grid;
+      grid-template-columns: 100px 1fr 200px 80px;
+      padding: 1rem 1.5rem;
+      border-top: 1px solid rgba(255, 255, 255, 0.05);
+      align-items: center;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .list-row:hover {
+      background: rgba(255, 255, 255, 0.03);
+    }
+    .col-code {
       display: flex;
-      justify-content: space-between;
-      margin-bottom: 1rem;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-      padding-bottom: 0.5rem;
       align-items: center;
     }
-    .header-left {
-      display: flex;
-      flex-direction: column;
-      gap: 0.1rem;
+    .seq-badge {
+      background: rgba(0, 242, 255, 0.15);
+      color: var(--accent-color);
+      padding: 0.2rem 0.6rem;
+      border-radius: 6px;
+      font-weight: 800;
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 0.9rem;
+      border: 1px solid rgba(0, 242, 255, 0.2);
     }
-    .header-right {
-      display: flex;
-      align-items: center;
-      gap: 0.8rem;
+    .truncate {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      color: rgba(255, 255, 255, 0.9);
+    }
+    .col-day {
+      color: rgba(255, 255, 255, 0.5);
+      font-size: 0.9rem;
     }
     .actions {
       display: flex;
-      gap: 0.4rem;
-    }
-    .display-number {
-      font-weight: 800;
-      color: var(--accent-color);
-      letter-spacing: 0.05em;
-      font-family: 'Courier New', Courier, monospace;
-      font-size: 1.1rem;
-    }
-    .rc-day {
-      font-size: 0.75rem;
-      color: rgba(255, 255, 255, 0.5);
-      font-style: italic;
-    }
-    .date {
-      font-size: 0.8rem;
-      color: rgba(255, 255, 255, 0.6);
+      gap: 0.5rem;
+      justify-content: flex-end;
     }
     .btn-action {
       background: transparent;
@@ -163,57 +191,71 @@ import { RepairItem } from '../../models/repair-item.model';
       padding: 4px;
       border-radius: 4px;
       transition: all 0.2s;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-    .btn-edit:hover {
-      color: var(--accent-color);
-      background: rgba(0, 242, 255, 0.1);
     }
     .btn-delete:hover {
       color: #ff4d4d;
       background: rgba(255, 77, 77, 0.1);
     }
-    .card-content p {
-      margin: 0;
-      line-height: 1.6;
-    }
-    .sequence-info {
-      margin-top: 0.5rem;
-      font-size: 0.7rem;
-      color: rgba(255, 255, 255, 0.3);
-      text-align: right;
-    }
     .empty-state {
       text-align: center;
-      padding: 3rem;
-      color: rgba(255, 255, 255, 0.5);
+      padding: 4rem;
+      color: rgba(255, 255, 255, 0.4);
     }
   `]
 })
 export class RepairListComponent {
   private repairService = inject(RepairService);
+  private router = inject(Router);
+
   searchControl = new FormControl('');
+  sortControl = new FormControl<SortOption>('newest');
 
   filteredItems$: Observable<RepairItem[]> = combineLatest([
     this.repairService.getRepairItems(),
-    this.searchControl.valueChanges.pipe(startWith(''))
+    this.searchControl.valueChanges.pipe(startWith('')),
+    this.sortControl.valueChanges.pipe(startWith('newest' as SortOption))
   ]).pipe(
-    map(([items, searchTerm]) => {
+    map(([items, searchTerm, sortOrder]) => {
+      // First filter
       const term = (searchTerm || '').toLowerCase();
-      if (!term) return items;
-      return items.filter(item =>
-        item.itemDescription.toLowerCase().includes(term) ||
-        item.displayNumber.toLowerCase().includes(term) ||
-        item.RCDay.toLowerCase().includes(term)
-      );
+      let filtered = items;
+      if (term) {
+        filtered = items.filter(item =>
+          item.itemDescription.toLowerCase().includes(term) ||
+          item.displayNumber.toLowerCase().includes(term) ||
+          item.RCDay.toLowerCase().includes(term) ||
+          (item.tags && item.tags.some(tag => tag.toLowerCase().includes(term)))
+        );
+      }
+
+      // Then sort
+      return [...filtered].sort((a, b) => {
+        switch (sortOrder) {
+          case 'newest':
+            return (b.creationDate?.toMillis() || 0) - (a.creationDate?.toMillis() || 0);
+          case 'oldest':
+            return (a.creationDate?.toMillis() || 0) - (b.creationDate?.toMillis() || 0);
+          case 'number':
+            if (a.rcDayNumber !== b.rcDayNumber) {
+              return a.rcDayNumber - b.rcDayNumber;
+            }
+            return a.itemNumber - b.itemNumber;
+          default:
+            return 0;
+        }
+      });
     })
   );
 
-  onEdit(item: RepairItem) {
-    this.repairService.setEditItem(item);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+  setSort(option: SortOption) {
+    this.sortControl.setValue(option);
+  }
+
+  getSortIcon(option: SortOption): string {
+    if (this.sortControl.value === option) {
+      return '↓';
+    }
+    return '';
   }
 
   async onDelete(id: string) {

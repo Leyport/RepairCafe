@@ -1,19 +1,25 @@
 <div class="container">
   <header>
-    <h1>RepairCafe</h1>
-    <p style="text-align: center; color: rgba(255,255,255,0.6); margin-top: -1.5rem; margin-bottom: 3rem;">
+    <div class="header-top">
+      <h1 routerLink="/">RepairCafe</h1>
+      <a routerLink="/new" class="btn-new">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="12" y1="5" x2="12" y2="19"></line>
+          <line x1="5" y1="12" x2="19" y2="12"></line>
+        </svg>
+        New Repair
+      </a>
+    </div>
+    <p class="subtitle">
       Modern repair tracking for a sustainable future.
     </p>
   </header>
 
   <main>
-    <app-repair-form></app-repair-form>
-    <app-repair-list></app-repair-list>
+    <router-outlet></router-outlet>
   </main>
 
   <footer>
     &copy; 2026 RepairCafe. Locally built with Antigravity.
   </footer>
 </div>
-
-<router-outlet></router-outlet>
