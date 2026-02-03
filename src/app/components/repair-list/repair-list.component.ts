@@ -52,9 +52,25 @@ type SortOption = 'newest' | 'oldest' | 'number';
           <div class="col-code">
             <span class="seq-badge">{{ item.displayNumber }}</span>
           </div>
-          <span class="col-desc truncate">{{ item.itemDescription }}</span>
+          <span class="col-desc truncate">
+            <span class="desc-text">{{ item.itemDescription }}</span>
+          </span>
           <span class="col-day">{{ item.RCDay }}</span>
           <div class="col-actions actions" (click)="$event.stopPropagation()">
+            <div class="tag-trigger-wrapper" *ngIf="item.tags && item.tags.length > 0" (click)="$event.stopPropagation()">
+              <button class="btn-action btn-tags" title="View tags">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path>
+                  <line x1="7" y1="7" x2="7.01" y2="7"></line>
+                </svg>
+              </button>
+              <div class="tags-popup glass">
+                <div class="popup-title">Tags</div>
+                <div class="popup-tags">
+                  <span class="popup-tag" *ngFor="let tag of item.tags">{{ tag }}</span>
+                </div>
+              </div>
+            </div>
             <button (click)="onDelete(item.id!)" class="btn-action btn-delete" title="Delete record">
               <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <polyline points="3 6 5 6 21 6"></polyline>
@@ -174,6 +190,74 @@ type SortOption = 'newest' | 'oldest' | 'number';
       text-overflow: ellipsis;
       color: rgba(255, 255, 255, 0.9);
     }
+    .desc-text {
+      display: block;
+      margin-bottom: 0.3rem;
+    }
+    .list-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+    }
+    .list-tag {
+      font-size: 0.65rem;
+      background: rgba(0, 242, 255, 0.05);
+      border: 1px solid rgba(0, 242, 255, 0.2);
+      color: var(--accent-color);
+      padding: 0.1rem 0.4rem;
+      border-radius: 4px;
+      font-weight: 600;
+    }
+    
+    .tag-trigger-wrapper {
+      position: relative;
+      display: flex;
+      align-items: center;
+    }
+    .tags-popup {
+      position: absolute;
+      bottom: 100%;
+      right: 0;
+      margin-bottom: 0.8rem;
+      padding: 1rem;
+      border-radius: 12px;
+      min-width: 150px;
+      max-width: 250px;
+      z-index: 100;
+      opacity: 0;
+      visibility: hidden;
+      transform: translateY(10px);
+      transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+    }
+    .tag-trigger-wrapper:hover .tags-popup {
+      opacity: 1;
+      visibility: visible;
+      transform: translateY(0);
+    }
+    .popup-title {
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      color: rgba(255, 255, 255, 0.4);
+      margin-bottom: 0.6rem;
+      letter-spacing: 0.1em;
+      font-weight: 700;
+    }
+    .popup-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+    }
+    .popup-tag {
+      font-size: 0.75rem;
+      background: rgba(0, 242, 255, 0.1);
+      border: 1px solid rgba(0, 242, 255, 0.3);
+      color: var(--accent-color);
+      padding: 0.2rem 0.6rem;
+      border-radius: 6px;
+      white-space: nowrap;
+    }
     .col-day {
       color: rgba(255, 255, 255, 0.5);
       font-size: 0.9rem;
@@ -220,12 +304,17 @@ export class RepairListComponent {
       const term = (searchTerm || '').toLowerCase();
       let filtered = items;
       if (term) {
-        filtered = items.filter(item =>
-          item.itemDescription.toLowerCase().includes(term) ||
-          item.displayNumber.toLowerCase().includes(term) ||
-          item.RCDay.toLowerCase().includes(term) ||
-          (item.tags && item.tags.some(tag => tag.toLowerCase().includes(term)))
-        );
+        filtered = items.filter(item => {
+          const description = (item.itemDescription || '').toLowerCase();
+          const number = (item.displayNumber || '').toLowerCase();
+          const day = (item.RCDay || '').toLowerCase();
+          const tags = item.tags || [];
+
+          return description.includes(term) ||
+            number.includes(term) ||
+            day.includes(term) ||
+            tags.some(tag => tag.toLowerCase().includes(term));
+        });
       }
 
       // Then sort
