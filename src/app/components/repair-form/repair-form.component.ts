@@ -4,6 +4,7 @@ import { FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angula
 import { Router, ActivatedRoute, RouterLink } from '@angular/router';
 import { RepairService } from '../../services/repair.service';
 import { RepairItem } from '../../models/repair-item.model';
+import { Tag } from '../../models/tag.model';
 
 interface PhotoFile {
   file: File;
@@ -41,11 +42,28 @@ interface PhotoFile {
             </div>
           </div>
 
-          <!-- Tags Section -->
           <div class="form-group">
             <label>Tags (Optional)</label>
             <div class="tag-input-wrapper">
-              <input type="text" #tagInput (keyup.enter)="addTag(tagInput)" placeholder="Enter a tag (e.g. Electrical) and press Enter">
+              <div class="autocomplete-container">
+                <input 
+                  type="text" 
+                  #tagInput 
+                  (input)="onTagSearch(tagInput.value)"
+                  (keyup.enter)="addTag(tagInput)" 
+                  (blur)="hideSuggestions()"
+                  placeholder="Enter a tag (e.g. Electrical) and press Enter">
+                
+                <div class="suggestions-list glass" *ngIf="filteredSuggestions.length > 0 && showSuggestions">
+                  <div 
+                    class="suggestion-item" 
+                    *ngFor="let tag of filteredSuggestions"
+                    (mousedown)="selectSuggestion(tag, tagInput)">
+                    <span class="suggestion-emoji">{{ tag.emoji }}</span>
+                    <span class="suggestion-name">{{ tag.name }}</span>
+                  </div>
+                </div>
+              </div>
               <button type="button" class="btn-add-tag" (click)="addTag(tagInput)">Add</button>
             </div>
             <div class="tag-chips" *ngIf="tags.length > 0">
@@ -137,15 +155,39 @@ interface PhotoFile {
       border-radius: 20px;
       animation: slideUp 0.5s ease-out;
     }
+    
+    @media (max-width: 600px) {
+      .form-page {
+        padding: 0.5rem;
+      }
+      .form-container {
+        padding: 1.5rem;
+        border-radius: 12px;
+      }
+      h2 {
+        font-size: 1.4rem;
+      }
+    }
     @keyframes slideUp {
       from { transform: translateY(20px); opacity: 0; }
       to { transform: translateY(0); opacity: 1; }
     }
-    .form-header {
+    .form-actions {
       display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 2rem;
+      justify-content: flex-end;
+      gap: 1rem;
+      margin-top: 1.5rem;
+    }
+    
+    @media (max-width: 600px) {
+      .form-actions {
+        flex-direction: column-reverse;
+      }
+      .btn-cancel, .btn-submit {
+        width: 100%;
+        padding: 1rem;
+        justify-content: center;
+      }
     }
     h2 { margin: 0; font-size: 1.8rem; color: var(--accent-color); display: flex; align-items: baseline; gap: 0.8rem; }
     .version { font-size: 0.6rem; opacity: 0.3; font-weight: 300; }
@@ -186,6 +228,58 @@ interface PhotoFile {
       display: flex;
       gap: 0.5rem;
       margin-bottom: 0.8rem;
+    }
+    .autocomplete-container {
+      position: relative;
+      flex: 1;
+    }
+    .suggestions-list {
+      position: absolute;
+      top: 100%;
+      left: 0;
+      right: 0;
+      z-index: 1000;
+      margin-top: 0.5rem;
+      max-height: 200px;
+      overflow-y: auto;
+      border-radius: 12px;
+      background: rgba(20, 20, 35, 0.95);
+      backdrop-filter: blur(20px);
+      border: 2px solid rgba(0, 242, 255, 0.3);
+      box-shadow: 0 15px 40px rgba(0, 0, 0, 0.8), 0 0 20px rgba(0, 242, 255, 0.1);
+    }
+    .suggestions-list::-webkit-scrollbar {
+      width: 6px;
+    }
+    .suggestions-list::-webkit-scrollbar-track {
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 0 12px 12px 0;
+    }
+    .suggestions-list::-webkit-scrollbar-thumb {
+      background: var(--primary-color);
+      border-radius: 10px;
+    }
+    .suggestion-item {
+      padding: 1rem 1.2rem;
+      cursor: pointer;
+      font-size: 0.95rem;
+      color: rgba(255, 255, 255, 0.9);
+      transition: all 0.2s;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      display: flex;
+      align-items: center;
+      gap: 0.8rem;
+    }
+    .suggestion-emoji {
+      font-size: 1.2rem;
+    }
+    .suggestion-item:last-child {
+      border-bottom: none;
+    }
+    .suggestion-item:hover {
+      background: rgba(0, 242, 255, 0.15);
+      color: var(--accent-color);
+      padding-left: 1.5rem;
     }
     .btn-add-tag {
       padding: 0 1.5rem;
@@ -400,6 +494,9 @@ export class RepairFormComponent implements OnInit {
   selectedFiles: PhotoFile[] = [];
   existingPhotos: string[] = [];
   tags: string[] = [];
+  allAvailableTags: Tag[] = [];
+  filteredSuggestions: Tag[] = [];
+  showSuggestions = false;
 
   constructor() {
     this.repairForm = this.fb.group({
@@ -409,6 +506,11 @@ export class RepairFormComponent implements OnInit {
   }
 
   async ngOnInit() {
+    // Load all available tags for autocomplete
+    this.repairService.getAllTags().then(tags => {
+      this.allAvailableTags = tags;
+    });
+
     const id = this.route.snapshot.paramMap.get('id');
     if (id) {
       this.isEdit = true;
@@ -428,7 +530,7 @@ export class RepairFormComponent implements OnInit {
     } else {
       try {
         const suggestion = await this.repairService.getSuggestedDisplayNumber();
-        this.repairForm.patchValue({ displayNumber: `${suggestion.dayNumber}.${suggestion.sequence}` });
+        this.repairForm.patchValue({ displayNumber: suggestion });
       } catch (err) {
         console.error('Failed to get suggested number:', err);
       }
@@ -465,12 +567,47 @@ export class RepairFormComponent implements OnInit {
     const value = input.value.trim();
     if (value && !this.tags.includes(value)) {
       this.tags.push(value);
+      // Update local cache so it appears in suggestions immediately if typed again
+      if (!this.allAvailableTags.find(t => t.name === value)) {
+        const emoji = this.repairService.getEmojiForTag(value);
+        this.allAvailableTags.push({ name: value, emoji: emoji });
+        this.allAvailableTags.sort((a, b) => a.name.localeCompare(b.name));
+      }
       input.value = '';
     }
   }
 
   removeTag(index: number) {
     this.tags.splice(index, 1);
+  }
+
+  onTagSearch(value: string) {
+    if (!value.trim()) {
+      this.filteredSuggestions = [];
+      this.showSuggestions = false;
+      return;
+    }
+    const term = value.toLowerCase();
+    this.filteredSuggestions = this.allAvailableTags.filter(tag =>
+      tag.name.toLowerCase().includes(term) && !this.tags.includes(tag.name)
+    );
+    this.showSuggestions = this.filteredSuggestions.length > 0;
+  }
+
+  selectSuggestion(tag: Tag, input: HTMLInputElement) {
+    if (!this.tags.includes(tag.name)) {
+      this.tags.push(tag.name);
+    }
+    input.value = '';
+    this.filteredSuggestions = [];
+    this.showSuggestions = false;
+  }
+
+  hideSuggestions() {
+    // Use timeout to allow mousedown on suggestion to trigger first
+    setTimeout(() => {
+      this.showSuggestions = false;
+    }, 200);
   }
 
   async onSubmit() {

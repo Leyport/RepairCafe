@@ -43,27 +43,35 @@ type SortOption = 'newest' | 'oldest' | 'number';
         <div class="list-header">
           <span class="col-code pointer" (click)="setSort('number')">No. {{ getSortIcon('number') }}</span>
           <span class="col-desc">Description</span>
-          <span class="col-day">RC Day</span>
+          <span class="col-time">Time</span>
           <span class="col-actions"></span>
         </div>
         <div *ngFor="let item of filteredItems$ | async" 
              class="list-row" 
              [routerLink]="['/item', item.id]">
           <div class="col-code">
-            <span class="seq-badge">{{ item.displayNumber }}</span>
+            <span class="seq-badge linkable" 
+                  [routerLink]="['/edit', item.id]" 
+                  (click)="$event.stopPropagation()"
+                  title="Edit item">
+              {{ item.displayNumber }}
+            </span>
           </div>
           <span class="col-desc truncate">
             <span class="desc-text">{{ item.itemDescription }}</span>
           </span>
-          <span class="col-day">{{ item.RCDay }}</span>
+          <span class="col-time">{{ item.creationDate?.toDate() | date:'HH:mm:ss' }}</span>
           <div class="col-actions actions" (click)="$event.stopPropagation()">
             <div class="tag-trigger-wrapper" *ngIf="item.tags && item.tags.length > 0" (click)="$event.stopPropagation()">
-              <button class="btn-action btn-tags" title="View tags">
-                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path>
-                  <line x1="7" y1="7" x2="7.01" y2="7"></line>
-                </svg>
-              </button>
+              <div class="tag-with-emoji" [routerLink]="['/edit', item.id]" title="Edit item">
+                <span class="main-emoji" *ngIf="getFirstTagEmoji(item.tags)">{{ getFirstTagEmoji(item.tags) }}</span>
+                <button class="btn-action btn-tags" [class.has-emoji]="getFirstTagEmoji(item.tags)">
+                  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path>
+                    <line x1="7" y1="7" x2="7.01" y2="7"></line>
+                  </svg>
+                </button>
+              </div>
               <div class="tags-popup glass">
                 <div class="popup-title">Tags</div>
                 <div class="popup-tags">
@@ -100,6 +108,13 @@ type SortOption = 'newest' | 'oldest' | 'number';
       gap: 1rem;
       flex-wrap: wrap;
     }
+    
+    @media (max-width: 600px) {
+      .header-section {
+        flex-direction: column;
+        align-items: stretch;
+      }
+    }
     .header-controls {
       display: flex;
       gap: 1rem;
@@ -117,6 +132,16 @@ type SortOption = 'newest' | 'oldest' | 'number';
     .search-container {
       max-width: 300px;
       flex: 1;
+    }
+    
+    @media (max-width: 600px) {
+      .search-container, .sort-container {
+        max-width: none;
+        width: 100%;
+      }
+      .header-controls {
+        width: 100%;
+      }
     }
     .sort-select {
       background: transparent;
@@ -147,7 +172,7 @@ type SortOption = 'newest' | 'oldest' | 'number';
     }
     .list-header {
       display: grid;
-      grid-template-columns: 100px 1fr 200px 80px;
+      grid-template-columns: 100px 1fr 120px 80px;
       padding: 1rem 1.5rem;
       background: rgba(255, 255, 255, 0.08);
       font-weight: bold;
@@ -160,12 +185,38 @@ type SortOption = 'newest' | 'oldest' | 'number';
     .pointer:hover { color: var(--accent-color); }
     .list-row {
       display: grid;
-      grid-template-columns: 100px 1fr 200px 80px;
+      grid-template-columns: 100px 1fr 120px 80px;
       padding: 1rem 1.5rem;
       border-top: 1px solid rgba(255, 255, 255, 0.05);
       align-items: center;
       cursor: pointer;
       transition: background 0.2s;
+    }
+    
+    @media (max-width: 768px) {
+      .list-header {
+        display: none; /* Hide header on mobile */
+      }
+      .list-row {
+        grid-template-columns: 1fr auto;
+        grid-template-areas: 
+          "code actions"
+          "desc desc";
+        gap: 0.8rem;
+        padding: 1.2rem;
+      }
+      .col-code { grid-area: code; }
+      .col-actions { grid-area: actions; }
+      .col-desc { grid-area: desc; }
+      .col-time { display: none; } /* Hide time on narrow screens */
+      
+      .truncate {
+        white-space: normal;
+        overflow: visible;
+      }
+      .seq-badge {
+        padding: 0.3rem 0.6rem;
+      }
     }
     .list-row:hover {
       background: rgba(255, 255, 255, 0.03);
@@ -175,14 +226,15 @@ type SortOption = 'newest' | 'oldest' | 'number';
       align-items: center;
     }
     .seq-badge {
-      background: rgba(0, 242, 255, 0.15);
-      color: var(--accent-color);
-      padding: 0.2rem 0.6rem;
-      border-radius: 6px;
-      font-weight: 800;
-      font-family: 'Courier New', Courier, monospace;
       font-size: 0.9rem;
       border: 1px solid rgba(0, 242, 255, 0.2);
+      transition: all 0.2s;
+    }
+    .seq-badge.linkable:hover {
+      background: var(--accent-color);
+      color: #1a1a2e;
+      transform: scale(1.05);
+      border-color: white;
     }
     .truncate {
       white-space: nowrap;
@@ -209,6 +261,21 @@ type SortOption = 'newest' | 'oldest' | 'number';
       font-weight: 600;
     }
     
+    .tag-with-emoji {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+    .main-emoji {
+      font-size: 1.2rem;
+      text-shadow: 0 0 10px rgba(0, 242, 255, 0.4);
+      filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));
+      cursor: pointer;
+    }
+    .btn-tags.has-emoji {
+      padding: 0.1rem 0.3rem;
+    }
+    
     .tag-trigger-wrapper {
       position: relative;
       display: flex;
@@ -216,33 +283,61 @@ type SortOption = 'newest' | 'oldest' | 'number';
     }
     .tags-popup {
       position: absolute;
-      bottom: 100%;
-      right: 0;
-      margin-bottom: 0.8rem;
-      padding: 1rem;
+      bottom: 125%;
+      right: -20px;
+      padding: 1.2rem;
       border-radius: 12px;
-      min-width: 150px;
-      max-width: 250px;
-      z-index: 100;
+      min-width: 200px;
+      max-width: 300px;
+      z-index: 1000;
       opacity: 0;
       visibility: hidden;
       transform: translateY(10px);
-      transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+      transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+      background: #111122; /* High contrast solid background */
+      border: 2px solid var(--accent-color); /* Bright, sharp border */
+      box-shadow: 0 15px 40px rgba(0, 0, 0, 1), 0 0 15px rgba(0, 242, 255, 0.2);
+      pointer-events: none;
+    }
+    .tags-popup::after {
+      content: '';
+      position: absolute;
+      top: 100%;
+      right: 30px;
+      border: 10px solid transparent;
+      border-top-color: var(--accent-color);
     }
     .tag-trigger-wrapper:hover .tags-popup {
       opacity: 1;
       visibility: visible;
       transform: translateY(0);
     }
+
+    /* Smart Flip for Top Items: Open downwards if in first 3 rows */
+    .compact-list .list-row:nth-child(-n+4) .tags-popup {
+      bottom: auto;
+      top: 130%;
+      transform: translateY(-10px);
+    }
+    .compact-list .list-row:nth-child(-n+4) .tag-trigger-wrapper:hover .tags-popup {
+      transform: translateY(0);
+    }
+    .compact-list .list-row:nth-child(-n+4) .tags-popup::after {
+      top: auto;
+      bottom: 100%;
+      border-top-color: transparent;
+      border-bottom-color: var(--accent-color);
+    }
+
     .popup-title {
-      font-size: 0.7rem;
+      font-size: 0.75rem;
       text-transform: uppercase;
-      color: rgba(255, 255, 255, 0.4);
-      margin-bottom: 0.6rem;
-      letter-spacing: 0.1em;
-      font-weight: 700;
+      color: var(--accent-color);
+      margin-bottom: 0.8rem;
+      letter-spacing: 0.15em;
+      font-weight: 800;
+      border-bottom: 1px solid rgba(0, 242, 255, 0.2);
+      padding-bottom: 0.4rem;
     }
     .popup-tags {
       display: flex;
@@ -250,15 +345,16 @@ type SortOption = 'newest' | 'oldest' | 'number';
       gap: 0.4rem;
     }
     .popup-tag {
-      font-size: 0.75rem;
-      background: rgba(0, 242, 255, 0.1);
-      border: 1px solid rgba(0, 242, 255, 0.3);
-      color: var(--accent-color);
-      padding: 0.2rem 0.6rem;
-      border-radius: 6px;
+      font-size: 0.85rem;
+      background: rgba(0, 242, 255, 0.2);
+      border: 1px solid var(--accent-color);
+      color: #00f2ff;
+      padding: 0.4rem 0.8rem;
+      border-radius: 8px;
       white-space: nowrap;
+      font-weight: 700;
     }
-    .col-day {
+    .col-time {
       color: rgba(255, 255, 255, 0.5);
       font-size: 0.9rem;
     }
@@ -343,6 +439,15 @@ export class RepairListComponent {
   getSortIcon(option: SortOption): string {
     if (this.sortControl.value === option) {
       return '↓';
+    }
+    return '';
+  }
+
+  getFirstTagEmoji(tags: string[]): string {
+    if (!tags || tags.length === 0) return '';
+    for (const tag of tags) {
+      const emoji = this.repairService.getEmojiForTag(tag);
+      if (emoji) return emoji;
     }
     return '';
   }

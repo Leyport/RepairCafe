@@ -3,6 +3,30 @@ import { Firestore, collection, collectionData, addDoc, Timestamp, doc, deleteDo
 import { Storage, ref, uploadBytes, getDownloadURL, deleteObject } from '@angular/fire/storage';
 import { Observable, BehaviorSubject } from 'rxjs';
 import { RepairItem } from '../models/repair-item.model';
+import { Tag } from '../models/tag.model';
+import { Repairer } from '../models/repairer.model';
+
+const TAG_EMOJI_MAP: { [key: string]: string } = {
+    'electrical': '⚡',
+    'mechanical': '⚙️',
+    'fabric': '🧵',
+    'toy': '🧸',
+    'electronics': '💻',
+    'battery': '🔋',
+    'clock': '🕒',
+    'lamp': '💡',
+    'appliance': '🔌',
+    'jewelry': '💍',
+    'bicycle': '🚲',
+    'audio': '🔊',
+    'video': '📹',
+    'kitchen': '🍳',
+    'garden': '🌱',
+    'textile': '🧵',
+    'textiles': '🧵',
+    'clothing': '👕',
+    'furniture': '🪑'
+};
 
 @Injectable({
     providedIn: 'root'
@@ -11,6 +35,8 @@ export class RepairService {
     private firestore: Firestore = inject(Firestore);
     private storage: Storage = inject(Storage);
     private repairCollection = collection(this.firestore, 'repairItems');
+    private tagsCollection = collection(this.firestore, 'tags');
+    private repairersCollection = collection(this.firestore, 'repairers');
 
     private editItemSubject = new BehaviorSubject<RepairItem | null>(null);
     editItem$ = this.editItemSubject.asObservable();
@@ -21,6 +47,70 @@ export class RepairService {
 
     getRepairItems(): Observable<RepairItem[]> {
         return collectionData(this.repairCollection, { idField: 'id' }) as Observable<RepairItem[]>;
+    }
+
+    async getAllTags(): Promise<Tag[]> {
+        let querySnapshot = await getDocs(this.tagsCollection);
+
+        // If empty, try to sync from existing items first
+        if (querySnapshot.empty) {
+            await this.syncTagsFromRepairItems();
+            querySnapshot = await getDocs(this.tagsCollection);
+        }
+
+        const tags: Tag[] = [];
+        querySnapshot.forEach(doc => {
+            const data = doc.data() as Tag;
+            tags.push({
+                ...data,
+                id: doc.id
+            });
+        });
+        return tags.sort((a, b) => a.name.localeCompare(b.name));
+    }
+
+    async syncTagsFromRepairItems(): Promise<void> {
+        const itemsSnapshot = await getDocs(this.repairCollection);
+        const tagsSet = new Set<string>();
+
+        itemsSnapshot.forEach(doc => {
+            const data = doc.data() as RepairItem;
+            if (data.tags) {
+                data.tags.forEach(tag => tagsSet.add(tag));
+            }
+        });
+
+        if (tagsSet.size > 0) {
+            const syncPromises = Array.from(tagsSet).map(tag => this.ensureTagExists(tag));
+            await Promise.all(syncPromises);
+        }
+    }
+
+    async ensureTagExists(tagName: string): Promise<void> {
+        if (!tagName) return;
+
+        const q = query(this.tagsCollection, where('name', '==', tagName));
+        const snapshot = await getDocs(q);
+
+        if (snapshot.empty) {
+            const emoji = TAG_EMOJI_MAP[tagName.toLowerCase()];
+            await addDoc(this.tagsCollection, {
+                name: tagName,
+                emoji: emoji || null
+            });
+        } else {
+            // Update emoji if missing or changed in map
+            const docSnap = snapshot.docs[0];
+            const data = docSnap.data() as Tag;
+            const expectedEmoji = TAG_EMOJI_MAP[tagName.toLowerCase()];
+            if (expectedEmoji && data.emoji !== expectedEmoji) {
+                await updateDoc(docSnap.ref, { emoji: expectedEmoji });
+            }
+        }
+    }
+
+    getEmojiForTag(tagName: string): string {
+        return TAG_EMOJI_MAP[tagName.toLowerCase()] || '';
     }
 
     async uploadPhoto(file: File): Promise<string> {
@@ -47,26 +137,40 @@ export class RepairService {
         }
     }
 
-    async addRepairItem(item: Omit<RepairItem, 'id' | 'creationDate' | 'displayNumber' | 'RCDay' | 'itemNumber' | 'rcDayNumber'> & { rcDayNumber?: number }) {
+    async addRepairItem(item: Omit<RepairItem, 'id' | 'creationDate' | 'displayNumber' | 'RCDay' | 'itemNumber' | 'rcDayNumber'> & { rcDayNumber?: number, displayNumber?: string }) {
         const now = new Date();
         const rcDay = this.generateRCDay(now);
+        const dateKey = this.getYYMMDD(now);
 
-        // Get RC Day Number (either provided or calculated)
+        // If a displayNumber was manually entered, we use it. Otherwise, calculate.
+        let displayNumber = item.displayNumber;
+        let sequence: number;
+
+        if (!displayNumber) {
+            // Count items created on THIS calendar day
+            const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+            const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+
+            const q = query(
+                this.repairCollection,
+                where('creationDate', '>=', Timestamp.fromDate(startOfDay)),
+                where('creationDate', '<=', Timestamp.fromDate(endOfDay))
+            );
+
+            const querySnapshot = await getDocs(q);
+            sequence = querySnapshot.size + 1;
+            displayNumber = `${dateKey}.${sequence}`;
+        } else {
+            // Try to extract sequence from manual entry "DATE.SEQ"
+            const parts = displayNumber.split('.');
+            sequence = parts.length > 1 ? parseInt(parts[1], 10) || 1 : 1;
+        }
+
+        // For backwards compatibility we still calculate an rcDayNumber if needed
         let rcDayNumber = item.rcDayNumber;
         if (!rcDayNumber) {
             rcDayNumber = await this.getCalculatedRCDayNumber(rcDay);
         }
-
-        // Query for items with the same RCDay and rcDayNumber to find the next sequence number
-        const q = query(
-            this.repairCollection,
-            where('RCDay', '==', rcDay),
-            where('rcDayNumber', '==', rcDayNumber)
-        );
-
-        const querySnapshot = await getDocs(q);
-        const sequence = querySnapshot.size + 1;
-        const displayNumber = `${rcDayNumber}.${sequence}`;
 
         const newItem: RepairItem = {
             ...item,
@@ -77,24 +181,38 @@ export class RepairService {
             displayNumber: displayNumber,
             RCDay: rcDay
         };
+
+        // Ensure all tags exist in the master collection
+        if (newItem.tags && newItem.tags.length > 0) {
+            await Promise.all(newItem.tags.map(tag => this.ensureTagExists(tag)));
+        }
+
         return addDoc(this.repairCollection, newItem);
     }
 
-    async getSuggestedDisplayNumber(): Promise<{ sequence: number, dayNumber: number }> {
+    async getSuggestedDisplayNumber(): Promise<string> {
         const now = new Date();
-        const rcDay = this.generateRCDay(now);
-        const dayNumber = await this.getCalculatedRCDayNumber(rcDay);
+        const dateKey = this.getYYMMDD(now);
+
+        const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
 
         const q = query(
             this.repairCollection,
-            where('RCDay', '==', rcDay),
-            where('rcDayNumber', '==', dayNumber)
+            where('creationDate', '>=', Timestamp.fromDate(startOfDay)),
+            where('creationDate', '<=', Timestamp.fromDate(endOfDay))
         );
         const querySnapshot = await getDocs(q);
-        return {
-            sequence: querySnapshot.size + 1,
-            dayNumber: dayNumber
-        };
+        const sequence = querySnapshot.size + 1;
+
+        return `${dateKey}.${sequence}`;
+    }
+
+    private getYYMMDD(date: Date): string {
+        const yy = String(date.getFullYear()).slice(-2);
+        const mm = String(date.getMonth() + 1).padStart(2, '0');
+        const dd = String(date.getDate()).padStart(2, '0');
+        return `${yy}${mm}${dd}`;
     }
 
     private async getCalculatedRCDayNumber(rcDay: string): Promise<number> {
@@ -144,12 +262,18 @@ export class RepairService {
         return `${ddd}${dd}${mm}${xxx}`;
     }
 
-    updateRepairItem(id: string, item: Partial<RepairItem>) {
+    async updateRepairItem(id: string, item: Partial<RepairItem>) {
         const itemDoc = doc(this.firestore, `repairItems/${id}`);
         const updateData = { ...item };
         if (updateData.itemDescription) {
             updateData.itemDescription = this.formatDescription(updateData.itemDescription);
         }
+
+        // Ensure all tags exist in the master collection if they are being updated
+        if (updateData.tags && updateData.tags.length > 0) {
+            await Promise.all(updateData.tags.map(tag => this.ensureTagExists(tag)));
+        }
+
         return updateDoc(itemDoc, updateData);
     }
 
@@ -168,5 +292,28 @@ export class RepairService {
         }
 
         return deleteDoc(itemDoc);
+    }
+
+    getRepairers(): Observable<Repairer[]> {
+        const q = query(this.repairersCollection, orderBy('name'));
+        return collectionData(q, { idField: 'id' }) as Observable<Repairer[]>;
+    }
+
+    async addRepairer(name: string): Promise<void> {
+        if (!name) return;
+        await addDoc(this.repairersCollection, {
+            name,
+            createdAt: Timestamp.now()
+        });
+    }
+
+    async deleteRepairer(id: string): Promise<void> {
+        const docRef = doc(this.firestore, 'repairers', id);
+        await deleteDoc(docRef);
+    }
+
+    getCollectionData(collectionName: string): Observable<any[]> {
+        const colRef = collection(this.firestore, collectionName);
+        return collectionData(colRef, { idField: 'id' });
     }
 }

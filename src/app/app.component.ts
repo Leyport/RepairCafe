@@ -1,6 +1,7 @@
 import { Component } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterOutlet, RouterLink } from '@angular/router';
+import { APP_VERSION } from './constants/version';
 
 @Component({
   selector: 'app-root',
@@ -11,4 +12,6 @@ import { RouterOutlet, RouterLink } from '@angular/router';
 })
 export class AppComponent {
   title = 'RepairCafe';
+  version = APP_VERSION.version;
+  changeDescription = APP_VERSION.description;
 }
