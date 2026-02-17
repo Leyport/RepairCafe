@@ -1,4 +1,4 @@
 export const APP_VERSION = {
-    version: 'v1.9.1',
-    description: 'Added Owner attribute to Repair Items with auto-creation and schema support.'
+    version: 'v1.9.2',
+    description: 'Added Emoji Avatars and Double-Click Edit in Explorer.'
 };

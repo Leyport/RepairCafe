@@ -1,6 +1,6 @@
 import { Component, inject, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { RouterLink } from '@angular/router';
+import { RouterLink, Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { RepairService } from '../../../services/repair.service';
 import { Observable, of } from 'rxjs';
@@ -157,7 +157,7 @@ import { RepairerFormComponent } from '../repairer-form/repairer-form.component'
                         </tr>
                         </thead>
                         <tbody>
-                        <tr *ngFor="let record of data">
+                        <tr *ngFor="let record of data" (dblclick)="onRowDoubleClick(record, schema)" class="clickable-row">
                             <ng-container *ngIf="schema === 'repairItems'">
                             <td class="checkbox-col">
                                 <input 
@@ -554,6 +554,7 @@ import { RepairerFormComponent } from '../repairer-form/repairer-form.component'
 
     .data-table tr:hover td {
       background: rgba(255, 255, 255, 0.02);
+      cursor: pointer;
     }
 
     .badge {
@@ -819,6 +820,7 @@ import { RepairerFormComponent } from '../repairer-form/repairer-form.component'
 })
 export class DatabaseExplorerComponent implements OnInit {
   private repairService = inject(RepairService);
+  private router = inject(Router);
 
   collections$: Observable<string[]> = of([]);
   selectedCollection: string | null = null;
@@ -1131,6 +1133,14 @@ export class DatabaseExplorerComponent implements OnInit {
     } catch (error) {
       console.error('Error deleting repairer:', error);
       alert('Failed to delete repairer.');
+    }
+  }
+
+  onRowDoubleClick(record: any, schema: string) {
+    if (schema === 'repairItems' && record.id) {
+      this.router.navigate(['/edit', record.id]);
+    } else if (schema === 'repairers') {
+      this.editRepairer(record);
     }
   }
 }

@@ -20,15 +20,31 @@ import { inject } from '@angular/core';
         <div class="form-group">
           <!-- Avatar Section -->
           <div class="avatar-section">
-            <div class="avatar-preview" [style.backgroundImage]="'url(' + (photoUrl || 'assets/placeholder-avatar.png') + ')'">
-              <div class="overlay" (click)="fileInput.click()">
-                <span>📷</span>
+            <div class="avatar-preview" [style.backgroundImage]="'url(' + (photoPreview || photoUrl || 'assets/placeholder-avatar.png') + ')'">
+              <div class="overlay" (click)="isEmojiMode ? null : fileInput.click()">
+                <span>{{ isEmojiMode ? '😊' : '📷' }}</span>
               </div>
             </div>
+
+            <div class="mode-toggles">
+                <button class="btn-toggle" [class.active]="!isEmojiMode" (click)="toggleMode('photo')">Upload Photo</button>
+                <button class="btn-toggle" [class.active]="isEmojiMode" (click)="toggleMode('emoji')">Choose Emoji</button>
+            </div>
+
+            <div class="emoji-grid custom-scrollbar" *ngIf="isEmojiMode">
+                <button 
+                    *ngFor="let emoji of availableEmojis" 
+                    class="emoji-btn" 
+                    (click)="selectEmoji(emoji)">
+                    {{ emoji }}
+                </button>
+            </div>
+
             <input #fileInput type="file" (change)="onFileSelected($event)" accept="image/*" hidden>
-            <div class="avatar-actions">
-              <button class="btn-text" (click)="fileInput.click()">Upload Photo</button>
-              <button *ngIf="photoUrl" class="btn-text text-danger" (click)="removePhoto()">Remove</button>
+            
+            <div class="avatar-actions" *ngIf="!isEmojiMode">
+              <button class="btn-text" (click)="fileInput.click()">Upload New Photo</button>
+              <button *ngIf="photoPreview || photoUrl" class="btn-text text-danger" (click)="removePhoto()">Remove Photo</button>
             </div>
           </div>
 
@@ -41,13 +57,11 @@ import { inject } from '@angular/core';
             autofocus>
         </div>
 
-        <!-- Future fields can go here -->
-
         <footer>
           <button class="btn-delete" *ngIf="repairer?.id" (click)="delete()">Delete</button>
           <div class="actions">
             <button class="btn-cancel" (click)="close()">Cancel</button>
-            <button class="btn-save" (click)="save()" [disabled]="!name.trim()">Save</button>
+            <button class="btn-save" (click)="save()" [disabled]="!name.trim() || isUploading">{{ isUploading ? 'Saving...' : 'Save' }}</button>
           </div>
         </footer>
       </div>
@@ -76,6 +90,9 @@ import { inject } from '@angular/core';
       border-radius: 12px;
       border: 1px solid rgba(255, 255, 255, 0.1);
       box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+      display: flex;
+      flex-direction: column;
+      max-height: 90vh;
     }
 
     header {
@@ -103,6 +120,7 @@ import { inject } from '@angular/core';
 
     .form-group {
       margin-bottom: 2rem;
+      overflow-y: auto;
     }
 
     label {
@@ -111,7 +129,7 @@ import { inject } from '@angular/core';
       color: rgba(255, 255, 255, 0.7);
     }
 
-    input {
+    input[type="text"] {
       width: 100%;
       padding: 0.8rem;
       background: rgba(255, 255, 255, 0.05);
@@ -130,6 +148,7 @@ import { inject } from '@angular/core';
       display: flex;
       justify-content: space-between;
       align-items: center;
+      margin-top: auto;
     }
 
     .actions {
@@ -240,6 +259,55 @@ import { inject } from '@angular/core';
     .btn-text:hover {
       background: rgba(255, 255, 255, 0.05);
     }
+
+    .mode-toggles {
+        display: flex;
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 8px;
+        padding: 4px;
+        gap: 4px;
+        width: 100%;
+    }
+    
+    .btn-toggle {
+        flex: 1;
+        background: transparent;
+        color: rgba(255, 255, 255, 0.6);
+        padding: 0.5rem;
+        font-size: 0.9rem;
+        border-radius: 6px;
+    }
+    .btn-toggle.active {
+        background: rgba(255, 255, 255, 0.1);
+        color: white;
+        font-weight: 600;
+    }
+    
+    .emoji-grid {
+        display: grid;
+        grid-template-columns: repeat(6, 1fr);
+        gap: 0.5rem;
+        max-height: 150px;
+        overflow-y: auto;
+        padding: 0.5rem;
+        background: rgba(0, 0, 0, 0.2);
+        border-radius: 8px;
+        width: 100%;
+    }
+    
+    .emoji-btn {
+        background: transparent;
+        border: none;
+        font-size: 1.5rem;
+        padding: 0.5rem;
+        cursor: pointer;
+        border-radius: 6px;
+        transition: transform 0.1s;
+    }
+    .emoji-btn:hover {
+        background: rgba(255, 255, 255, 0.1);
+        transform: scale(1.2);
+    }
   `]
 })
 export class RepairerFormComponent {
@@ -252,20 +320,57 @@ export class RepairerFormComponent {
 
   name = '';
   photoUrl: string | null = null;
+  photoPreview: string | null = null;
+  selectedFile: File | null = null;
   isUploading = false;
+  isEmojiMode = false;
+
+  availableEmojis = [
+    '😀', '😃', '😄', '😁', '😆', '😅', '😂', '🤣', '🥲', '☺️', '😊', '😇',
+    '🙂', '🙃', '😉', '😌', '😍', '🥰', '😘', '😗', '😋', '😛', '😝', '😜',
+    '🤪', '🤨', '🧐', '🤓', '😎', '🥸', '🤩', '🥳', '😏', '😒', '😞', '😔',
+    '🦊', '🐱', '🦁', '🐶', '🐵', '🐻', '🐨', '🐼', '🐹', '🐰', '🐯', '🐮',
+    '🐷', '🐸', '🐙', '🦄', '🐝', '🐞', '🦋', '🦉', '🐢', '🦖', '🐳', '🦈',
+    '🔨', '🔧', '🪛', '🔩', '⚙️', '🧶', '🧵', '💡', '🔋', '🔌', '💻', '📷'
+  ];
 
   ngOnChanges() {
     if (this.repairer) {
       this.name = this.repairer.name;
       this.photoUrl = this.repairer.photoUrl || null;
+      this.photoPreview = null;
     } else {
       this.name = '';
       this.photoUrl = null;
+      this.photoPreview = null;
     }
+    this.selectedFile = null;
+    this.isEmojiMode = false;
   }
 
   close() {
     this.closeEvent.emit();
+  }
+
+  toggleMode(mode: 'photo' | 'emoji') {
+    this.isEmojiMode = mode === 'emoji';
+  }
+
+  selectEmoji(emoji: string) {
+    const svg = `
+      <svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'>
+        <style>text { font-family: "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", sans-serif; }</style>
+        <text y='.9em' font-size='90'>${emoji}</text>
+      </svg>`;
+
+    // We encode URI component to handle special characters, then unescape to get bytes, then btoa
+    const base64 = btoa(unescape(encodeURIComponent(svg)));
+    const dataUri = `data:image/svg+xml;base64,${base64}`;
+
+    this.photoPreview = dataUri;
+    this.selectedFile = null; // Clear any file
+    // We don't clear photoUrl immediately because we want to fallback to it if preview is cleared,
+    // but preview overrides in the template display.
   }
 
   async onFileSelected(event: any) {
@@ -278,36 +383,61 @@ export class RepairerFormComponent {
       return;
     }
 
-    try {
-      this.isUploading = true;
-      this.photoUrl = await this.repairService.uploadRepairerPhoto(file);
-    } catch (error) {
-      console.error('Upload failed:', error);
-      alert('Failed to upload photo.');
-    } finally {
-      this.isUploading = false;
-    }
+    this.selectedFile = file;
+    this.isEmojiMode = false; // Switch tab
+
+    const reader = new FileReader();
+    reader.onload = (e: any) => {
+      this.photoPreview = e.target.result;
+    };
+    reader.readAsDataURL(file);
   }
 
   removePhoto() {
     this.photoUrl = null;
-  }
-
-  save() {
-    if (this.name.trim()) {
-      this.saveEvent.emit({
-        id: this.repairer?.id,
-        name: this.name.trim(),
-        photoUrl: this.photoUrl || undefined
-      });
-    }
+    this.photoPreview = null;
+    this.selectedFile = null;
   }
 
   delete() {
     if (this.repairer?.id) {
-      if (confirm(`Are you sure you want to delete ${this.repairer.name}?`)) {
+      if (confirm('Are you sure you want to delete this repairer?')) {
         this.deleteEvent.emit(this.repairer.id);
       }
+    }
+  }
+
+  async save() {
+    if (!this.name.trim()) return;
+
+    this.isUploading = true;
+    try {
+      let finalPhotoUrl = this.repairer?.photoUrl; // Default to existing
+
+      if (this.selectedFile) {
+        // Upload new file
+        finalPhotoUrl = await this.repairService.uploadRepairerPhoto(this.selectedFile);
+      } else if (this.photoPreview && this.photoPreview.startsWith('data:image/svg+xml')) {
+        // Use SVG Data URI (Emoji)
+        finalPhotoUrl = this.photoPreview;
+      } else if (!this.photoPreview && !this.photoUrl) {
+        // Explicitly removed
+        finalPhotoUrl = undefined;
+      } else if (this.photoUrl) {
+        // kept existing
+        finalPhotoUrl = this.photoUrl;
+      }
+
+      this.saveEvent.emit({
+        id: this.repairer?.id,
+        name: this.name,
+        photoUrl: finalPhotoUrl
+      });
+    } catch (error) {
+      console.error('Error saving repairer:', error);
+      alert('Failed to save repairer.');
+    } finally {
+      this.isUploading = false;
     }
   }
 }
