@@ -3,7 +3,8 @@ import { RepairListComponent } from './components/repair-list/repair-list.compon
 import { RepairFormComponent } from './components/repair-form/repair-form.component';
 
 export const routes: Routes = [
-  { path: '', component: RepairListComponent },
+  { path: '', loadComponent: () => import('./components/admin/database-explorer/database-explorer.component').then(m => m.DatabaseExplorerComponent) },
+  { path: 'repairs', component: RepairListComponent },
   { path: 'new', component: RepairFormComponent },
   { path: 'edit/:id', component: RepairFormComponent },
   { path: 'item/:id', loadComponent: () => import('./components/repair-detail/repair-detail.component').then(m => m.RepairDetailComponent) },
@@ -24,5 +25,13 @@ export const routes: Routes = [
         loadComponent: () => import('./components/admin/database-explorer/database-explorer.component').then(m => m.DatabaseExplorerComponent)
       }
     ]
+  },
+  {
+    path: 'issues',
+    loadComponent: () => import('./components/issues/issues.component').then(m => m.IssuesComponent)
+  },
+  {
+    path: 'schedule',
+    loadComponent: () => import('./components/schedule/schedule.component').then(m => m.ScheduleComponent)
   }
 ];

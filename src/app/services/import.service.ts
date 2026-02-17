@@ -1,6 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
-import { Firestore, collection, addDoc, writeBatch, doc, Timestamp } from '@angular/fire/firestore';
+import { Firestore, collection, addDoc, writeBatch, doc, Timestamp, setDoc, query, where, getDocs } from '@angular/fire/firestore';
 import { firstValueFrom } from 'rxjs';
 
 @Injectable({
@@ -10,25 +10,157 @@ export class ImportService {
     private http = inject(HttpClient);
     private firestore = inject(Firestore);
 
-    async listFolders(token: string, parentId: string = 'root'): Promise<{ id: string, name: string }[]> {
+    async listFolders(token: string, parentId: string = 'root'): Promise<{ id: string, name: string, mimeType: string }[]> {
         const headers = new HttpHeaders({
             'Authorization': `Bearer ${token}`
         });
-        const query = `'${parentId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`;
-        const url = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=files(id, name)&orderBy=name`;
 
+        // Simplified query for broader compatibility
+        const query = `'${parentId}' in parents and trashed=false`;
+        const url = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=files(id, name, mimeType, shortcutDetails)&orderBy=name&supportsAllDrives=true&includeItemsFromAllDrives=true`;
+
+        console.log(`Listing items for parent: ${parentId}`, { query, url });
+        try {
+            const result: any = await firstValueFrom(this.http.get(url, { headers }));
+            console.log('API Result:', result);
+
+            if (!result.files) return [];
+
+            // Filter for folders or shortcuts to folders
+            return result.files.filter((file: any) => {
+                const isFolder = file.mimeType === 'application/vnd.google-apps.folder';
+                const isFolderShortcut = file.mimeType === 'application/vnd.google-apps.shortcut' &&
+                    file.shortcutDetails?.targetMimeType === 'application/vnd.google-apps.folder';
+                return isFolder || isFolderShortcut;
+            }).map((file: any) => ({
+                id: file.mimeType === 'application/vnd.google-apps.shortcut' ? file.shortcutDetails.targetId : file.id,
+                name: file.name
+            }));
+        } catch (error) {
+            console.error('Error listing folders:', error);
+            throw error;
+        }
+    }
+
+    async listAllItems(token: string, parentId: string = 'root'): Promise<any[]> {
+        const headers = new HttpHeaders({
+            'Authorization': `Bearer ${token}`
+        });
+        const query = `'${parentId}' in parents and trashed=false`;
+        const url = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=files(id, name, mimeType)&supportsAllDrives=true&includeItemsFromAllDrives=true&pageSize=50`;
         const result: any = await firstValueFrom(this.http.get(url, { headers }));
         return result.files || [];
     }
 
-    async listFilesByFolder(token: string, folderId: string): Promise<{ id: string, name: string }[]> {
+    async globalDiagnosticSearch(token: string): Promise<any[]> {
+        const headers = new HttpHeaders({
+            'Authorization': `Bearer ${token}`
+        });
+        // Diagnostic: list the most recent 10 items globally (no parent filter)
+        const url = `https://www.googleapis.com/drive/v3/files?pageSize=10&fields=files(id, name, mimeType, parents)&supportsAllDrives=true&includeItemsFromAllDrives=true`;
+        const result: any = await firstValueFrom(this.http.get(url, { headers }));
+        return result.files || [];
+    }
+
+    async getDriveAbout(token: string): Promise<any> {
+        const headers = new HttpHeaders({
+            'Authorization': `Bearer ${token}`
+        });
+        const url = `https://www.googleapis.com/drive/v3/about?fields=user,storageQuota`;
+        return firstValueFrom(this.http.get(url, { headers }));
+    }
+
+    async listSharedDrives(token: string): Promise<any[]> {
+        const headers = new HttpHeaders({
+            'Authorization': `Bearer ${token}`
+        });
+        const url = `https://www.googleapis.com/drive/v3/drives?pageSize=10`;
+        try {
+            const result: any = await firstValueFrom(this.http.get(url, { headers }));
+            return result.drives || [];
+        } catch (e) {
+            console.warn('Could not list shared drives:', e);
+            return [];
+        }
+    }
+
+    async findSpreadsheetsGlobally(token: string): Promise<any[]> {
+        const headers = new HttpHeaders({
+            'Authorization': `Bearer ${token}`
+        });
+        const query = "mimeType='application/vnd.google-apps.spreadsheet' and trashed=false";
+        const url = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&pageSize=5&fields=files(id, name, parents)&supportsAllDrives=true&includeItemsFromAllDrives=true`;
+        try {
+            const result: any = await firstValueFrom(this.http.get(url, { headers }));
+            return result.files || [];
+        } catch (e) {
+            return [];
+        }
+    }
+
+    async getRootMetadata(token: string): Promise<any> {
+        const headers = new HttpHeaders({
+            'Authorization': `Bearer ${token}`
+        });
+        const url = `https://www.googleapis.com/drive/v3/files/root?fields=id,name,kind`;
+        return firstValueFrom(this.http.get(url, { headers }));
+    }
+
+    async findAllFoldersGlobally(token: string): Promise<any[]> {
+        const headers = new HttpHeaders({
+            'Authorization': `Bearer ${token}`
+        });
+        const query = "mimeType='application/vnd.google-apps.folder' and trashed=false";
+        const url = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&pageSize=20&fields=files(id, name, parents)&supportsAllDrives=true&includeItemsFromAllDrives=true`;
+        const result: any = await firstValueFrom(this.http.get(url, { headers }));
+        return result.files || [];
+    }
+
+    async getTokenInfo(token: string): Promise<any> {
+        // This endpoint verifies the token and returns the scopes associated with it
+        const url = `https://oauth2.googleapis.com/tokeninfo?access_token=${token}`;
+        return firstValueFrom(this.http.get(url));
+    }
+
+    async searchByName(token: string, name: string): Promise<any[]> {
+        const headers = new HttpHeaders({
+            'Authorization': `Bearer ${token}`
+        });
+        const query = `name contains '${name}' and trashed=false`;
+        const url = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&pageSize=10&fields=files(id, name, mimeType, parents)&supportsAllDrives=true&includeItemsFromAllDrives=true`;
+        const result: any = await firstValueFrom(this.http.get(url, { headers }));
+        return result.files || [];
+    }
+
+    async getFileMetadata(token: string, fileId: string): Promise<any> {
+        const headers = new HttpHeaders({
+            'Authorization': `Bearer ${token}`
+        });
+        const url = `https://www.googleapis.com/drive/v3/files/${fileId}?fields=id,name,mimeType,parents&supportsAllDrives=true`;
+        return firstValueFrom(this.http.get(url, { headers }));
+    }
+
+    async jumpToFolder(token: string, folderId: string): Promise<{ folder: any, breadcrumbs: any[] }> {
+        // Trace path to build breadcrumbs and get final folder
+        let currentId = folderId;
+        const breadcrumbs = [];
+        for (let i = 0; i < 10; i++) {
+            const meta = await this.getFileMetadata(token, currentId);
+            breadcrumbs.unshift({ id: meta.id, name: meta.name });
+            if (!meta.parents || meta.parents.length === 0 || meta.id === 'root') break;
+            currentId = meta.parents[0];
+        }
+        return { folder: breadcrumbs[breadcrumbs.length - 1], breadcrumbs: breadcrumbs.slice(0, -1) };
+    }
+
+    async listFilesByFolder(token: string, folderId: string): Promise<{ id: string, name: string, mimeType: string }[]> {
         const headers = new HttpHeaders({
             'Authorization': `Bearer ${token}`
         });
 
         // Show all files that are not folders and not trashed
         const query = `'${folderId}' in parents and mimeType != 'application/vnd.google-apps.folder' and trashed=false`;
-        const url = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=files(id, name, mimeType)&orderBy=name`;
+        const url = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=files(id, name, mimeType)&orderBy=name&supportsAllDrives=true&includeItemsFromAllDrives=true`;
 
         const result: any = await firstValueFrom(this.http.get(url, { headers }));
         return result.files || [];
@@ -67,20 +199,25 @@ export class ImportService {
         const mimeType = metadata.mimeType;
 
         if (mimeType === 'application/vnd.google-apps.spreadsheet') {
-            // Google Sheets: Use Sheets API
+            // Google Sheets: Use Sheets API or Export
+            // Sheets API is more robust for data reading
             const url = `https://sheets.googleapis.com/v4/spreadsheets/${fileId}/values/A1:ZZ5000`;
             const result: any = await firstValueFrom(this.http.get(url, { headers }));
             return result.values || [];
+        } else if (mimeType === 'text/csv' || mimeType === 'application/csv') {
+            // CSV: Use standard Drive download with alt=media
+            const url = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`;
+            const csvData: any = await firstValueFrom(this.http.get(url, { headers, responseType: 'text' }));
+            return this.parseCSV(csvData);
         } else if (
             mimeType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
             mimeType === 'application/vnd.ms-excel'
         ) {
-            // Excel: Use Drive export to CSV
-            const url = `https://www.googleapis.com/drive/v3/files/${fileId}/export?mimeType=text/csv`;
-            const csvData: any = await firstValueFrom(this.http.get(url, { headers, responseType: 'text' }));
-            return this.parseCSV(csvData);
+            // Excel: Google Drive cannot directly export binary Excel files to CSV via the /export endpoint.
+            // Users should convert to Google Sheets or we'd need an XLSX parsing library.
+            throw new Error(`XLSX files must be converted to Google Sheets first, or use a CSV file. (MimeType: ${mimeType})`);
         } else {
-            throw new Error(`Unsupported file type for import: ${mimeType}`);
+            throw new Error(`Unsupported file type for import: ${mimeType}. Please use a Google Sheet or CSV.`);
         }
     }
 
@@ -94,10 +231,11 @@ export class ImportService {
             });
     }
 
-    async importToFirestore(collectionName: string, data: any[][]): Promise<number> {
+    async importToFirestore(collectionName: string, data: any[][], mapping?: { [key: string]: string }): Promise<number> {
         if (!data || data.length < 2) return 0;
 
-        const headers = data[0].map(h => this.sanitizeHeader(h));
+        // Use original headers if mapping is provided, otherwise sanitize
+        const headers = mapping ? data[0].map(h => h.toString()) : data[0].map(h => this.sanitizeHeader(h));
         const rows = data.slice(1);
         const targetCollection = collection(this.firestore, collectionName);
 
@@ -106,13 +244,46 @@ export class ImportService {
 
         console.log(`Starting import to ${collectionName}. Rows to process: ${rows.length}`);
 
+        // Track sequence numbers per date for this import batch
+        const dateSequences = new Map<string, number>();
+
         for (let i = 0; i < rows.length; i += BATCH_SIZE) {
             const batch = writeBatch(this.firestore);
             const chunk = rows.slice(i, i + BATCH_SIZE);
 
             for (const row of chunk) {
-                const docData = this.mapRowToDataObject(headers, row);
+                const docData = this.mapRowToDataObject(headers, row, mapping);
                 if (Object.keys(docData).length === 0) continue;
+
+                // Auto-generate creationDate if missing
+                if (!docData.creationDate) {
+                    docData.creationDate = Timestamp.now();
+                }
+
+                // Calculate displayNumber if not already set
+                if (!docData.displayNumber) {
+                    const creationDate = docData.creationDate.toDate ? docData.creationDate.toDate() : new Date(docData.creationDate);
+                    const dateKey = this.formatDateYYMMDD(creationDate);
+
+                    // Query existing items for this date
+                    const startOfDay = new Date(creationDate.getFullYear(), creationDate.getMonth(), creationDate.getDate());
+                    const endOfDay = new Date(creationDate.getFullYear(), creationDate.getMonth(), creationDate.getDate(), 23, 59, 59, 999);
+
+                    const q = query(
+                        targetCollection,
+                        where('creationDate', '>=', Timestamp.fromDate(startOfDay)),
+                        where('creationDate', '<=', Timestamp.fromDate(endOfDay))
+                    );
+
+                    const existingSnapshot = await getDocs(q);
+
+                    // Get next sequence: existing count + items already processed in this batch for this date
+                    const batchSequence = dateSequences.get(dateKey) || 0;
+                    const sequence = existingSnapshot.size + batchSequence + 1;
+
+                    docData.displayNumber = `${dateKey}.${sequence}`;
+                    dateSequences.set(dateKey, batchSequence + 1);
+                }
 
                 const newDocRef = doc(targetCollection);
                 batch.set(newDocRef, {
@@ -124,6 +295,15 @@ export class ImportService {
 
             await batch.commit();
             console.log(`Batch committed. Total imported: ${importedCount}`);
+        }
+
+        if (importedCount > 0) {
+            // Register this collection in sys_collections for dynamic tabs
+            const sysColRef = doc(this.firestore, 'sys_collections', collectionName);
+            await setDoc(sysColRef, {
+                name: collectionName,
+                lastImportAt: Timestamp.now()
+            }, { merge: true });
         }
 
         return importedCount;
@@ -138,15 +318,46 @@ export class ImportService {
             .replace(/[^a-z0-9_]/g, '');
     }
 
-    private mapRowToDataObject(headers: string[], row: any[]): any {
+    private mapRowToDataObject(headers: string[], row: any[], mapping?: { [key: string]: string }): any {
         const docData: any = {};
+
         headers.forEach((header, index) => {
             const value = row[index];
-            if (value !== undefined && value !== null && value !== '') {
-                // Try to parse numbers or dates if needed, otherwise string
-                docData[header] = value;
+            if (value === undefined || value === null || value === '') return;
+
+            let targetField = '';
+
+            if (mapping) {
+                // If mapping is provided, header is the raw string from file
+                targetField = mapping[header];
+            } else {
+                // Legacy: header is already sanitized
+                targetField = header;
+            }
+
+            if (!targetField || targetField === 'ignore') return;
+
+            // Transformation Logic
+            if (targetField === 'tags' && typeof value === 'string') {
+                // Split comma-separated tags
+                docData.tags = value.split(',').map(t => t.trim()).filter(t => t);
+            } else if (targetField === 'itemNumber' || targetField === 'rcDayNumber') {
+                // Ensure numbers
+                const num = parseInt(value, 10);
+                if (!isNaN(num)) docData[targetField] = num;
+            } else {
+                // Default handling
+                docData[targetField] = value;
             }
         });
+
         return docData;
+    }
+
+    private formatDateYYMMDD(date: Date): string {
+        const yy = String(date.getFullYear()).slice(-2);
+        const mm = String(date.getMonth() + 1).padStart(2, '0');
+        const dd = String(date.getDate()).padStart(2, '0');
+        return `${yy}${mm}${dd}`;
     }
 }

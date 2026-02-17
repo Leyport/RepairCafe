@@ -11,6 +11,20 @@
           </svg>
           Admin
         </a>
+        <a routerLink="/issues" class="btn-issues">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="12" y1="8" x2="12" y2="12"></line>
+            <line x1="12" y1="16" x2="12.01" y2="16"></line>
+          </svg>
+          Issues
+          <span class="badge" *ngIf="(issueCount$ | async) as count">{{ count }}</span>
+        </a>
+        <a routerLink="/schedule" class="btn-new"
+          style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);">
+          📅 Schedule
+        </a>
         <a routerLink="/new" class="btn-new">
           <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"
             stroke-linecap="round" stroke-linejoin="round">
@@ -42,3 +56,20 @@
     </div>
   </footer>
 </div>
+
+<style>
+  .badge {
+    background: rgba(255, 69, 0, 0.9);
+    color: white;
+    font-size: 0.75rem;
+    padding: 0.15rem 0.5rem;
+    border-radius: 99px;
+    margin-left: 0.6rem;
+    font-weight: 700;
+    min-width: 1.4em;
+    text-align: center;
+    box-shadow: 0 2px 5px rgba(255, 69, 0, 0.4);
+    display: inline-block;
+    vertical-align: middle;
+  }
+</style>

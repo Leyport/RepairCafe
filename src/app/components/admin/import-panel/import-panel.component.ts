@@ -27,12 +27,16 @@ import { ImportService } from '../../../services/import.service';
           <!-- Explorer Header / Breadcrumbs -->
           <div class="explorer-header">
             <div class="breadcrumbs">
-              <span class="breadcrumb-item" (click)="jumpToPath(-1)">My Drive</span>
-              <span *ngFor="let item of navigationPath; let i = index" class="breadcrumb-item" (click)="jumpToPath(i)">
-                <span class="separator">/</span> {{ item.name }}
-              </span>
-              <span class="separator" *ngIf="currentFolder.id !== 'root'">/</span>
-              <span class="current-folder" *ngIf="currentFolder.id !== 'root'">{{ currentFolder.name }}</span>
+              <span class="breadcrumb-item" (click)="jumpToPath(-1)" [class.active]="currentFolder.id === 'root'">My Drive</span>
+              <ng-container *ngFor="let item of navigationPath; let i = index">
+                <span class="breadcrumb-item" (click)="jumpToPath(i)" *ngIf="item.id !== 'root'">
+                  <span class="separator">/</span> {{ item.name }}
+                </span>
+              </ng-container>
+              <ng-container *ngIf="currentFolder.id !== 'root'">
+                <span class="separator">/</span>
+                <span class="current-folder">{{ currentFolder.name }}</span>
+              </ng-container>
             </div>
           </div>
 
@@ -43,13 +47,21 @@ import { ImportService } from '../../../services/import.service';
             </div>
 
             <!-- Folders -->
-            <div class="explorer-section" *ngIf="directories.length > 0">
-              <label>Folders</label>
-              <div class="grid-list">
+            <div class="explorer-section">
+              <div class="section-title-row">
+                <label>Folders</label>
+                <button class="btn-text" *ngIf="currentFolder.id !== 'root'" (click)="goBack()">
+                  ⬅ Back
+                </button>
+              </div>
+              <div class="grid-list" *ngIf="directories.length > 0">
                 <div class="grid-item folder" *ngFor="let dir of directories" (click)="navigateTo(dir)">
                   <span class="icon">📁</span>
                   <span class="name">{{ dir.name }}</span>
                 </div>
+              </div>
+              <div class="empty-msg" *ngIf="directories.length === 0 && !isLoadingFolders">
+                No folders found.
               </div>
             </div>
 
@@ -62,8 +74,11 @@ import { ImportService } from '../../../services/import.service';
                   *ngFor="let file of files" 
                   (click)="selectedFileId = file.id; selectedFileName = file.name"
                   [class.selected]="selectedFileId === file.id">
-                  <span class="icon">📊</span>
-                  <span class="name">{{ file.name }}</span>
+                  <span class="icon">{{ file.mimeType === 'application/vnd.google-apps.spreadsheet' ? '📊' : '📄' }}</span>
+                  <div class="grid-info">
+                    <span class="grid-name">{{ file.name }}</span>
+                    <span class="grid-meta">{{ getMimeTypeLabel(file.mimeType) }}</span>
+                  </div>
                   <span class="check" *ngIf="selectedFileId === file.id">✔</span>
                 </div>
               </div>
@@ -83,6 +98,29 @@ import { ImportService } from '../../../services/import.service';
               [disabled]="isImporting">
           </div>
 
+          <!-- Mapping UI -->
+          <div class="mapper-section" *ngIf="selectedFileId && collectionName">
+             <button class="btn-secondary" (click)="parseFileHeaders()" *ngIf="fileHeaders.length === 0" [disabled]="isImporting">
+               Analyze File & Map Columns
+             </button>
+
+             <div class="mapping-grid" *ngIf="fileHeaders.length > 0">
+               <p class="mapping-instruction">Map your spreadsheet columns to Repair Attributes:</p>
+               <div class="mapping-row header-row">
+                 <span>File Header</span>
+                 <span>Target Attribute</span>
+               </div>
+               <div class="mapping-row" *ngFor="let header of fileHeaders">
+                 <span class="badger">{{ header }}</span>
+                 <select [(ngModel)]="columnMapping[header]" [disabled]="isImporting">
+                   <option *ngFor="let attr of availableAttributes" [value]="attr.key">
+                     {{ attr.label }}
+                   </option>
+                 </select>
+               </div>
+             </div>
+          </div>
+
           <div class="button-group">
             <button 
               class="btn-import" 
@@ -95,6 +133,30 @@ import { ImportService } from '../../../services/import.service';
             <button class="btn-secondary" (click)="connectGoogle()" [disabled]="isImporting">
               Refresh
             </button>
+            <button class="btn-text-danger" (click)="signOut()" [disabled]="isImporting">
+              Disconnect
+            </button>
+          </div>
+
+          <div class="search-section glass-inset" *ngIf="accessToken">
+            <div class="search-input-group">
+              <input type="text" [(ngModel)]="searchTerm" placeholder="Search for folder name..." (keyup.enter)="searchFolders()">
+              <button class="btn-primary" (click)="searchFolders()" [disabled]="!searchTerm || isLoadingFolders">Search</button>
+            </div>
+            <div class="search-results" *ngIf="searchResults.length > 0">
+              <div class="result-item" *ngFor="let result of searchResults" (click)="navigateToFolder(result.id)">
+                <span>📁 {{ result.name }}</span>
+                <button class="btn-text-small" (click)="$event.stopPropagation(); tracePath(result.id)">Trace Path</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="debug-panel glass-inset" *ngIf="debugInfo">
+            <div class="debug-header">
+              <span>🔍 Debug Info</span>
+              <button class="btn-text" (click)="debugInfo = ''">Hide</button>
+            </div>
+            <pre class="debug-content">{{ debugInfo }}</pre>
           </div>
         </ng-container>
       </div>
@@ -150,6 +212,11 @@ import { ImportService } from '../../../services/import.service';
     .breadcrumb-item:hover {
       text-decoration: underline;
     }
+    .breadcrumb-item.active {
+      color: white;
+      pointer-events: none;
+      font-weight: 600;
+    }
     .separator {
       color: rgba(255, 255, 255, 0.3);
     }
@@ -174,13 +241,116 @@ import { ImportService } from '../../../services/import.service';
     .explorer-section {
       margin-bottom: 1.5rem;
     }
+    .section-title-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 0.8rem;
+    }
     .explorer-section label {
       display: block;
       font-size: 0.75rem;
       text-transform: uppercase;
       letter-spacing: 0.05em;
       color: rgba(255, 255, 255, 0.4);
-      margin-bottom: 0.8rem;
+      margin: 0;
+    }
+    .btn-text {
+      background: none;
+      border: none;
+      color: var(--accent-color);
+      font-size: 0.8rem;
+      cursor: pointer;
+      padding: 2px 8px;
+      border-radius: 4px;
+    }
+    .btn-text:hover {
+      background: rgba(255, 255, 255, 0.1);
+    }
+    .btn-text-danger {
+      background: none;
+      border: none;
+      color: #ff5959;
+      font-size: 0.8rem;
+      cursor: pointer;
+      padding: 0.5rem;
+      transition: opacity 0.2s;
+    }
+    .btn-text-danger:hover {
+      opacity: 0.8;
+    }
+    
+    .debug-panel {
+      margin-top: 1rem;
+      padding: 1rem;
+      font-family: monospace;
+      font-size: 0.75rem;
+      background: rgba(255, 255, 255, 0.02);
+      border-radius: 8px;
+    }
+    .debug-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 0.5rem;
+      color: rgba(255, 255, 255, 0.4);
+    }
+    .debug-content {
+      white-space: pre-wrap;
+      word-break: break-all;
+      color: rgba(255, 255, 255, 0.7);
+      margin: 0;
+      max-height: 200px;
+      overflow-y: auto;
+    }
+
+    .search-section {
+      margin-top: 1rem;
+      padding: 0.75rem;
+      border-radius: 8px;
+    }
+    .search-input-group {
+      display: flex;
+      gap: 0.5rem;
+      margin-bottom: 0.5rem;
+    }
+    .search-input-group input {
+      flex: 1;
+      padding: 0.4rem 0.6rem;
+      border-radius: 4px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      background: rgba(0, 0, 0, 0.2);
+      color: white;
+      font-size: 0.9rem;
+    }
+    .search-results {
+      max-height: 150px;
+      overflow-y: auto;
+      border-top: 1px solid rgba(255, 255, 255, 0.05);
+      padding-top: 0.5rem;
+    }
+    .result-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.4rem;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 0.85rem;
+    }
+    .result-item:hover {
+      background: rgba(255, 255, 255, 0.05);
+    }
+    .btn-text-small {
+      background: none;
+      border: none;
+      color: #7289da;
+      font-size: 0.7rem;
+      cursor: pointer;
+      padding: 2px 4px;
+    }
+    .btn-text-small:hover {
+      text-decoration: underline;
     }
     
     .grid-list {
@@ -215,7 +385,7 @@ import { ImportService } from '../../../services/import.service';
       font-size: 2rem;
       margin-bottom: 0.5rem;
     }
-    .grid-item .name {
+    .grid-name {
       font-size: 0.85rem;
       color: rgba(255, 255, 255, 0.9);
       word-break: break-word;
@@ -223,6 +393,17 @@ import { ImportService } from '../../../services/import.service';
       -webkit-line-clamp: 2;
       -webkit-box-orient: vertical;
       overflow: hidden;
+    }
+    .grid-meta {
+      font-size: 0.72rem;
+      color: rgba(255, 255, 255, 0.4);
+      margin-top: 2px;
+    }
+    .grid-info {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      width: 100%;
     }
     .check {
       position: absolute;
@@ -347,6 +528,57 @@ import { ImportService } from '../../../services/import.service';
       border-color: #00ff7f;
       color: #00ff7f;
     }
+    .mapper-section {
+      margin-top: 1rem;
+      padding: 1rem;
+      background: rgba(0, 0, 0, 0.2);
+      border-radius: 8px;
+    }
+    .mapping-instruction {
+      margin: 0 0 1rem;
+      color: rgba(255, 255, 255, 0.8);
+      font-size: 0.9rem;
+    }
+    .mapping-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      max-height: 300px;
+      overflow-y: auto;
+    }
+    .mapping-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+      align-items: center;
+      padding: 0.5rem;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    }
+    .mapping-row.header-row {
+      font-weight: bold;
+      color: var(--accent-color);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+      position: sticky;
+      top: 0;
+      background: #1a1a1a; 
+      z-index: 2;
+    }
+    .badger {
+      background: rgba(255, 255, 255, 0.1);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: monospace;
+      font-size: 0.85rem;
+      word-break: break-all;
+    }
+    .mapping-row select {
+      width: 100%;
+      padding: 0.4rem;
+      border-radius: 4px;
+      background: rgba(0, 0, 0, 0.4);
+      color: white;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+    }
   `]
 })
 export class ImportPanelComponent {
@@ -354,8 +586,8 @@ export class ImportPanelComponent {
   private importService = inject(ImportService);
 
   accessToken = '';
-  directories: { id: string, name: string }[] = [];
-  files: { id: string, name: string }[] = [];
+  directories: { id: string, name: string, mimeType?: string }[] = [];
+  files: { id: string, name: string, mimeType: string }[] = [];
 
   currentFolder: { id: string, name: string } = { id: 'root', name: 'My Drive' };
   navigationPath: { id: string, name: string }[] = [];
@@ -370,28 +602,51 @@ export class ImportPanelComponent {
   statusMessage = '';
   isError = false;
   isSuccess = false;
+  debugInfo = '';
+  searchTerm = '';
+  searchResults: { id: string, name: string, mimeType?: string }[] = [];
+
+  // Mapping
+  fileHeaders: string[] = [];
+  columnMapping: { [key: string]: string } = {};
+
+  availableAttributes = [
+    { key: 'ignore', label: '(Ignore Column)' },
+    { key: 'itemDescription', label: 'Description (Required)' },
+    { key: 'repairItem', label: 'Item Name/Type' },
+    { key: 'repairer', label: 'Repairer Name' },
+    { key: 'itemNumber', label: 'Item Number' },
+    { key: 'displayNumber', label: 'Display Number' },
+    { key: 'RCDay', label: 'RC Day' },
+    { key: 'rcDayNumber', label: 'RC Day Sequence' },
+    { key: 'tags', label: 'Tags' },
+    { key: 'creationDate', label: 'Creation Date' },
+    { key: 'photos', label: 'Photos' }
+  ];
+
+  goBack() {
+    if (this.navigationPath.length > 0) {
+      this.jumpToPath(this.navigationPath.length - 1);
+    } else {
+      this.jumpToPath(-1);
+    }
+  }
 
   async connectGoogle() {
     this.statusMessage = 'Connecting to Google Drive...';
     this.isError = false;
     this.isSuccess = false;
+    this.debugInfo = '';
 
     try {
       const { token } = await this.authService.loginWithGoogle();
-      if (!token) throw new Error('Failed to get access token.');
+      console.log('Token received:', token ? `YES (length ${token.length})` : 'NO');
+
+      if (!token) throw new Error('Failed to get access token from Google.');
 
       this.accessToken = token;
       this.statusMessage = '';
       await this.loadCurrentDirectory();
-
-      // Auto-search for "Imports" or "Exports" on first load
-      const importsFolder = this.directories.find(d =>
-        d.name.toLowerCase() === 'imports' ||
-        d.name.toLowerCase() === 'exports'
-      );
-      if (importsFolder) {
-        await this.navigateTo(importsFolder);
-      }
     } catch (error: any) {
       this.statusMessage = '❌ Connection Failed: ' + (error.message || 'Unknown error');
       this.isError = true;
@@ -402,11 +657,62 @@ export class ImportPanelComponent {
     this.isLoadingFolders = true;
     this.isLoadingFiles = true;
     try {
+      console.log('Fetching directory contents for:', this.currentFolder.id);
       [this.directories, this.files] = await Promise.all([
         this.importService.listFolders(this.accessToken, this.currentFolder.id),
         this.importService.listFilesByFolder(this.accessToken, this.currentFolder.id)
       ]);
+      console.log('Directory loaded:', {
+        folderCount: this.directories.length,
+        fileCount: this.files.length,
+        directories: this.directories,
+        files: this.files
+      });
+
+      if (this.directories.length === 0 && this.currentFolder.id === 'root') {
+        // Comprehensive diagnostic check
+        try {
+          const [raw, globalRaw, about, sharedDrives, spreadsheets, rootMeta, allFolders, tokenInfo] = await Promise.all([
+            this.importService.listAllItems(this.accessToken, 'root'),
+            this.importService.globalDiagnosticSearch(this.accessToken),
+            this.importService.getDriveAbout(this.accessToken),
+            this.importService.listSharedDrives(this.accessToken),
+            this.importService.findSpreadsheetsGlobally(this.accessToken),
+            this.importService.getRootMetadata(this.accessToken),
+            this.importService.findAllFoldersGlobally(this.accessToken),
+            this.importService.getTokenInfo(this.accessToken)
+          ]);
+
+          this.debugInfo = `--- GRANTED SCOPES ---\n` +
+            `${tokenInfo.scope}\n\n` +
+            `--- ACCOUNT INFO ---\n` +
+            `User: ${about.user?.emailAddress} (${about.user?.displayName})\n` +
+            `Storage Used: ${(about.storageQuota?.usage / (1024 * 1024)).toFixed(2)} MB / ${(about.storageQuota?.limit / (1024 * 1024 * 1024)).toFixed(0)} GB\n\n` +
+            `--- ROOT METADATA ---\n` +
+            JSON.stringify(rootMeta, null, 2) + '\n\n' +
+            `--- ROOT CHECK (parent='root') ---\n` +
+            `Found ${raw.length} items.\n` +
+            (raw.length > 0 ? JSON.stringify(raw, null, 2) + '\n\n' : '\n') +
+            `--- GLOBAL CHECK (Recent 10) ---\n` +
+            `Found ${globalRaw.length} items.\n` +
+            (globalRaw.length > 0 ? JSON.stringify(globalRaw, null, 2) + '\n\n' : '\n') +
+            `--- ALL FOLDERS (Anywhere) ---\n` +
+            `Found ${allFolders.length} folders.\n` +
+            (allFolders.length > 0 ? JSON.stringify(allFolders, null, 2) + '\n\n' : '\n') +
+            `--- SHARED DRIVES ---\n` +
+            `Found ${sharedDrives.length} shared drives.\n` +
+            (sharedDrives.length > 0 ? JSON.stringify(sharedDrives, null, 2) + '\n\n' : '\n') +
+            `--- RECENT SPREADSHEETS (Anywhere) ---\n` +
+            `Found ${spreadsheets.length} spreadsheets.\n` +
+            (spreadsheets.length > 0 ? JSON.stringify(spreadsheets, null, 2) : 'No spreadsheets found globally.\n\nTIP: If no spreadsheets are found, check if you have allowed "View and manage Google Drive files" in the sign-in screen.');
+        } catch (diagError: any) {
+          console.error('Diagnostic failed:', diagError);
+          this.debugInfo = `Diagnostic failed: ${diagError.message}\n` +
+            `This usually means a permission scope is missing. Please Disconnect and try again, and check ALL boxes on the Google Sign-in screen.`;
+        }
+      }
     } catch (error: any) {
+      console.error('Directory load failed:', error);
       this.statusMessage = '❌ Failed to load directory: ' + (error.message || 'Unknown error');
       this.isError = true;
     } finally {
@@ -439,6 +745,35 @@ export class ImportPanelComponent {
     await this.loadCurrentDirectory();
   }
 
+
+
+  async parseFileHeaders() {
+    this.statusMessage = 'Analyzing file headers...';
+    try {
+      // Read first few rows just to get headers
+      // Note: readSheetData returns all data, but that's fine for now
+      const data = await this.importService.readSheetData(this.accessToken, this.selectedFileId);
+      if (data && data.length > 0) {
+        this.fileHeaders = data[0].map(h => h.toString().trim());
+        // Auto-match headers to attributes if possible (case-insensitive)
+        this.columnMapping = {};
+        this.fileHeaders.forEach(header => {
+          const lowerHeader = header.toLowerCase();
+          const match = this.availableAttributes.find(attr => attr.label.toLowerCase() === lowerHeader || attr.key.toLowerCase() === lowerHeader);
+          if (match) {
+            this.columnMapping[header] = match.key;
+          } else {
+            this.columnMapping[header] = 'ignore';
+          }
+        });
+        this.statusMessage = '';
+      }
+    } catch (e: any) {
+      console.error('Failed to parse headers:', e);
+      this.statusMessage = '❌ Failed to read file headers.';
+    }
+  }
+
   async startImport() {
     this.isImporting = true;
     this.statusMessage = 'Reading spreadsheet data...';
@@ -449,17 +784,102 @@ export class ImportPanelComponent {
       const data = await this.importService.readSheetData(this.accessToken, this.selectedFileId);
       if (!data || data.length < 2) throw new Error('Spreadsheet is empty or has no data rows.');
 
+      // Validate mapping: ensure at least itemDescription is mapped
+      const mappedValues = Object.values(this.columnMapping);
+      if (!mappedValues.includes('itemDescription')) {
+        throw new Error('You must map a column to "Description".');
+      }
+
       this.statusMessage = `Importing ${data.length - 1} records to collection "${this.collectionName}"...`;
-      const importedCount = await this.importService.importToFirestore(this.collectionName, data);
+
+      // Pass the mapping to import service
+      const importedCount = await this.importService.importToFirestore(this.collectionName, data, this.columnMapping);
 
       this.statusMessage = `✅ Successfully imported ${importedCount} records to "${this.collectionName}".`;
       this.isSuccess = true;
+      this.fileHeaders = []; // Reset mapping UI
     } catch (error: any) {
       console.error('Import failed:', error);
       this.statusMessage = '❌ Import Failed: ' + (error.message || 'Unknown error');
       this.isError = true;
     } finally {
       this.isImporting = false;
+    }
+  }
+
+  async signOut() {
+    await this.authService.logout();
+    this.accessToken = '';
+    this.directories = [];
+    this.files = [];
+    this.currentFolder = { id: 'root', name: 'My Drive' };
+    this.navigationPath = [];
+    this.statusMessage = 'Disconnected from Google Drive.';
+    this.isSuccess = false;
+    this.searchTerm = '';
+    this.searchResults = [];
+    this.fileHeaders = [];
+    this.columnMapping = {};
+  }
+
+  async navigateToFolder(folderId: string) {
+    this.isLoadingFolders = true;
+    try {
+      const { folder, breadcrumbs } = await this.importService.jumpToFolder(this.accessToken, folderId);
+      this.currentFolder = folder;
+      this.navigationPath = breadcrumbs;
+      this.selectedFileId = '';
+      this.selectedFileName = '';
+      await this.loadCurrentDirectory();
+    } catch (e: any) {
+      console.error('Failed to jump to folder:', e);
+      this.statusMessage = '❌ Failed to navigate to folder.';
+      this.isError = true;
+    } finally {
+      this.isLoadingFolders = false;
+    }
+  }
+
+  getMimeTypeLabel(mimeType: string): string {
+    if (mimeType === 'application/vnd.google-apps.spreadsheet') return 'Google Sheet';
+    if (mimeType === 'text/csv' || mimeType === 'application/csv') return 'CSV';
+    if (mimeType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet') return 'Excel (XLSX)';
+    if (mimeType === 'application/vnd.ms-excel') return 'Excel (XLS)';
+    return 'File';
+  }
+
+  async searchFolders() {
+    if (!this.searchTerm) return;
+    this.isLoadingFolders = true;
+    try {
+      this.searchResults = await this.importService.searchByName(this.accessToken, this.searchTerm);
+      if (this.searchResults.length === 0) {
+        this.statusMessage = 'No folders found matching "' + this.searchTerm + '"';
+      }
+    } catch (e: any) {
+      console.error('Search failed:', e);
+    } finally {
+      this.isLoadingFolders = false;
+    }
+  }
+
+  async tracePath(fileId: string) {
+    this.debugInfo = 'Tracing path for ' + fileId + '...\n';
+    try {
+      let currentId = fileId;
+      let path = [];
+      for (let i = 0; i < 5; i++) { // Trace up to 5 levels
+        const meta = await this.importService.getFileMetadata(this.accessToken, currentId);
+        path.push(`${meta.name} (${meta.id})`);
+        if (!meta.parents || meta.parents.length === 0) {
+          path.push('ROOT / END');
+          break;
+        }
+        currentId = meta.parents[0];
+      }
+      this.debugInfo += path.join(' -> ');
+    } catch (e: any) {
+      this.debugInfo += 'Tracing failed: ' + e.message;
     }
   }
 }

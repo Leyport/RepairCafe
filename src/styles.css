@@ -73,7 +73,8 @@ h1 {
   gap: 1rem;
 }
 
-.btn-admin {
+.btn-admin,
+.btn-issues {
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -87,7 +88,8 @@ h1 {
   transition: all 0.2s;
 }
 
-.btn-admin:hover {
+.btn-admin:hover,
+.btn-issues:hover {
   background: rgba(255, 255, 255, 0.1);
   border-color: rgba(255, 255, 255, 0.2);
   transform: translateY(-2px);
@@ -126,6 +128,7 @@ h1 {
   }
 
   .btn-admin,
+  .btn-issues,
   .btn-new {
     flex: 1;
     justify-content: center;

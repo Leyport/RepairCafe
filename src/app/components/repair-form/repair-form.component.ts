@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angular/forms';
 import { Router, ActivatedRoute, RouterLink } from '@angular/router';
 import { RepairService } from '../../services/repair.service';
-import { RepairItem } from '../../models/repair-item.model';
+import { RepairItem, Owner } from '../../models/repair-item.model';
 import { Tag } from '../../models/tag.model';
 
 interface PhotoFile {
@@ -26,6 +26,21 @@ interface PhotoFile {
         </div>
         
         <form [formGroup]="repairForm" (ngSubmit)="onSubmit()">
+          <!-- Repair Cafe Date -->
+          <div class="form-group">
+            <label for="rcday">Repair Cafe Date <span class="required">*</span></label>
+            <div class="select-wrapper glass">
+                <select id="rcday" formControlName="RCDay">
+                    <option value="" disabled>Select Date</option>
+                    <option *ngFor="let d of availableDates" [value]="d.value">{{ d.label }}</option>
+                </select>
+                <div class="select-arrow">▼</div>
+            </div>
+            <div *ngIf="repairForm.get('RCDay')?.touched && repairForm.get('RCDay')?.invalid" class="error">
+              Please select a date.
+            </div>
+          </div>
+
           <!-- Sequence Number -->
           <div class="form-group">
             <label for="itemNumber">Sequence Number (Suggested)</label>
@@ -39,6 +54,64 @@ interface PhotoFile {
             <textarea id="itemDescription" formControlName="itemDescription" placeholder="What needs fixing? (e.g. Lamp with frayed cord)"></textarea>
             <div *ngIf="repairForm.get('itemDescription')?.touched && repairForm.get('itemDescription')?.invalid" class="error">
               Please enter a description of the item.
+            </div>
+          </div>
+
+          <!-- Telephone Number -->
+          <div class="form-group">
+            <label for="telephone">Telephone Number</label>
+            <input id="telephone" type="tel" formControlName="telephone" placeholder="e.g. 07700 900000">
+          </div>
+
+          <!-- Owner Name -->
+          <div class="form-group">
+            <label for="owner">Owner Name</label>
+            <div class="autocomplete-container">
+                <input 
+                    id="owner" 
+                    type="text" 
+                    formControlName="owner" 
+                    placeholder="Who brought this item?" 
+                    (input)="onOwnerSearch($any($event.target).value)"
+                    (blur)="hideOwnerSuggestions()"
+                    autocomplete="off">
+                
+                <div class="suggestions-list glass" *ngIf="filteredOwners.length > 0 && showOwnerSuggestions">
+                  <div 
+                    class="suggestion-item" 
+                    *ngFor="let owner of filteredOwners"
+                    (mousedown)="selectOwner(owner)">
+                    <span class="suggestion-name">{{ owner.name }}</span>
+                    <span class="version" style="margin-left: auto">{{ owner.firstSeen?.toDate() | date:'shortDate' }}</span>
+                  </div>
+                </div>
+            </div>
+          </div>
+
+          <!-- Assigned Repairer -->
+          <div class="form-group">
+            <label for="repairer">Assigned Repairer</label>
+            <div class="select-wrapper glass">
+                <select id="repairer" formControlName="repairer">
+                    <option value="">-- Unassigned --</option>
+                    <option *ngFor="let r of repairers$ | async" [value]="r.name">
+                        {{ r.name }}
+                    </option>
+                </select>
+                <div class="select-arrow">▼</div>
+            </div>
+          </div>
+
+          <!-- Status -->
+          <div class="form-group">
+            <label for="status">Status</label>
+            <div class="select-wrapper glass">
+                <select id="status" formControlName="status">
+                    <option value="New">New</option>
+                    <option value="Assigned">Assigned</option>
+                    <option value="Completed">Completed</option>
+                </select>
+                <div class="select-arrow">▼</div>
             </div>
           </div>
 
@@ -222,6 +295,43 @@ interface PhotoFile {
       border-color: var(--primary-color);
       background: rgba(255, 255, 255, 0.08);
       box-shadow: 0 0 15px rgba(99, 102, 241, 0.2);
+    }
+
+    .select-wrapper {
+        position: relative;
+        border-radius: 10px;
+        overflow: hidden;
+    }
+    select {
+        width: 100%;
+        padding: 0.8rem 1rem;
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 10px;
+        color: white;
+        font-size: 1rem;
+        appearance: none;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    select:focus {
+        outline: none;
+        border-color: var(--primary-color);
+        background: rgba(255, 255, 255, 0.08);
+    }
+    select option {
+        background: #1a1a2e;
+        color: white;
+        padding: 1rem;
+    }
+    .select-arrow {
+        position: absolute;
+        right: 1rem;
+        top: 50%;
+        transform: translateY(-50%);
+        pointer-events: none;
+        color: rgba(255, 255, 255, 0.5);
+        font-size: 0.8rem;
     }
 
     .tag-input-wrapper {
@@ -498,17 +608,81 @@ export class RepairFormComponent implements OnInit {
   filteredSuggestions: Tag[] = [];
   showSuggestions = false;
 
+  availableDates: { label: string, value: string, date: Date }[] = [];
+
+  owners: Owner[] = [];
+  filteredOwners: Owner[] = [];
+  showOwnerSuggestions = false;
+
+  repairers$ = this.repairService.getRepairers();
+
   constructor() {
+    this.generateAvailableDates();
+
     this.repairForm = this.fb.group({
       displayNumber: [''],
-      itemDescription: ['', Validators.required]
+      itemDescription: ['', Validators.required],
+      telephone: [''],
+      owner: [''],
+      repairer: [''],
+      status: ['New'],
+      RCDay: ['', Validators.required]
     });
+
+    // Set default RCDay to next upcoming date
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const nextDate = this.availableDates.find(d => d.date >= today);
+    if (nextDate) {
+      this.repairForm.patchValue({ RCDay: nextDate.value });
+    } else if (this.availableDates.length > 0) {
+      this.repairForm.patchValue({ RCDay: this.availableDates[this.availableDates.length - 1].value });
+    }
+
+    // Auto-update status when repairer changes
+    this.repairForm.get('repairer')?.valueChanges.subscribe(repairer => {
+      const currentStatus = this.repairForm.get('status')?.value;
+      if (repairer && currentStatus === 'New') {
+        this.repairForm.patchValue({ status: 'Assigned' }, { emitEvent: false });
+      } else if (!repairer && currentStatus === 'Assigned') {
+        this.repairForm.patchValue({ status: 'New' }, { emitEvent: false });
+      }
+    });
+  }
+
+  generateAvailableDates() {
+    const dates = [];
+    // Generate dates for 2025 and 2026
+    const years = [2025, 2026];
+
+    for (const year of years) {
+      for (let month = 0; month < 12; month++) {
+        const date = this.getThirdSaturday(year, month);
+        const value = this.repairService.generateRCDay(date);
+        const label = date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+        dates.push({ label, value, date });
+      }
+    }
+    this.availableDates = dates;
+  }
+
+  getThirdSaturday(year: number, month: number): Date {
+    const date = new Date(year, month, 1);
+    const day = date.getDay();
+    const daysUntilFirstSat = (6 - day + 7) % 7;
+    const firstSatDate = 1 + daysUntilFirstSat;
+    const thirdSatDate = firstSatDate + 14;
+    return new Date(year, month, thirdSatDate);
   }
 
   async ngOnInit() {
     // Load all available tags for autocomplete
     this.repairService.getAllTags().then(tags => {
       this.allAvailableTags = tags;
+    });
+
+    this.repairService.getOwners().subscribe(owners => {
+      this.owners = owners;
     });
 
     const id = this.route.snapshot.paramMap.get('id');
@@ -521,7 +695,12 @@ export class RepairFormComponent implements OnInit {
         if (item) {
           this.repairForm.patchValue({
             displayNumber: item.displayNumber,
-            itemDescription: item.itemDescription
+            itemDescription: item.itemDescription,
+            telephone: item.telephone || '',
+            owner: item.owner || '',
+            repairer: item.repairer || '',
+            status: item.status || 'New',
+            RCDay: item.RCDay || ''
           });
           this.existingPhotos = item.photos || [];
           this.tags = item.tags || [];
@@ -607,6 +786,29 @@ export class RepairFormComponent implements OnInit {
     // Use timeout to allow mousedown on suggestion to trigger first
     setTimeout(() => {
       this.showSuggestions = false;
+    }, 200);
+  }
+
+  onOwnerSearch(value: string) {
+    if (!value.trim()) {
+      this.filteredOwners = [];
+      this.showOwnerSuggestions = false;
+      return;
+    }
+    const term = value.toLowerCase();
+    this.filteredOwners = this.owners.filter(o => o.name.toLowerCase().includes(term));
+    this.showOwnerSuggestions = this.filteredOwners.length > 0;
+  }
+
+  selectOwner(owner: Owner) {
+    this.repairForm.patchValue({ owner: owner.name });
+    this.filteredOwners = [];
+    this.showOwnerSuggestions = false;
+  }
+
+  hideOwnerSuggestions() {
+    setTimeout(() => {
+      this.showOwnerSuggestions = false;
     }, 200);
   }
 
