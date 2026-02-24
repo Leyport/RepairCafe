@@ -1,24 +1,69 @@
 /* Main styles in global styles.css */
-/*footer {
+
+.badge {
+    background: rgba(255, 69, 0, 0.9);
+    color: white;
+    font-size: 0.75rem;
+    padding: 0.15rem 0.5rem;
+    border-radius: 99px;
+    margin-left: 0.6rem;
+    font-weight: 700;
+    min-width: 1.4em;
     text-align: center;
-    padding: 2rem;
-    color: rgba(255, 255, 255, 0.4);
-    font-size: 0.9rem;
-    border-top: 1px solid rgba(255, 255, 255, 0.1);
-    margin-top: 4rem;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    gap: 1rem;
+    box-shadow: 0 2px 5px rgba(255, 69, 0, 0.4);
+    display: inline-block;
+    vertical-align: middle;
 }
 
-.version-tag {
-    background: rgba(255, 255, 255, 0.05);
+.header-version {
+    background: rgba(0, 242, 255, 0.1);
     padding: 0.2rem 0.6rem;
-    border-radius: 4px;
-    font-family: monospace;
-    font-size: 0.8rem;
+    border-radius: 6px;
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 0.75rem;
+    font-weight: 600;
     color: var(--accent-color);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(0, 242, 255, 0.2);
+    letter-spacing: 0.05em;
 }
-*/
+
+.header-controls {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 0.5rem;
+}
+
+.user-actions {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-left: 0;
+    border-left: none;
+    padding-left: 0;
+}
+
+.user-name {
+    font-size: 0.9rem;
+    color: rgba(255, 255, 255, 0.8);
+    white-space: nowrap;
+}
+
+.btn-login {
+    background: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: white;
+    padding: 0.6rem;
+    /* Increased padding */
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+}
+
+.btn-login:hover {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: white;
+}

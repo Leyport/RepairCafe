@@ -262,7 +262,18 @@ export class ImportService {
 
                 // Calculate displayNumber if not already set
                 if (!docData.displayNumber) {
-                    const creationDate = docData.creationDate.toDate ? docData.creationDate.toDate() : new Date(docData.creationDate);
+                    let creationDate: Date;
+                    if (docData.creationDate instanceof Timestamp) {
+                        creationDate = docData.creationDate.toDate();
+                    } else if (docData.creationDate instanceof Date) {
+                        creationDate = docData.creationDate;
+                    } else {
+                        creationDate = new Date(docData.creationDate);
+                    }
+
+                    // Final fallback to now if still invalid
+                    if (isNaN(creationDate.getTime())) creationDate = new Date();
+
                     const dateKey = this.formatDateYYMMDD(creationDate);
 
                     // Query existing items for this date
@@ -341,10 +352,19 @@ export class ImportService {
             if (targetField === 'tags' && typeof value === 'string') {
                 // Split comma-separated tags
                 docData.tags = value.split(',').map(t => t.trim()).filter(t => t);
+            } else if (targetField === 'additionalRepairers' && typeof value === 'string') {
+                // Split comma-separated repairers
+                docData.additionalRepairers = value.split(',').map(t => t.trim()).filter(t => t);
             } else if (targetField === 'itemNumber' || targetField === 'rcDayNumber') {
                 // Ensure numbers
                 const num = parseInt(value, 10);
                 if (!isNaN(num)) docData[targetField] = num;
+            } else if (targetField === 'creationDate' || targetField === 'rcdate') {
+                // Safe date/timestamp parsing
+                const parsed = this.parseSafeDate(value);
+                if (parsed) {
+                    docData[targetField] = Timestamp.fromDate(parsed);
+                }
             } else {
                 // Default handling
                 docData[targetField] = value;
@@ -359,5 +379,29 @@ export class ImportService {
         const mm = String(date.getMonth() + 1).padStart(2, '0');
         const dd = String(date.getDate()).padStart(2, '0');
         return `${yy}${mm}${dd}`;
+    }
+
+    private parseSafeDate(value: any): Date | null {
+        if (!value) return null;
+
+        // Already a Date object
+        if (value instanceof Date) {
+            return isNaN(value.getTime()) ? null : value;
+        }
+
+        // Handle numeric values (common in Excel/Google Sheets exports as serial numbers)
+        if (typeof value === 'number' || (!isNaN(value) && !isNaN(parseFloat(value)))) {
+            const num = parseFloat(value);
+            // Very small numbers are likely just sequence numbers incorrectly mapped, 
+            // but we'll try to detect the Excel epoch (usually > 30000 for recent dates)
+            if (num > 20000 && num < 60000) {
+                const date = new Date((num - 25569) * 86400 * 1000);
+                return isNaN(date.getTime()) ? null : date;
+            }
+        }
+
+        // String parsing
+        const date = new Date(value);
+        return isNaN(date.getTime()) ? null : date;
     }
 }

@@ -1,4 +1,6 @@
 import { Injectable, inject } from '@angular/core';
+import { HttpClient } from '@angular/common/http';
+import { firstValueFrom } from 'rxjs';
 import { Firestore, collection, collectionData, addDoc, Timestamp, doc, deleteDoc, query, where, getDocs, orderBy, updateDoc, setDoc, writeBatch, getDoc } from '@angular/fire/firestore';
 import { Storage, ref, uploadBytes, getDownloadURL, deleteObject } from '@angular/fire/storage';
 import { Observable, BehaviorSubject } from 'rxjs';
@@ -36,6 +38,7 @@ const TAG_EMOJI_MAP: { [key: string]: string } = {
 export class RepairService {
     private firestore: Firestore = inject(Firestore);
     private storage: Storage = inject(Storage);
+    private http: HttpClient = inject(HttpClient);
     private repairCollection = collection(this.firestore, 'repairItems');
     private tagsCollection = collection(this.firestore, 'tags');
     private repairersCollection = collection(this.firestore, 'repairers');
@@ -144,6 +147,24 @@ export class RepairService {
         }
     }
 
+    async downloadAndUploadPhoto(url: string): Promise<string> {
+        try {
+            // Fetch the image as a blob
+            const response = await firstValueFrom(this.http.get(url, { responseType: 'blob' }));
+
+            // Generate a filename from the URL or use a default
+            const safeName = `avatar_${Date.now()}.jpg`;
+            const filePath = `repairer-photos/${safeName}`;
+
+            const storageRef = ref(this.storage, filePath);
+            const result = await uploadBytes(storageRef, response);
+            return await getDownloadURL(result.ref);
+        } catch (error) {
+            console.error('Error downloading/uploading photo:', error);
+            throw error;
+        }
+    }
+
     async deletePhoto(photoUrl: string): Promise<void> {
         try {
             const storageRef = ref(this.storage, photoUrl);
@@ -153,13 +174,37 @@ export class RepairService {
         }
     }
 
+    public getNextRCDay(): string {
+        const today = new Date();
+        const todayUTC = new Date(Date.UTC(today.getFullYear(), today.getMonth(), today.getDate()));
+
+        // Calculate potential dates (current and next month)
+        const currentYear = today.getFullYear();
+        const currentMonth = today.getMonth();
+
+        const sessionThisMonth = this.getThirdSaturday(currentYear, currentMonth);
+        if (sessionThisMonth >= todayUTC) {
+            return this.generateRCDay(sessionThisMonth);
+        }
+
+        const sessionNextMonth = this.getThirdSaturday(currentYear, currentMonth + 1);
+        const next = this.generateRCDay(sessionNextMonth);
+
+        return next;
+    }
+
     async addRepairItem(item: Omit<RepairItem, 'id' | 'creationDate' | 'displayNumber' | 'itemNumber' | 'rcDayNumber'> & { rcDayNumber?: number, displayNumber?: string, RCDay?: string }) {
         if (item.owner) {
             await this.ensureOwnerExists(item.owner);
         }
         const now = new Date();
-        const rcDay = item.RCDay || this.generateRCDay(now);
-        const dateKey = this.getYYMMDD(now); // Still use current date for sequence/ID generation to avoid collisions or complex logic?
+        const dateKey = this.getYYMMDD(now);
+
+        // Robust fallback: if RCDay is missing or just an empty/whitespace string, use next session
+        let rcDay = item.RCDay;
+        if (!rcDay || rcDay.trim() === '') {
+            rcDay = this.getNextRCDay();
+        }
         // Actually, if we are backdating, the sequence number should probably be relative to THAT day?
         // But the current logic uses `now` for `creationDate`.
         // Let's keep `creationDate` as `now` (when record was created), but `RCDay` as the target event.
@@ -177,23 +222,18 @@ export class RepairService {
         let sequence: number;
 
         if (!displayNumber) {
-            // Count items created on THIS calendar day (for unique ID generation on the day of entry)
-            const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-            const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
-
+            // Count items assigned to THIS RCDay
             const q = query(
                 this.repairCollection,
-                where('creationDate', '>=', Timestamp.fromDate(startOfDay)),
-                where('creationDate', '<=', Timestamp.fromDate(endOfDay))
+                where('RCDay', '==', rcDay)
             );
 
             const querySnapshot = await getDocs(q);
             sequence = querySnapshot.size + 1;
-            displayNumber = `${dateKey}.${sequence}`;
+            displayNumber = String(sequence);
         } else {
-            // Try to extract sequence from manual entry "DATE.SEQ"
-            const parts = displayNumber.split('.');
-            sequence = parts.length > 1 ? parseInt(parts[1], 10) || 1 : 1;
+            // Use manual entry as sequence if possible
+            sequence = parseInt(displayNumber, 10) || 1;
         }
 
         // For backwards compatibility we still calculate an rcDayNumber if needed
@@ -221,22 +261,17 @@ export class RepairService {
         return addDoc(this.repairCollection, newItem);
     }
 
-    async getSuggestedDisplayNumber(): Promise<string> {
-        const now = new Date();
-        const dateKey = this.getYYMMDD(now);
-
-        const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-        const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+    async getSuggestedDisplayNumber(rcDay: string): Promise<string> {
+        if (!rcDay) return '1';
 
         const q = query(
             this.repairCollection,
-            where('creationDate', '>=', Timestamp.fromDate(startOfDay)),
-            where('creationDate', '<=', Timestamp.fromDate(endOfDay))
+            where('RCDay', '==', rcDay)
         );
         const querySnapshot = await getDocs(q);
         const sequence = querySnapshot.size + 1;
 
-        return `${dateKey}.${sequence}`;
+        return String(sequence);
     }
 
     private getYYMMDD(date: Date): string {
@@ -277,11 +312,60 @@ export class RepairService {
 
     public generateRCDay(date: Date): string {
         const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-        const dayOfWeek = days[date.getDay()];
-        const dd = String(date.getDate()).padStart(2, '0');
-        const mm = String(date.getMonth() + 1).padStart(2, '0');
-        const yyyy = date.getFullYear();
+        // Use UTC methods to ensure the "Saturday" doesn't shift to "Friday" in other timezones
+        const dayOfWeek = days[date.getUTCDay()];
+        const dd = String(date.getUTCDate()).padStart(2, '0');
+        const mm = String(date.getUTCMonth() + 1).padStart(2, '0');
+        const yyyy = date.getUTCFullYear();
         return `${dayOfWeek}, ${dd}, ${mm}, ${yyyy}`;
+    }
+
+    public getThirdSaturday(year: number, month: number): Date {
+        // Create date in UTC
+        const date = new Date(Date.UTC(year, month, 1));
+        const day = date.getUTCDay();
+        const daysUntilFirstSat = (6 - day + 7) % 7;
+        const firstSatDate = 1 + daysUntilFirstSat;
+        const thirdSatDate = firstSatDate + 14;
+        return new Date(Date.UTC(year, month, thirdSatDate));
+    }
+
+    /**
+     * Returns exactly 7 dates: last 3 sessions and next 4 sessions (including today/upcoming)
+     */
+    public getAvailableRCDates(): { label: string, value: string, date: Date }[] {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        // Find current month's 3rd Saturday
+        const currentYear = today.getFullYear();
+        const currentMonth = today.getMonth();
+
+        // We'll collect potential dates around the current month
+        const potentialDates: Date[] = [];
+        // Look back 6 months and forward 6 months to be safe
+        for (let i = -6; i <= 6; i++) {
+            const d = new Date(currentYear, currentMonth + i, 1);
+            potentialDates.push(this.getThirdSaturday(d.getFullYear(), d.getMonth()));
+        }
+
+        // Sort just in case
+        potentialDates.sort((a, b) => a.getTime() - b.getTime());
+
+        // Find the index of the first date that is >= today
+        const nextIndex = potentialDates.findIndex(d => d >= today);
+
+        if (nextIndex === -1) return []; // Should not happen with +/- 6 months
+
+        // Last 3 sessions: nextIndex-3, nextIndex-2, nextIndex-1
+        // Next 4 sessions: nextIndex, nextIndex+1, nextIndex+2, nextIndex+3
+        const resultRange = potentialDates.slice(Math.max(0, nextIndex - 3), nextIndex + 4);
+
+        return resultRange.map(date => ({
+            label: date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' }),
+            value: this.generateRCDay(date),
+            date: date
+        }));
     }
 
     private formatDisplayNumber(date: Date, sequence: number): string {
@@ -299,6 +383,12 @@ export class RepairService {
         }
         const itemDoc = doc(this.firestore, `repairItems/${id}`);
         const updateData = { ...item };
+
+        // Guard against blank RCDay in updates
+        if ('RCDay' in updateData && (!updateData.RCDay || updateData.RCDay.trim() === '')) {
+            delete updateData.RCDay;
+        }
+
         if (updateData.itemDescription) {
             updateData.itemDescription = this.formatDescription(updateData.itemDescription);
         }
@@ -428,17 +518,26 @@ export class RepairService {
         await deleteDoc(sysColRef);
     }
 
-    async deleteMultipleRepairItems(ids: string[]): Promise<void> {
-        if (!ids || ids.length === 0) return;
+    async deleteMultipleRecords(collectionName: string, ids: string[]): Promise<void> {
+        if (!ids || ids.length === 0 || !collectionName) return;
 
         const batch = writeBatch(this.firestore);
 
         for (const id of ids) {
-            const docRef = doc(this.firestore, 'repairItems', id);
+            const docRef = doc(this.firestore, collectionName, id);
             batch.delete(docRef);
         }
 
         await batch.commit();
+    }
+
+    async deleteMultipleRepairItems(ids: string[]): Promise<void> {
+        return this.deleteMultipleRecords('repairItems', ids);
+    }
+
+    async updateRecord(collectionName: string, id: string, updates: any): Promise<void> {
+        const docRef = doc(this.firestore, collectionName, id);
+        return updateDoc(docRef, updates);
     }
 
     // Issues
@@ -466,10 +565,38 @@ export class RepairService {
         const docRef = doc(this.firestore, 'issues', id);
         await deleteDoc(docRef);
     }
+    async syncOwnersFromRepairItems(): Promise<void> {
+        const itemsSnapshot = await getDocs(this.repairCollection);
+        const ownersSet = new Set<string>();
+
+        itemsSnapshot.forEach(doc => {
+            const data = doc.data() as RepairItem;
+            if (data.owner) {
+                ownersSet.add(data.owner.trim());
+            }
+        });
+
+        if (ownersSet.size > 0) {
+            const syncPromises = Array.from(ownersSet).map(owner => this.ensureOwnerExists(owner));
+            await Promise.all(syncPromises);
+        }
+    }
+
     // Owner Methods
     getOwners(): Observable<Owner[]> {
+        // Trigger background sync – not blocking the return of the observable
+        this.getAllOwners().catch(err => console.error('Error in initial owners load/sync:', err));
+
         const q = query(this.ownersCollection, orderBy('name'));
         return collectionData(q, { idField: 'id' }) as Observable<Owner[]>;
+    }
+
+    private async getAllOwners(): Promise<Owner[]> {
+        let querySnapshot = await getDocs(this.ownersCollection);
+        if (querySnapshot.empty) {
+            await this.syncOwnersFromRepairItems();
+        }
+        return []; // Actual data comes via observable
     }
 
     async ensureOwnerExists(name: string): Promise<void> {

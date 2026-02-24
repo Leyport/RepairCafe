@@ -1,4 +1,4 @@
 export const APP_VERSION = {
-    version: 'v1.9.2',
-    description: 'Added Emoji Avatars and Double-Click Edit in Explorer.'
+    version: 'v1.20.2',
+    description: 'Automatically add imported collections to Database Explorer / Home page.'
 };

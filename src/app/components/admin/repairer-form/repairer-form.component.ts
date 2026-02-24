@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Repairer } from '../../../models/repairer.model';
 import { RepairService } from '../../../services/repair.service';
+import { AvatarService } from '../../../services/avatar.service';
 import { inject } from '@angular/core';
 
 @Component({
@@ -27,8 +28,29 @@ import { inject } from '@angular/core';
             </div>
 
             <div class="mode-toggles">
-                <button class="btn-toggle" [class.active]="!isEmojiMode" (click)="toggleMode('photo')">Upload Photo</button>
+                <button class="btn-toggle" [class.active]="!isEmojiMode && !isSearchMode" (click)="toggleMode('photo')">Upload Image</button>
+                <button class="btn-toggle" [class.active]="isSearchMode" (click)="toggleMode('search')">Search Internet</button>
                 <button class="btn-toggle" [class.active]="isEmojiMode" (click)="toggleMode('emoji')">Choose Emoji</button>
+            </div>
+
+            <div class="search-section" *ngIf="isSearchMode">
+                <div class="search-bar">
+                    <input type="text" [(ngModel)]="searchQuery" (keyup.enter)="onAvatarSearch()" placeholder="Search (e.g. technician)...">
+                    <button class="btn-search" (click)="onAvatarSearch()" [disabled]="isSearching">
+                        {{ isSearching ? '...' : '🔍' }}
+                    </button>
+                </div>
+                <div class="search-grid custom-scrollbar" *ngIf="searchResults.length > 0">
+                    <div 
+                        *ngFor="let result of searchResults" 
+                        class="search-item" 
+                        [style.backgroundImage]="'url(' + result + ')'"
+                        (click)="selectInternetAvatar(result)">
+                    </div>
+                </div>
+                <div class="no-results" *ngIf="searchResults.length === 0 && !isSearching && searchQuery">
+                    No avatars found.
+                </div>
             </div>
 
             <div class="emoji-grid custom-scrollbar" *ngIf="isEmojiMode">
@@ -42,7 +64,7 @@ import { inject } from '@angular/core';
 
             <input #fileInput type="file" (change)="onFileSelected($event)" accept="image/*" hidden>
             
-            <div class="avatar-actions" *ngIf="!isEmojiMode">
+            <div class="avatar-actions" *ngIf="!isEmojiMode && !isSearchMode">
               <button class="btn-text" (click)="fileInput.click()">Upload New Photo</button>
               <button *ngIf="photoPreview || photoUrl" class="btn-text text-danger" (click)="removePhoto()">Remove Photo</button>
             </div>
@@ -274,13 +296,76 @@ import { inject } from '@angular/core';
         background: transparent;
         color: rgba(255, 255, 255, 0.6);
         padding: 0.5rem;
-        font-size: 0.9rem;
+        font-size: 0.85rem;
+        border: none;
+        cursor: pointer;
         border-radius: 6px;
+        transition: all 0.2s;
     }
     .btn-toggle.active {
-        background: rgba(255, 255, 255, 0.1);
-        color: white;
+        background: var(--accent-color);
+        color: black;
         font-weight: 600;
+    }
+
+    .search-section {
+        margin: 1rem 0;
+    }
+
+    .search-bar {
+        display: flex;
+        gap: 0.5rem;
+        margin-bottom: 1rem;
+    }
+
+    .search-bar input {
+        flex: 1;
+        padding: 0.6rem;
+        background: rgba(0,0,0,0.2);
+        border: 1px solid rgba(255,255,255,0.1);
+        border-radius: 6px;
+        color: white;
+        font-size: 0.9rem;
+    }
+
+    .btn-search {
+        padding: 0 1rem;
+        background: rgba(255,255,255,0.1);
+        border: none;
+        border-radius: 6px;
+        color: white;
+        cursor: pointer;
+    }
+
+    .search-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 0.5rem;
+        max-height: 200px;
+        overflow-y: auto;
+        padding-right: 5px;
+    }
+
+    .search-item {
+        aspect-ratio: 1;
+        background-size: cover;
+        background-position: center;
+        border-radius: 4px;
+        cursor: pointer;
+        border: 2px solid transparent;
+        transition: all 0.2s;
+    }
+
+    .search-item:hover {
+        transform: scale(1.05);
+        border-color: var(--accent-color);
+    }
+
+    .no-results {
+        text-align: center;
+        color: rgba(255,255,255,0.4);
+        font-size: 0.9rem;
+        padding: 1rem;
     }
     
     .emoji-grid {
@@ -312,6 +397,7 @@ import { inject } from '@angular/core';
 })
 export class RepairerFormComponent {
   private repairService = inject(RepairService);
+  private avatarService = inject(AvatarService);
 
   @Input() repairer: Repairer | null = null;
   @Output() closeEvent = new EventEmitter<void>();
@@ -324,6 +410,10 @@ export class RepairerFormComponent {
   selectedFile: File | null = null;
   isUploading = false;
   isEmojiMode = false;
+  isSearchMode = false;
+  isSearching = false;
+  searchQuery = '';
+  searchResults: string[] = [];
 
   availableEmojis = [
     '😀', '😃', '😄', '😁', '😆', '😅', '😂', '🤣', '🥲', '☺️', '😊', '😇',
@@ -346,14 +436,21 @@ export class RepairerFormComponent {
     }
     this.selectedFile = null;
     this.isEmojiMode = false;
+    this.isSearchMode = false;
+    this.searchResults = [];
+    this.searchQuery = this.name || '';
   }
 
   close() {
     this.closeEvent.emit();
   }
 
-  toggleMode(mode: 'photo' | 'emoji') {
+  toggleMode(mode: 'photo' | 'emoji' | 'search') {
     this.isEmojiMode = mode === 'emoji';
+    this.isSearchMode = mode === 'search';
+    if (mode === 'photo' && !this.photoPreview) {
+      // Clear preview if switching back to upload
+    }
   }
 
   selectEmoji(emoji: string) {
@@ -371,6 +468,35 @@ export class RepairerFormComponent {
     this.selectedFile = null; // Clear any file
     // We don't clear photoUrl immediately because we want to fallback to it if preview is cleared,
     // but preview overrides in the template display.
+  }
+
+  onAvatarSearch() {
+    if (!this.searchQuery.trim()) return;
+    this.isSearching = true;
+    this.avatarService.searchAvatars(this.searchQuery).subscribe({
+      next: (results: string[]) => {
+        this.searchResults = results;
+        this.isSearching = false;
+      },
+      error: (err: any) => {
+        console.error('Avatar search failed:', err);
+        this.isSearching = false;
+      }
+    });
+  }
+
+  async selectInternetAvatar(url: string) {
+    this.isUploading = true;
+    try {
+      const storedUrl = await this.repairService.downloadAndUploadPhoto(url);
+      this.photoUrl = storedUrl;
+      this.photoPreview = storedUrl;
+      this.isSearchMode = false;
+    } catch (err) {
+      alert('Failed to save selected avatar. It might be blocked by CORS.');
+    } finally {
+      this.isUploading = false;
+    }
   }
 
   async onFileSelected(event: any) {

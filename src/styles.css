@@ -48,6 +48,8 @@ h2 {
 h1 {
   font-size: 3rem;
   margin: 0;
+  margin-right: 2rem;
+  /* Added spacing */
   background: linear-gradient(to right, var(--primary-color), var(--accent-color));
   -webkit-background-clip: text;
   background-clip: text;
@@ -70,7 +72,8 @@ h1 {
 
 .header-actions {
   display: flex;
-  gap: 1rem;
+  gap: 1.5rem;
+  align-items: center;
 }
 
 .btn-admin,

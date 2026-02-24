@@ -12,38 +12,61 @@ export class ExportService {
     private repairService = inject(RepairService);
 
     async exportToSheets(accessToken: string): Promise<string> {
-        // 1. Get all repair items
         const items = await firstValueFrom(this.repairService.getRepairItems());
+        const timestamp = new Date().toLocaleString();
+        return this.exportItemsToSheets(accessToken, items, `Repair Cafe Export - ${timestamp}`);
+    }
+
+    async exportItemsToSheets(accessToken: string, items: RepairItem[], title: string, folderId?: string): Promise<string> {
         if (!items || items.length === 0) throw new Error('No items to export.');
 
-        // 2. Create a new Spreadsheet
-        const timestamp = new Date().toLocaleString();
-        const spreadsheet = await this.createSpreadsheet(accessToken, `Repair Cafe Export - ${timestamp}`);
+        // 1. Create a new Spreadsheet
+        const spreadsheet = await this.createSpreadsheet(accessToken, title);
         const spreadsheetId = spreadsheet.spreadsheetId;
 
-        // 3. Prepare data for the sheet
+        // 2. Prepare data for the sheet
         const values = [
-            ['Number', 'Description', 'Tags', 'Date', 'Time', 'Day', 'Photos Count'], // Header
+            [
+                'Display Number',
+                'Description',
+                'Item Type',
+                'Status',
+                'Repairer',
+                'Owner',
+                'Telephone',
+                'Tags',
+                'Additional Repairers',
+                'Creation Date',
+                'RC Day',
+                'RC Day Sequence',
+                'Item Number'
+            ], // Header
             ...items.map(item => [
                 item.displayNumber || '',
                 item.itemDescription || '',
+                item.repairItem || '',
+                item.status || 'New',
+                item.repairer || '',
+                item.owner || '',
+                item.telephone || '',
                 (item.tags || []).join(', '),
-                this.formatDate(item.creationDate?.toDate()),
-                this.formatTime(item.creationDate?.toDate()),
+                (item.additionalRepairers || []).join(', '),
+                this.formatDate(item.creationDate?.toDate ? item.creationDate.toDate() : item.creationDate),
                 item.RCDay || '',
-                (item.photos || []).length
+                item.rcDayNumber || '',
+                item.itemNumber || ''
             ])
         ];
 
-        // 4. Update the sheet with data
+        // 3. Update the sheet with data
         await this.updateSheetValues(accessToken, spreadsheetId, values);
 
-        // 5. Move to "Exports" folder
+        // 4. Move to Target folder
         try {
-            const folderId = await this.getOrCreateExportsFolder(accessToken);
-            await this.moveFileToFolder(accessToken, spreadsheetId, folderId);
+            const targetFolderId = folderId || await this.getOrCreateExportsFolder(accessToken);
+            await this.moveFileToFolder(accessToken, spreadsheetId, targetFolderId);
         } catch (error) {
-            console.warn('Failed to move file to Exports folder, it will remain in root:', error);
+            console.warn('Failed to move file to folder, it will remain in root:', error);
         }
 
         return spreadsheet.spreadsheetUrl;

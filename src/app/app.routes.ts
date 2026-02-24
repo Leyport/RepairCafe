@@ -33,5 +33,9 @@ export const routes: Routes = [
   {
     path: 'schedule',
     loadComponent: () => import('./components/schedule/schedule.component').then(m => m.ScheduleComponent)
+  },
+  {
+    path: 'rcd-dashboard/:date',
+    loadComponent: () => import('./components/rcd-dashboard/rcd-dashboard.component').then(m => m.RcdDashboardComponent)
   }
 ];

@@ -1,5 +1,6 @@
 import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { Router } from '@angular/router';
 import { RepairService } from '../../services/repair.service';
 
 @Component({
@@ -36,7 +37,12 @@ import { RepairService } from '../../services/repair.service';
       </div>
 
       <div class="calendar-grid">
-        <div class="month-card glass" *ngFor="let date of schedule" [class.past]="isPast(date)" [class.next]="isNext(date)">
+        <div 
+          class="month-card glass" 
+          *ngFor="let date of schedule" 
+          [class.past]="isPast(date)" 
+          [class.next]="isNext(date)"
+          (click)="openDashboard(date)">
           <div class="month-name">{{ date | date:'MMMM' }}</div>
           <div class="day-number">{{ date | date:'d' }}</div>
           <div class="day-name">{{ date | date:'EEEE' }}</div>
@@ -86,16 +92,39 @@ import { RepairService } from '../../services/repair.service';
     }
 
     .next-session {
-      background: rgba(var(--accent-color-rgb), 0.1);
-      border-color: var(--accent-color);
-      margin-bottom: 3rem;
-      animation: pulse 2s infinite ease-in-out;
+      background: linear-gradient(135deg, rgba(var(--accent-color-rgb), 0.2), rgba(var(--primary-color-rgb), 0.1));
+      border: 1px solid var(--accent-color);
+      margin-bottom: 3.5rem;
+      padding: 3rem 2rem;
+      box-shadow: 0 0 30px rgba(var(--accent-color-rgb), 0.15);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .next-session::before {
+        content: '';
+        position: absolute;
+        top: -50%;
+        left: -50%;
+        width: 200%;
+        height: 200%;
+        background: radial-gradient(circle, rgba(var(--accent-color-rgb), 0.1) 0%, transparent 70%);
+        animation: pulse-glow 8s infinite linear;
+        pointer-events: none;
     }
     
-    @keyframes pulse {
-        0% { box-shadow: 0 0 0 0 rgba(var(--accent-color-rgb), 0.4); }
-        70% { box-shadow: 0 0 0 10px rgba(var(--accent-color-rgb), 0); }
-        100% { box-shadow: 0 0 0 0 rgba(var(--accent-color-rgb), 0); }
+    @keyframes pulse-glow {
+        0% { transform: translate(-30%, -30%) rotate(0deg); }
+        50% { transform: translate(-20%, -20%) rotate(180deg); }
+        100% { transform: translate(-30%, -30%) rotate(360deg); }
+    }
+
+    .session-date {
+        font-size: 2rem;
+        font-weight: 800;
+        margin: 1rem 0;
+        color: white;
+        text-shadow: 0 2px 10px rgba(0,0,0,0.5);
     }
 
     .next-session h2 {
@@ -153,23 +182,28 @@ import { RepairService } from '../../services/repair.service';
 
     .calendar-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
       gap: 1.5rem;
+      margin-top: 2rem;
     }
 
     .month-card {
-      padding: 1.5rem;
+      padding: 2rem 1.5rem;
+      position: relative;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
       display: flex;
       flex-direction: column;
       align-items: center;
-      transition: transform 0.2s;
-      position: relative;
+      border: 1px solid rgba(255, 255, 255, 0.05);
       overflow: hidden;
+      cursor: pointer;
     }
 
     .month-card:hover {
-        transform: translateY(-5px);
+        transform: translateY(-12px) scale(1.02);
         background: rgba(255, 255, 255, 0.08);
+        border-color: var(--accent-color);
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
     }
 
     .month-card.past {
@@ -233,6 +267,7 @@ import { RepairService } from '../../services/repair.service';
 })
 export class ScheduleComponent implements OnInit {
   private repairService = inject(RepairService);
+  private router = inject(Router);
 
   years = [2025, 2026];
   selectedYear = new Date().getFullYear();
@@ -253,7 +288,7 @@ export class ScheduleComponent implements OnInit {
     if (this.selectedYear < 2025) this.selectedYear = 2025;
 
     for (let month = 0; month < 12; month++) {
-      const date = this.getThirdSaturday(this.selectedYear, month);
+      const date = this.repairService.getThirdSaturday(this.selectedYear, month);
       this.schedule.push(date);
     }
   }
@@ -265,8 +300,8 @@ export class ScheduleComponent implements OnInit {
     let potentialDates: Date[] = [];
     const currentYear = today.getFullYear();
 
-    for (let m = 0; m < 12; m++) potentialDates.push(this.getThirdSaturday(currentYear, m));
-    for (let m = 0; m < 12; m++) potentialDates.push(this.getThirdSaturday(currentYear + 1, m));
+    for (let m = 0; m < 12; m++) potentialDates.push(this.repairService.getThirdSaturday(currentYear, m));
+    for (let m = 0; m < 12; m++) potentialDates.push(this.repairService.getThirdSaturday(currentYear + 1, m));
 
     this.nextSession = potentialDates.find(d => d >= today) || null;
 
@@ -274,15 +309,6 @@ export class ScheduleComponent implements OnInit {
       const diffTime = Math.abs(this.nextSession.getTime() - today.getTime());
       this.daysUntil = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
     }
-  }
-
-  getThirdSaturday(year: number, month: number): Date {
-    const date = new Date(year, month, 1);
-    let day = date.getDay();
-    const daysUntilFirstSat = (6 - day + 7) % 7;
-    const firstSatDate = 1 + daysUntilFirstSat;
-    const thirdSatDate = firstSatDate + 14;
-    return new Date(year, month, thirdSatDate);
   }
 
   isPast(date: Date): boolean {
@@ -309,16 +335,12 @@ export class ScheduleComponent implements OnInit {
 
   getStats(date: Date | null): number {
     if (!date) return 0;
-    const key = this.formatRCDay(date);
+    const key = this.repairService.generateRCDay(date);
     return this.dateStats.get(key) || 0;
   }
 
-  private formatRCDay(date: Date): string {
-    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-    const dayOfWeek = days[date.getDay()];
-    const dd = String(date.getDate()).padStart(2, '0');
-    const mm = String(date.getMonth() + 1).padStart(2, '0');
-    const yyyy = date.getFullYear();
-    return `${dayOfWeek}, ${dd}, ${mm}, ${yyyy}`;
+  openDashboard(date: Date) {
+    const key = this.repairService.generateRCDay(date);
+    this.router.navigate(['/rcd-dashboard', key]);
   }
 }

@@ -2,7 +2,9 @@ import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angular/forms';
 import { Router, ActivatedRoute, RouterLink } from '@angular/router';
+import { APP_VERSION } from '../../constants/version';
 import { RepairService } from '../../services/repair.service';
+import { Observable } from 'rxjs';
 import { RepairItem, Owner } from '../../models/repair-item.model';
 import { Tag } from '../../models/tag.model';
 
@@ -21,7 +23,7 @@ interface PhotoFile {
     <div class="form-page">
       <div class="form-container glass">
         <div class="form-header">
-          <h2>{{ isEdit ? 'Edit Repair Item' : 'Register New Repair' }} <small class="version">v1.1</small></h2>
+          <h2>{{ isEdit ? 'Edit Repair Item' : 'Register New Repair' }} <small class="version">{{ appVersion.version }}</small></h2>
           <button class="btn-close" [routerLink]="['/']" [disabled]="isUploading">×</button>
         </div>
         
@@ -30,7 +32,7 @@ interface PhotoFile {
           <div class="form-group">
             <label for="rcday">Repair Cafe Date <span class="required">*</span></label>
             <div class="select-wrapper glass">
-                <select id="rcday" formControlName="RCDay">
+                <select id="rcday_select_v158" name="rcday_select_v158" formControlName="RCDay">
                     <option value="" disabled>Select Date</option>
                     <option *ngFor="let d of availableDates" [value]="d.value">{{ d.label }}</option>
                 </select>
@@ -73,8 +75,15 @@ interface PhotoFile {
                     formControlName="owner" 
                     placeholder="Who brought this item?" 
                     (input)="onOwnerSearch($any($event.target).value)"
+                    (focus)="onOwnerSearch($any($event.target).value)"
                     (blur)="hideOwnerSuggestions()"
                     autocomplete="off">
+                <button 
+                  type="button" 
+                  class="clear-btn" 
+                  *ngIf="repairForm.get('owner')?.value" 
+                  (click)="clearOwner()"
+                  title="Clear owner">×</button>
                 
                 <div class="suggestions-list glass" *ngIf="filteredOwners.length > 0 && showOwnerSuggestions">
                   <div 
@@ -88,17 +97,35 @@ interface PhotoFile {
             </div>
           </div>
 
-          <!-- Assigned Repairer -->
           <div class="form-group">
             <label for="repairer">Assigned Repairer</label>
-            <div class="select-wrapper glass">
-                <select id="repairer" formControlName="repairer">
-                    <option value="">-- Unassigned --</option>
-                    <option *ngFor="let r of repairers$ | async" [value]="r.name">
-                        {{ r.name }}
-                    </option>
-                </select>
-                <div class="select-arrow">▼</div>
+            <div class="autocomplete-container">
+                <input 
+                    id="repairer" 
+                    type="text" 
+                    formControlName="repairer" 
+                    placeholder="Who is fixing this?" 
+                    (input)="onRepairerSearch($any($event.target).value)"
+                    (focus)="onRepairerSearch($any($event.target).value)"
+                    (blur)="hideRepairerSuggestions()"
+                    autocomplete="off">
+                <button 
+                  type="button" 
+                  class="clear-btn" 
+                  *ngIf="repairForm.get('repairer')?.value" 
+                  (click)="clearRepairer()"
+                  title="Clear repairer">×</button>
+                
+                <div class="suggestions-list glass" *ngIf="filteredRepairers.length > 0 && showRepairerSuggestions">
+                  <div 
+                    class="suggestion-item" 
+                    *ngFor="let repairer of filteredRepairers"
+                    (mousedown)="selectRepairer(repairer)">
+                    <img [src]="repairer.photoUrl || '/assets/default-avatar.png'" 
+                         style="width: 24px; height: 24px; border-radius: 50%; object-fit: cover;">
+                    <span class="suggestion-name">{{ repairer.name }}</span>
+                  </div>
+                </div>
             </div>
           </div>
 
@@ -350,13 +377,36 @@ interface PhotoFile {
       right: 0;
       z-index: 1000;
       margin-top: 0.5rem;
-      max-height: 200px;
+      max-height: 300px;
       overflow-y: auto;
       border-radius: 12px;
       background: rgba(20, 20, 35, 0.95);
       backdrop-filter: blur(20px);
       border: 2px solid rgba(0, 242, 255, 0.3);
       box-shadow: 0 15px 40px rgba(0, 0, 0, 0.8), 0 0 20px rgba(0, 242, 255, 0.1);
+    }
+
+    .clear-btn {
+      position: absolute;
+      right: 15px;
+      top: 50%;
+      transform: translateY(-50%);
+      background: none;
+      border: none;
+      color: rgba(255,255,255,0.5);
+      font-size: 1.2rem;
+      cursor: pointer;
+      padding: 5px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      line-height: 1;
+      transition: color 0.2s;
+      z-index: 5;
+    }
+
+    .clear-btn:hover {
+      color: var(--accent-color);
     }
     .suggestions-list::-webkit-scrollbar {
       width: 6px;
@@ -594,6 +644,38 @@ export class RepairFormComponent implements OnInit {
   private repairService = inject(RepairService);
   private router = inject(Router);
   private route = inject(ActivatedRoute);
+  protected appVersion = APP_VERSION;
+
+  private normalizeRCDay(storedValue: string): string {
+    if (!storedValue) return storedValue;
+
+    // Check if it already matches a value in our list exactly
+    if (this.availableDates.some(d => d.value === storedValue)) {
+      return storedValue;
+    }
+
+    // Try to normalize by components (Day, Month, Year)
+    // Format is "DayName, DD, MM, YYYY"
+    const parts = storedValue.split(',').map(p => p.trim());
+    if (parts.length < 4) return storedValue;
+
+    const storedDay = parseInt(parts[1], 10);
+    const storedMonth = parseInt(parts[2], 10);
+    const storedYear = parseInt(parts[3], 10);
+
+    // Look for a Saturday in the same month/year that is within 1 day of the stored date
+    const match = this.availableDates.find(d => {
+      return d.date.getUTCMonth() + 1 === storedMonth &&
+        d.date.getUTCFullYear() === storedYear &&
+        Math.abs(d.date.getUTCDate() - storedDay) <= 1;
+    });
+
+    if (match) {
+      return match.value;
+    }
+
+    return storedValue;
+  }
 
   repairForm: FormGroup;
   isEdit = false;
@@ -614,10 +696,20 @@ export class RepairFormComponent implements OnInit {
   filteredOwners: Owner[] = [];
   showOwnerSuggestions = false;
 
-  repairers$ = this.repairService.getRepairers();
+  repairers$: Observable<any[]> = this.repairService.getRepairers();
+  allRepairers: any[] = [];
+  filteredRepairers: any[] = [];
+  showRepairerSuggestions = false;
 
   constructor() {
     this.generateAvailableDates();
+
+    // Calculate default RCDay (next upcoming date)
+    const today = new Date();
+    // Normalize today to start of day in UTC for comparison against availableDates
+    const todayUTC = new Date(Date.UTC(today.getFullYear(), today.getMonth(), today.getDate()));
+    const nextDate = this.availableDates.find(d => d.date >= todayUTC);
+    const defaultValue = nextDate ? nextDate.value : (this.availableDates.length > 0 ? this.availableDates[this.availableDates.length - 1].value : '');
 
     this.repairForm = this.fb.group({
       displayNumber: [''],
@@ -626,18 +718,36 @@ export class RepairFormComponent implements OnInit {
       owner: [''],
       repairer: [''],
       status: ['New'],
-      RCDay: ['', Validators.required]
+      RCDay: [defaultValue, Validators.required]
     });
 
-    // Set default RCDay to next upcoming date
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const nextDate = this.availableDates.find(d => d.date >= today);
-    if (nextDate) {
-      this.repairForm.patchValue({ RCDay: nextDate.value });
-    } else if (this.availableDates.length > 0) {
-      this.repairForm.patchValue({ RCDay: this.availableDates[this.availableDates.length - 1].value });
-    }
+
+
+    // Track every change to RCDay
+    this.repairForm.get('RCDay')?.valueChanges.subscribe(val => {
+      if (val === '' || val === null || val === undefined) {
+        if (!this.isUploading) {
+          this.repairForm.patchValue({ RCDay: defaultValue }, { emitEvent: false });
+        }
+        return;
+      }
+
+      // FUTURE ENFORCEMENT for NEW repairs
+      if (!this.isEdit && !this.isUploading) {
+        const today = new Date();
+        const todayUTC = new Date(Date.UTC(today.getFullYear(), today.getMonth(), today.getDate()));
+        const selectedDateObj = this.availableDates.find(d => d.value === val);
+
+        if (selectedDateObj && selectedDateObj.date < todayUTC) {
+          this.repairForm.patchValue({ RCDay: defaultValue }, { emitEvent: false });
+        } else {
+          // Refresh suggested number for this date
+          this.repairService.getSuggestedDisplayNumber(val).then(num => {
+            this.repairForm.patchValue({ displayNumber: num }, { emitEvent: false });
+          });
+        }
+      }
+    });
 
     // Auto-update status when repairer changes
     this.repairForm.get('repairer')?.valueChanges.subscribe(repairer => {
@@ -651,28 +761,7 @@ export class RepairFormComponent implements OnInit {
   }
 
   generateAvailableDates() {
-    const dates = [];
-    // Generate dates for 2025 and 2026
-    const years = [2025, 2026];
-
-    for (const year of years) {
-      for (let month = 0; month < 12; month++) {
-        const date = this.getThirdSaturday(year, month);
-        const value = this.repairService.generateRCDay(date);
-        const label = date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
-        dates.push({ label, value, date });
-      }
-    }
-    this.availableDates = dates;
-  }
-
-  getThirdSaturday(year: number, month: number): Date {
-    const date = new Date(year, month, 1);
-    const day = date.getDay();
-    const daysUntilFirstSat = (6 - day + 7) % 7;
-    const firstSatDate = 1 + daysUntilFirstSat;
-    const thirdSatDate = firstSatDate + 14;
-    return new Date(year, month, thirdSatDate);
+    this.availableDates = this.repairService.getAvailableRCDates();
   }
 
   async ngOnInit() {
@@ -685,6 +774,10 @@ export class RepairFormComponent implements OnInit {
       this.owners = owners;
     });
 
+    this.repairers$.subscribe((repairers: any[]) => {
+      this.allRepairers = repairers;
+    });
+
     const id = this.route.snapshot.paramMap.get('id');
     if (id) {
       this.isEdit = true;
@@ -693,23 +786,58 @@ export class RepairFormComponent implements OnInit {
       this.repairService.getRepairItems().subscribe(items => {
         const item = items.find(i => i.id === id);
         if (item) {
-          this.repairForm.patchValue({
+          const updates: any = {
             displayNumber: item.displayNumber,
             itemDescription: item.itemDescription,
             telephone: item.telephone || '',
             owner: item.owner || '',
             repairer: item.repairer || '',
-            status: item.status || 'New',
-            RCDay: item.RCDay || ''
-          });
+            status: item.status || 'New'
+          };
+
+          if (item.RCDay && item.RCDay.trim() !== '') {
+            const normalized = this.normalizeRCDay(item.RCDay);
+
+            // FUTURE PREFERENCE: If we are editing an old item with a PAST session date,
+            // DO NOT patch the date field. Let it keep the defaultValue (the next upcoming session).
+            const today = new Date();
+            const todayUTC = new Date(Date.UTC(today.getFullYear(), today.getMonth(), today.getDate()));
+            const normalizedObj = this.availableDates.find(d => d.value === normalized);
+
+            if (normalizedObj && normalizedObj.date < todayUTC) {
+              // We don't add to 'updates' so it retains existing defaultValue from constructor
+            } else {
+              updates.RCDay = normalized;
+            }
+          } else {
+            // No RCDay provided by database.
+          }
+
+          this.repairForm.patchValue(updates);
           this.existingPhotos = item.photos || [];
           this.tags = item.tags || [];
         }
       });
     } else {
       try {
-        const suggestion = await this.repairService.getSuggestedDisplayNumber();
+        const currentRCDay = this.repairForm.get('RCDay')?.value;
+        const suggestion = await this.repairService.getSuggestedDisplayNumber(currentRCDay);
         this.repairForm.patchValue({ displayNumber: suggestion });
+
+        // SECOND-PASS SAFETY: Repatch defaultValue after a short delay 
+        // to ensure no browser autocomplete or late sync clobbered it.
+        setTimeout(() => {
+          const currentVal = this.repairForm.get('RCDay')?.value;
+          const today = new Date();
+          const todayUTC = new Date(Date.UTC(today.getFullYear(), today.getMonth(), today.getDate()));
+          const currentSelectedObj = this.availableDates.find(d => d.value === currentVal);
+
+          if (!currentVal || currentVal === '' || (currentSelectedObj && currentSelectedObj.date < todayUTC)) {
+            const nextDate = this.availableDates.find(d => d.date >= todayUTC);
+            const fallback = nextDate ? nextDate.value : (this.availableDates.length > 0 ? this.availableDates[this.availableDates.length - 1].value : '');
+            this.repairForm.patchValue({ RCDay: fallback });
+          }
+        }, 500);
       } catch (err) {
         console.error('Failed to get suggested number:', err);
       }
@@ -790,14 +918,11 @@ export class RepairFormComponent implements OnInit {
   }
 
   onOwnerSearch(value: string) {
-    if (!value.trim()) {
-      this.filteredOwners = [];
-      this.showOwnerSuggestions = false;
-      return;
-    }
-    const term = value.toLowerCase();
-    this.filteredOwners = this.owners.filter(o => o.name.toLowerCase().includes(term));
-    this.showOwnerSuggestions = this.filteredOwners.length > 0;
+    const term = (value || '').toLowerCase();
+    this.filteredOwners = this.owners.filter(o =>
+      !term || o.name.toLowerCase().includes(term)
+    );
+    this.showOwnerSuggestions = true;
   }
 
   selectOwner(owner: Owner) {
@@ -806,9 +931,41 @@ export class RepairFormComponent implements OnInit {
     this.showOwnerSuggestions = false;
   }
 
+  clearOwner() {
+    this.repairForm.patchValue({ owner: '' });
+    this.filteredOwners = [];
+    this.showOwnerSuggestions = false;
+  }
+
   hideOwnerSuggestions() {
     setTimeout(() => {
       this.showOwnerSuggestions = false;
+    }, 200);
+  }
+
+  onRepairerSearch(value: string) {
+    const term = (value || '').toLowerCase();
+    this.filteredRepairers = this.allRepairers.filter(r =>
+      !term || r.name.toLowerCase().includes(term)
+    );
+    this.showRepairerSuggestions = true;
+  }
+
+  selectRepairer(repairer: any) {
+    this.repairForm.patchValue({ repairer: repairer.name });
+    this.filteredRepairers = [];
+    this.showRepairerSuggestions = false;
+  }
+
+  clearRepairer() {
+    this.repairForm.patchValue({ repairer: '' });
+    this.filteredRepairers = [];
+    this.showRepairerSuggestions = false;
+  }
+
+  hideRepairerSuggestions() {
+    setTimeout(() => {
+      this.showRepairerSuggestions = false;
     }, 200);
   }
 

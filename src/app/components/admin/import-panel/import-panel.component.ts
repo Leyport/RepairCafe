@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { AuthService } from '../../../services/auth.service';
 import { ImportService } from '../../../services/import.service';
+import { RepairService } from '../../../services/repair.service';
 
 @Component({
   selector: 'app-import-panel',
@@ -584,6 +585,7 @@ import { ImportService } from '../../../services/import.service';
 export class ImportPanelComponent {
   private authService = inject(AuthService);
   private importService = inject(ImportService);
+  private repairService = inject(RepairService);
 
   accessToken = '';
   directories: { id: string, name: string, mimeType?: string }[] = [];
@@ -612,15 +614,23 @@ export class ImportPanelComponent {
 
   availableAttributes = [
     { key: 'ignore', label: '(Ignore Column)' },
-    { key: 'itemDescription', label: 'Description (Required)' },
-    { key: 'repairItem', label: 'Item Name/Type' },
-    { key: 'repairer', label: 'Repairer Name' },
-    { key: 'itemNumber', label: 'Item Number' },
+    { key: 'id', label: 'ID (Record ID)' },
     { key: 'displayNumber', label: 'Display Number' },
+    { key: 'itemDescription', label: 'Description' },
+    { key: 'repairItem', label: 'Item Type' },
+    { key: 'status', label: 'Status' },
+    { key: 'repairer', label: 'Repairer' },
+    { key: 'owner', label: 'Owner' },
+    { key: 'telephone', label: 'Telephone' },
+    { key: 'tags', label: 'Tags' },
+    { key: 'additionalRepairers', label: 'Additional Repairers' },
+    { key: 'creationDate', label: 'Creation Date' },
+    { key: 'creationDate', label: 'Created Date' }, // Alias
+    { key: 'rcdate', label: 'RC Event Date' },
     { key: 'RCDay', label: 'RC Day' },
     { key: 'rcDayNumber', label: 'RC Day Sequence' },
-    { key: 'tags', label: 'Tags' },
-    { key: 'creationDate', label: 'Creation Date' },
+    { key: 'itemNumber', label: 'Item Number' },
+    { key: 'itemNumber', label: 'Sequence' }, // Alias
     { key: 'photos', label: 'Photos' }
   ];
 
@@ -795,12 +805,15 @@ export class ImportPanelComponent {
       // Pass the mapping to import service
       const importedCount = await this.importService.importToFirestore(this.collectionName, data, this.columnMapping);
 
+      // Track the new collection in database explorer
+      await this.repairService.trackCollection(this.collectionName);
+
       this.statusMessage = `✅ Successfully imported ${importedCount} records to "${this.collectionName}".`;
       this.isSuccess = true;
       this.fileHeaders = []; // Reset mapping UI
     } catch (error: any) {
       console.error('Import failed:', error);
-      this.statusMessage = '❌ Import Failed: ' + (error.message || 'Unknown error');
+      this.statusMessage = '❌ Import Failed: ' + (error?.message || 'Unknown error');
       this.isError = true;
     } finally {
       this.isImporting = false;

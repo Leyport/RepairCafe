@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { RouterLink, Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { RepairService } from '../../../services/repair.service';
-import { Observable, of } from 'rxjs';
+import { Observable, of, BehaviorSubject, combineLatest } from 'rxjs';
 import { map, catchError } from 'rxjs/operators';
 import { RepairItem } from '../../../models/repair-item.model';
 import { Repairer } from '../../../models/repairer.model';
@@ -34,8 +34,22 @@ import { RepairerFormComponent } from '../repairer-form/repairer-form.component'
                 <button (click)="closeAssignmentModal()" style="background: none; border: none; color: white; font-size: 1.5rem; cursor: pointer; opacity: 0.7;">&times;</button>
             </div>
             
+            <div class="search-filter" style="margin-bottom: 1rem; position: relative;">
+                <input 
+                    type="text" 
+                    [(ngModel)]="repairerSearchTerm" 
+                    placeholder="Search repairers..."
+                    class="modal-search-input"
+                    style="width: 100%; padding: 0.8rem 2.5rem 0.8rem 0.8rem; background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: white; outline: none;">
+                <button 
+                  class="clear-btn modal-clear" 
+                  *ngIf="repairerSearchTerm" 
+                  (click)="repairerSearchTerm = ''"
+                  style="right: 10px;">×</button>
+            </div>
+            
             <div class="repairer-list" style="flex: 1; overflow-y: auto; margin: 1rem 0; min-height: 0;">
-                <div class="repairer-list-item" *ngFor="let repairer of repairers$ | async">
+                <div class="repairer-list-item" *ngFor="let repairer of filteredRepairers$ | async">
                     <div class="repairer-info">
                         <img [src]="repairer.photoUrl || '/assets/default-avatar.png'" 
                              style="width: 30px; height: 30px; border-radius: 50%; object-fit: cover; background: #333;">
@@ -73,15 +87,11 @@ import { RepairerFormComponent } from '../repairer-form/repairer-form.component'
       <div class="header-section">
         <h2>Database Explorer</h2>
         <p class="subtitle">View and manage system collections</p>
-        <div class="actions">
-          <button class="btn-action" (click)="refresh()">
-            🔄 Refresh
-          </button>
-          <button class="btn-action" (click)="trackCollection()">
-            ➕ Track Collection
-          </button>
-        </div>
-      </div>
+            <button class="btn-action" (click)="addRecord()">
+              ➕ Add
+            </button>
+         </div>
+
 
       <div class="tabs-container glass">
         <div class="tabs-header">
@@ -105,7 +115,7 @@ import { RepairerFormComponent } from '../repairer-form/repairer-form.component'
             <h3>{{ getCollectionLabel(selectedCollection) }}</h3>
             <div class="header-controls">
                 <button 
-                    *ngIf="selectedCollection === 'repairItems' && selectedCount > 0"
+                    *ngIf="selectedCount > 0"
                     class="btn-delete-selected" 
                     (click)="deleteSelected()">
                     🗑️ Delete Selected ({{ selectedCount }})
@@ -126,7 +136,7 @@ import { RepairerFormComponent } from '../repairer-form/repairer-form.component'
                       <table class="data-table" *ngIf="schema !== 'unknown'">
                         <thead>
                         <tr>
-                            <th *ngIf="schema === 'repairItems'" class="checkbox-col">
+                            <th class="checkbox-col">
                                 <input 
                                     type="checkbox" 
                                     [checked]="data.length > 0 && selectedCount === data.length"
@@ -134,37 +144,37 @@ import { RepairerFormComponent } from '../repairer-form/repairer-form.component'
                                     title="Select All">
                             </th>
                             <th *ngIf="schema === 'repairItems'" class="photo-col">Photo</th>
-                            <th *ngIf="schema === 'repairItems'">Item No.</th>
-                            <th *ngIf="schema === 'repairItems'">Description</th>
-                            <th *ngIf="schema === 'repairItems'">Telephone</th>
-                            <th *ngIf="schema === 'repairItems'">Owner</th>
-                            <th *ngIf="schema === 'repairItems'">Type</th>
-                            <th *ngIf="schema === 'repairItems'">Repairer</th>
-                            <th *ngIf="schema === 'repairItems'">Creation Date</th>
-                            <th *ngIf="schema === 'repairItems'">Status</th>
+                            <th *ngIf="schema === 'repairItems'" (click)="onSort('itemNumber')" class="sortable">Item No. {{ getSortIcon('itemNumber') }}</th>
+                            <th *ngIf="schema === 'repairItems'" (click)="onSort('itemDescription')" class="sortable">Description {{ getSortIcon('itemDescription') }}</th>
+                            <th *ngIf="schema === 'repairItems'" (click)="onSort('telephone')" class="sortable">Telephone {{ getSortIcon('telephone') }}</th>
+                            <th *ngIf="schema === 'repairItems'" (click)="onSort('owner')" class="sortable">Owner {{ getSortIcon('owner') }}</th>
+                            <th *ngIf="schema === 'repairItems'" (click)="onSort('repairItem')" class="sortable">Type {{ getSortIcon('repairItem') }}</th>
+                             <th *ngIf="schema === 'repairItems'" (click)="onSort('repairer')" class="sortable">Repairer {{ getSortIcon('repairer') }}</th>
+                             <th *ngIf="schema === 'repairItems'" (click)="onSort('RCDay')" class="sortable">Repair Date {{ getSortIcon('RCDay') }}</th>
+                             <th *ngIf="schema === 'repairItems'" (click)="onSort('creationDate')" class="sortable">Creation Date {{ getSortIcon('creationDate') }}</th>
+                            <th *ngIf="schema === 'repairItems'" (click)="onSort('status')" class="sortable">Status {{ getSortIcon('status') }}</th>
                             
-                            <th *ngIf="schema === 'repairers'">Name</th>
-                            <th *ngIf="schema === 'repairers'">Joined</th>
+                            <th *ngIf="schema === 'repairers'" (click)="onSort('name')" class="sortable">Name {{ getSortIcon('name') }}</th>
+                            <th *ngIf="schema === 'repairers'" (click)="onSort('createdAt')" class="sortable">Joined {{ getSortIcon('createdAt') }}</th>
 
-                            <th *ngIf="schema === 'owners'">Name</th>
-                            <th *ngIf="schema === 'owners'">First Seen</th>
+                            <th *ngIf="schema === 'owners'" (click)="onSort('name')" class="sortable">Name {{ getSortIcon('name') }}</th>
+                            <th *ngIf="schema === 'owners'" (click)="onSort('firstSeen')" class="sortable">First Seen {{ getSortIcon('firstSeen') }}</th>
 
-                            <th *ngIf="schema === 'tags'">Tag Name</th>
-                            <th *ngIf="schema === 'tags'">Emoji</th>
+                            <th *ngIf="schema === 'tags'" (click)="onSort('name')" class="sortable">Tag Name {{ getSortIcon('name') }}</th>
+                            <th *ngIf="schema === 'tags'" (click)="onSort('emoji')" class="sortable">Emoji {{ getSortIcon('emoji') }}</th>
                             
-                            <th>ID</th>
-                            <th *ngIf="schema === 'repairItems'">Actions</th>
+                            <th>Actions</th>
                         </tr>
                         </thead>
                         <tbody>
                         <tr *ngFor="let record of data" (dblclick)="onRowDoubleClick(record, schema)" class="clickable-row">
-                            <ng-container *ngIf="schema === 'repairItems'">
                             <td class="checkbox-col">
                                 <input 
                                     type="checkbox" 
                                     [checked]="isSelected(record.id)"
                                     (change)="toggleItemSelection(record.id, $event)">
                             </td>
+                            <ng-container *ngIf="schema === 'repairItems'">
                             <td>
                                 <div class="thumbnail-container" *ngIf="record.photos && record.photos.length > 0">
                                     <a [href]="record.photos[0]" target="_blank" (click)="$event.stopPropagation()">
@@ -174,38 +184,115 @@ import { RepairerFormComponent } from '../repairer-form/repairer-form.component'
                                 <span *ngIf="!record.photos || record.photos.length === 0" class="no-photo">-</span>
                             </td>
                             <td>{{ record.displayNumber || record.itemNumber }}</td>
-                            <td>{{ record.itemDescription }}</td>
-                            <td>{{ record.telephone || '-' }}</td>
-                            <td>{{ record.owner || '-' }}</td>
-                            <td>{{ record.repairItem || '-' }}</td>
+                            <td>
+                                <input 
+                                    [ngModel]="record.itemDescription" 
+                                    (blur)="updateRecord(record, schema, 'itemDescription', $event)"
+                                    class="inline-input"
+                                    placeholder="Description">
+                            </td>
+                            <td>
+                                <input 
+                                    [ngModel]="record.telephone" 
+                                    (blur)="updateRecord(record, schema, 'telephone', $event)"
+                                    class="inline-input"
+                                    placeholder="Telephone">
+                            </td>
+                            <td>
+                                <div class="autocomplete-container inline-autocomplete">
+                                    <input 
+                                        [ngModel]="record.owner" 
+                                        (input)="onInlineOwnerSearch($any($event.target).value, record.id)"
+                                        (focus)="onInlineOwnerSearch($any($event.target).value, record.id)"
+                                        (blur)="hideInlineSuggestions()"
+                                        class="inline-input"
+                                        placeholder="Owner"
+                                        autocomplete="off">
+                                    
+                                    <button 
+                                        type="button" 
+                                        class="clear-btn inline-clear" 
+                                        *ngIf="record.owner" 
+                                        (mousedown)="clearInlineOwner(record); $event.stopPropagation()"
+                                        title="Clear owner">×</button>
+
+                                    <div class="suggestions-list glass inline-suggestions" *ngIf="activeSuggestionCell?.id === record.id && activeSuggestionCell?.field === 'owner' && filteredOwners.length > 0">
+                                      <div 
+                                        class="suggestion-item" 
+                                        *ngFor="let owner of filteredOwners"
+                                        (mousedown)="selectInlineOwner(owner, record)">
+                                        <span class="suggestion-name">{{ owner.name }}</span>
+                                      </div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td>
+                                <input 
+                                    [ngModel]="record.repairItem" 
+                                    (blur)="updateRecord(record, schema, 'repairItem', $event)"
+                                    class="inline-input"
+                                    placeholder="Type">
+                            </td>
                             <td>
                               <div class="repairer-select-wrapper">
                                 <img *ngIf="getRepairerPhoto(record.repairer)" 
                                      [src]="getRepairerPhoto(record.repairer)" 
                                      class="repairer-avatar-display" 
                                      [title]="record.repairer"
-                                     alt="Start">
+                                     alt="Repairer">
                                 
                                 <span class="additional-count" *ngIf="record.additionalRepairers?.length" [title]="'Helpers: ' + record.additionalRepairers?.join(', ')">
                                     +{{ record.additionalRepairers?.length }}
                                 </span>
 
-                                <select 
-                                  [ngModel]="record.repairer || ''" 
-                                  (ngModelChange)="updateItem(record, 'repairer', $event)"
-                                  class="inline-select"
-                                  [class.hidden-text]="getRepairerPhoto(record.repairer)"
-                                  (click)="$event.stopPropagation()">
-                                  <option value="">-</option>
-                                  <option *ngFor="let r of repairers$ | async" [value]="r.name">{{r.name}}</option>
-                                </select>
+                                <div class="autocomplete-container inline-autocomplete repairer-autocomplete">
+                                  <input 
+                                      [ngModel]="record.repairer" 
+                                      (input)="onInlineRepairerSearch($any($event.target).value, record.id)"
+                                      (focus)="onInlineRepairerSearch($any($event.target).value, record.id)"
+                                      (blur)="hideInlineSuggestions()"
+                                      class="inline-input"
+                                      [class.hidden-text]="getRepairerPhoto(record.repairer)"
+                                      placeholder="Repairer"
+                                      autocomplete="off">
+
+                                  <button 
+                                      type="button" 
+                                      class="clear-btn inline-clear" 
+                                      *ngIf="record.repairer" 
+                                      (mousedown)="clearInlineRepairer(record); $event.stopPropagation()"
+                                      title="Clear repairer">×</button>
+
+                                  <div class="suggestions-list glass inline-suggestions" *ngIf="activeSuggestionCell?.id === record.id && activeSuggestionCell?.field === 'repairer' && filteredRepairers.length > 0">
+                                    <div 
+                                      class="suggestion-item" 
+                                      *ngFor="let repairer of filteredRepairers"
+                                      (mousedown)="selectInlineRepairer(repairer, record)">
+                                      <img [src]="repairer.photoUrl || '/assets/default-avatar.png'" 
+                                           style="width: 24px; height: 24px; border-radius: 50%; object-fit: cover;">
+                                      <span class="suggestion-name">{{ repairer.name }}</span>
+                                    </div>
+                                  </div>
+                                </div>
                                 
                                 <button class="btn-manage-repairers" (click)="openAssignmentModal(record); $event.stopPropagation()" title="Manage Repairers">
                                     👥
                                 </button>
                               </div>
                             </td>
-                            <td>{{ record.creationDate?.toDate ? (record.creationDate?.toDate() | date:'short') : '-' }}</td>
+                             <td>
+                               <select 
+                                 [ngModel]="record.RCDay || ''" 
+                                 (ngModelChange)="updateItem(record, 'RCDay', $event)"
+                                 class="inline-select"
+                                 [style.color]="!record.RCDay ? '#ff4444' : 'inherit'"
+                                 [style.font-weight]="!record.RCDay ? 'bold' : 'normal'"
+                                 (click)="$event.stopPropagation()">
+                                 <option value="" disabled>{{ record.RCDay ? 'Change Date...' : '⚠️ MISSING DATE' }}</option>
+                                 <option *ngFor="let d of availableRCDates" [value]="d.value">{{ d.label }}</option>
+                               </select>
+                             </td>
+                             <td>{{ record.creationDate?.toDate ? (record.creationDate?.toDate() | date:'short') : '-' }}</td>
                             <td>
                               <select 
                                 [ngModel]="record.status || 'New'" 
@@ -224,28 +311,47 @@ import { RepairerFormComponent } from '../repairer-form/repairer-form.component'
                             <td>
                               <div class="repairer-cell">
                                 <img [src]="record.photoUrl || 'assets/placeholder-avatar.png'" class="repairer-avatar" alt="Avatar">
-                                <a (click)="editRepairer(record)" class="link-action" title="Edit Repairer">
-                                  {{ record.name }}
-                                </a>
+                                <input 
+                                    [ngModel]="record.name" 
+                                    (blur)="updateRecord(record, schema, 'name', $event)"
+                                    class="inline-input"
+                                    placeholder="Name">
                               </div>
                             </td>
                             <td>{{ record.createdAt?.toDate ? (record.createdAt?.toDate() | date:'mediumDate') : (record.createdAt | date:'mediumDate') }}</td>
                             </ng-container>
 
                             <ng-container *ngIf="schema === 'owners'">
-                            <td>{{ record.name }}</td>
+                            <td>
+                                <input 
+                                    [ngModel]="record.name" 
+                                    (blur)="updateRecord(record, schema, 'name', $event)"
+                                    class="inline-input"
+                                    placeholder="Name">
+                            </td>
                             <td>{{ record.firstSeen?.toDate ? (record.firstSeen?.toDate() | date:'mediumDate') : '-' }}</td>
                             </ng-container>
 
                             <ng-container *ngIf="schema === 'tags'">
-                            <td>{{ record.name }}</td>
-                            <td class="emoji-cell">{{ record.emoji }}</td>
+                            <td>
+                                <input 
+                                    [ngModel]="record.name" 
+                                    (blur)="updateRecord(record, schema, 'name', $event)"
+                                    class="inline-input"
+                                    placeholder="Tag Name">
+                            </td>
+                            <td class="emoji-cell">
+                                <input 
+                                    [ngModel]="record.emoji" 
+                                    (blur)="updateRecord(record, schema, 'emoji', $event)"
+                                    class="inline-input emoji-input"
+                                    placeholder="Emoji">
+                            </td>
                             </ng-container>
 
-                            <td class="id-cell">{{ record.id }}</td>
-                            
-                            <td *ngIf="schema === 'repairItems'">
-                                <a [routerLink]="['/edit', record.id]" class="btn-icon" title="Edit Item">✏️</a>
+                            <td>
+                                <a *ngIf="schema === 'repairItems'" [routerLink]="['/edit', record.id]" class="btn-icon" title="Edit Item">✏️</a>
+                                <button *ngIf="schema === 'repairers'" (click)="editRepairer(record)" class="btn-icon" title="Edit Repairer">✏️</button>
                             </td>
                         </tr>
                         </tbody>
@@ -303,6 +409,14 @@ import { RepairerFormComponent } from '../repairer-form/repairer-form.component'
       background: linear-gradient(45deg, #fff, var(--accent-color));
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
+    }
+    
+    th.sortable {
+        cursor: pointer;
+        user-select: none;
+    }
+    th.sortable:hover {
+        background: rgba(255,255,255,0.1);
     }
     .subtitle {
       color: rgba(255, 255, 255, 0.5);
@@ -553,8 +667,12 @@ import { RepairerFormComponent } from '../repairer-form/repairer-form.component'
     }
 
     .data-table tr:hover td {
-      background: rgba(255, 255, 255, 0.02);
+      background: rgba(255, 255, 255, 0.04);
       cursor: pointer;
+    }
+
+    .data-table tr {
+        transition: background 0.2s;
     }
 
     .badge {
@@ -566,7 +684,8 @@ import { RepairerFormComponent } from '../repairer-form/repairer-form.component'
     .badge.sequence {
       background: rgba(0, 242, 255, 0.1);
       color: var(--accent-color);
-      border: 1px solid rgba(0, 242, 255, 0.2);
+      border: 1px solid rgba(0, 242, 255, 0.3);
+      box-shadow: 0 0 10px rgba(0, 242, 255, 0.1);
     }
     
     .inline-select {
@@ -598,9 +717,54 @@ import { RepairerFormComponent } from '../repairer-form/repairer-form.component'
         min-width: 100px;
     }
     
-    .status-new { color: #4a90e2 !important; border-color: rgba(74, 144, 226, 0.3) !important; }
-    .status-assigned { color: #f1c40f !important; border-color: rgba(241, 196, 15, 0.3) !important; }
-    .status-completed { color: #28b463 !important; border-color: rgba(40, 180, 99, 0.3) !important; }
+    .status-new { 
+        background: rgba(74, 144, 226, 0.15) !important;
+        color: #7ab1f7 !important; 
+        border: 1px solid rgba(74, 144, 226, 0.4) !important; 
+    }
+    .status-assigned { 
+        background: rgba(241, 196, 15, 0.15) !important;
+        color: #fce170 !important; 
+        border: 1px solid rgba(241, 196, 15, 0.4) !important; 
+    }
+    .status-completed { 
+        background: rgba(40, 180, 99, 0.15) !important;
+        color: #58d68d !important; 
+        border: 1px solid rgba(40, 180, 99, 0.4) !important; 
+    }
+    .status-fixed { 
+        background: rgba(165, 105, 189, 0.15) !important;
+        color: #d7bde2 !important; 
+        border: 1px solid rgba(165, 105, 189, 0.4) !important; 
+    }
+
+    .inline-input {
+        background: transparent;
+        border: 1px solid transparent;
+        color: rgba(255, 255, 255, 0.8);
+        padding: 0.4rem;
+        border-radius: 4px;
+        width: 100%;
+        font-size: 0.9rem;
+        transition: all 0.2s;
+    }
+
+    .inline-input:hover {
+        background: rgba(255, 255, 255, 0.05);
+        border-color: rgba(255, 255, 255, 0.1);
+    }
+
+    .inline-input:focus {
+        background: rgba(0, 0, 0, 0.3);
+        border-color: var(--accent-color);
+        color: white;
+        outline: none;
+    }
+
+    .emoji-input {
+        font-size: 1.5rem;
+        text-align: center;
+    }
 
     .badge.status {
       background: rgba(0, 255, 127, 0.1);
@@ -816,6 +980,69 @@ import { RepairerFormComponent } from '../repairer-form/repairer-form.component'
         right: -5px;
         z-index: 2;
     }
+
+    .inline-autocomplete {
+        width: 100%;
+    }
+    .inline-suggestions {
+        position: fixed;
+        width: 250px;
+        max-height: 300px;
+        z-index: 2000;
+        transform: translateY(10px);
+    }
+    .suggestion-item img {
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        object-fit: cover;
+    }
+    .suggestion-name {
+        font-size: 0.9rem;
+    }
+    .repairer-autocomplete {
+        flex: 1;
+        margin-left: 35px;
+    }
+
+    .clear-btn {
+        background: none;
+        border: none;
+        color: rgba(255,255,255,0.5);
+        font-size: 1.2rem;
+        cursor: pointer;
+        padding: 5px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        line-height: 1;
+        transition: color 0.2s;
+    }
+
+    .clear-btn:hover {
+        color: var(--accent-color);
+    }
+
+    .inline-clear {
+        position: absolute;
+        right: 5px;
+        top: 50%;
+        transform: translateY(-50%);
+        z-index: 5;
+    }
+
+    .search-box {
+        position: relative;
+        display: flex;
+        align-items: center;
+    }
+
+    .modal-clear {
+        position: absolute;
+        right: 10px;
+        top: 50%;
+        transform: translateY(-50%);
+    }
   `]
 })
 export class DatabaseExplorerComponent implements OnInit {
@@ -833,16 +1060,41 @@ export class DatabaseExplorerComponent implements OnInit {
   repairerMap: Map<string, string> = new Map();
 
   // Repairer Assignment Modal
+  // Repairer Assignment Modal
   showRepairerModal = false;
   selectedItemForAssignment: RepairItem | null = null;
   assignmentPrimary: string = '';
   assignmentAdditional: Set<string> = new Set();
 
   viewMode: 'table' | 'json' = 'table';
+  repairerSearchTerm = '';
+
+  // Inline Autocomplete
+  owners: any[] = [];
+  filteredOwners: any[] = [];
+  filteredRepairers: any[] = [];
+  activeSuggestionCell: { id: string, field: string } | null = null;
+
+  // Sorting
+  sortState$ = new BehaviorSubject<{ column: string, direction: 'asc' | 'desc' }>({ column: '', direction: 'asc' });
+
+  availableRCDates: { label: string, value: string, date: Date }[] = [];
 
   ngOnInit() {
+    this.availableRCDates = this.repairService.getAvailableRCDates();
     this.repairers$ = this.repairService.getRepairers();
-    this.collections$ = this.repairService.getTrackedCollections();
+    this.collections$ = this.repairService.getTrackedCollections().pipe(
+      map(cols => cols.sort((a, b) => {
+        const order = ['repairItems', 'owners', 'repairers', 'tags'];
+        const indexA = order.indexOf(a);
+        const indexB = order.indexOf(b);
+
+        if (indexA !== -1 && indexB !== -1) return indexA - indexB;
+        if (indexA !== -1) return -1;
+        if (indexB !== -1) return 1;
+        return a.localeCompare(b);
+      }))
+    );
     // Auto-select first default
     this.selectCollection('repairItems');
 
@@ -854,6 +1106,12 @@ export class DatabaseExplorerComponent implements OnInit {
           this.repairerMap.set(r.name, r.photoUrl);
         }
       });
+      this.filteredRepairers = repairers;
+    });
+
+    this.repairService.getOwners().subscribe(owners => {
+      this.owners = owners;
+      this.filteredOwners = owners;
     });
   }
 
@@ -862,10 +1120,21 @@ export class DatabaseExplorerComponent implements OnInit {
     return this.repairerMap.get(name) || null;
   }
 
+  get filteredRepairers$(): Observable<any[]> {
+    return this.repairers$.pipe(
+      map(repairers => {
+        if (!this.repairerSearchTerm.trim()) return repairers;
+        const term = this.repairerSearchTerm.toLowerCase();
+        return repairers.filter(r => r.name.toLowerCase().includes(term));
+      })
+    );
+  }
+
   openAssignmentModal(item: RepairItem) {
     this.selectedItemForAssignment = item;
     this.assignmentPrimary = item.repairer || '';
     this.assignmentAdditional = new Set(item.additionalRepairers || []);
+    this.repairerSearchTerm = ''; // Clear search
     // Ensure primary is not in additional
     if (this.assignmentPrimary) {
       this.assignmentAdditional.delete(this.assignmentPrimary);
@@ -898,6 +1167,56 @@ export class DatabaseExplorerComponent implements OnInit {
     this.assignmentPrimary = name;
   }
 
+  // Inline Autocomplete Logic
+  onInlineOwnerSearch(value: string, recordId: string) {
+    this.activeSuggestionCell = { id: recordId, field: 'owner' };
+    const term = (value || '').toLowerCase();
+    this.filteredOwners = this.owners.filter(o =>
+      !term || o.name.toLowerCase().includes(term)
+    );
+  }
+
+  selectInlineOwner(owner: any, record: any) {
+    this.updateRecord(record, 'repairItems', 'owner', { target: { value: owner.name } });
+    this.hideInlineSuggestions();
+  }
+
+  clearInlineOwner(record: any) {
+    this.updateRecord(record, 'repairItems', 'owner', { target: { value: '' } });
+    this.hideInlineSuggestions();
+  }
+
+  onInlineRepairerSearch(value: string, recordId: string) {
+    this.activeSuggestionCell = { id: recordId, field: 'repairer' };
+    const term = (value || '').toLowerCase();
+    this.filteredRepairers = this.repairerMap.size > 0 ?
+      Array.from(this.repairerMap.keys())
+        .filter(name => !term || name.toLowerCase().includes(term))
+        .map(name => ({ name, photoUrl: this.repairerMap.get(name) }))
+      : [];
+
+    // If map is empty or doesn't have all, use repairers list if available
+    if (this.filteredRepairers.length === 0 && this.owners.length > 0) {
+      // Fallback logic if needed, but repairerMap is usually good
+    }
+  }
+
+  selectInlineRepairer(repairer: any, record: any) {
+    this.updateItem(record, 'repairer', repairer.name);
+    this.hideInlineSuggestions();
+  }
+
+  clearInlineRepairer(record: any) {
+    this.updateItem(record, 'repairer', '');
+    this.hideInlineSuggestions();
+  }
+
+  hideInlineSuggestions() {
+    setTimeout(() => {
+      this.activeSuggestionCell = null;
+    }, 200);
+  }
+
   async saveAssignment() {
     if (!this.selectedItemForAssignment) return;
 
@@ -925,31 +1244,79 @@ export class DatabaseExplorerComponent implements OnInit {
     }
   }
 
+  // ... (rest of methods)
+
   selectCollection(colName: string) {
     this.selectedCollection = colName;
-    this.selectedItems.clear(); // Clear selection when switching collections
-    this.data$ = this.repairService.getCollectionData(colName).pipe(
-      map(data => {
-        // Sort data based on collection type
-        if (colName === 'repairItems') {
-          return data.sort((a, b) => (b.creationDate?.toMillis() || 0) - (a.creationDate?.toMillis() || 0));
-        }
-        if (colName === 'repairers') {
-          return data.sort((a, b) => a.name.localeCompare(b.name));
-        }
-        if (colName === 'owners') {
-          return data.sort((a, b) => a.name.localeCompare(b.name));
-        }
-        if (colName === 'tags') {
-          return data.sort((a, b) => a.name.localeCompare(b.name));
-        }
-        return data;
+    this.selectedItems.clear(); // Clear selection
+    // Reset sort when switching, or set default for repairItems
+    if (colName === 'repairItems') {
+      this.sortState$.next({ column: 'creationDate', direction: 'desc' });
+    } else {
+      this.sortState$.next({ column: 'name', direction: 'asc' });
+    }
+
+    this.data$ = combineLatest([
+      this.repairService.getCollectionData(colName),
+      this.sortState$
+    ]).pipe(
+      map(([data, sort]) => {
+        if (!sort.column) return data;
+
+        return data.sort((a, b) => {
+          let valA = a[sort.column];
+          let valB = b[sort.column];
+
+          // Handle undefined/null
+          if (valA === undefined || valA === null) valA = '';
+          if (valB === undefined || valB === null) valB = '';
+
+          // Handle dates (Firestore Timestamps)
+          if (valA && typeof valA.toMillis === 'function') valA = valA.toMillis();
+          if (valB && typeof valB.toMillis === 'function') valB = valB.toMillis();
+
+          // Handle dates (JS Date objects if any)
+          if (valA instanceof Date) valA = valA.getTime();
+          if (valB instanceof Date) valB = valB.getTime();
+
+          // Handle strings (case insensitive)
+          if (typeof valA === 'string') valA = valA.toLowerCase();
+          if (typeof valB === 'string') valB = valB.toLowerCase();
+
+          // Comparison
+          if (valA < valB) return sort.direction === 'asc' ? -1 : 1;
+          if (valA > valB) return sort.direction === 'asc' ? 1 : -1;
+          return 0;
+        });
       }),
       catchError(err => {
         console.error(`Error loading collection ${colName}:`, err);
         return of([]);
       })
     );
+  }
+
+  onSort(column: string) {
+    const current = this.sortState$.value;
+    if (current.column === column) {
+      // Toggle direction
+      this.sortState$.next({
+        column,
+        direction: current.direction === 'asc' ? 'desc' : 'asc'
+      });
+    } else {
+      // New column, default asc (except maybe dates? but consistent is better)
+      this.sortState$.next({
+        column,
+        direction: 'asc'
+      });
+    }
+  }
+
+  getSortIcon(column: string): string {
+    const current = this.sortState$.value;
+    if (current.column !== column) return '';
+    return current.direction === 'asc' ? '↑' : '↓';
   }
 
   getCollectionLabel(col: string | null): string {
@@ -963,22 +1330,49 @@ export class DatabaseExplorerComponent implements OnInit {
     }
   }
 
-  refresh() {
-    if (this.selectedCollection) {
-      this.selectCollection(this.selectedCollection);
+
+
+
+
+  async addRecord() {
+    if (!this.selectedCollection) return;
+
+    try {
+      if (this.selectedCollection === 'repairItems') {
+        // Create new RepairItem with minimal required fields
+        // ID, creationDate, itemNumber, etc. are handled by the service
+        const newItem = {
+          itemDescription: 'New Item',
+          owner: 'New Owner',
+          status: 'New',
+          photos: [],
+          RCDay: this.repairService.getNextRCDay(),
+          category: 'Electrical'
+        };
+        await this.repairService.addRepairItem(newItem);
+      } else if (this.selectedCollection === 'repairers') {
+        const name = prompt('Enter name for new repairer:');
+        if (name) {
+          await this.repairService.addRepairer(name);
+        }
+      } else if (this.selectedCollection === 'owners') {
+        const name = prompt('Enter name for new owner:');
+        if (name) {
+          await this.repairService.ensureOwnerExists(name);
+        }
+      } else if (this.selectedCollection === 'tags') {
+        const name = prompt('Enter name for new tag:');
+        if (name) {
+          await this.repairService.ensureTagExists(name);
+        }
+      }
+
+      this.selectCollection(this.selectedCollection); // Refresh
+    } catch (error) {
+      console.error('Error adding record:', error);
+      alert('Failed to add record.');
     }
   }
-
-  trackCollection() {
-    const name = prompt('Enter the exact name of the collection to track (case-sensitive):');
-    if (name) {
-      this.repairService.trackCollection(name).then(() => {
-        // Switch to it after a brief delay to allow propagation
-        setTimeout(() => this.selectCollection(name), 500);
-      });
-    }
-  }
-
   deleteCol(colName: string, event: Event) {
     event.stopPropagation(); // Prevent tab selection
     if (!colName) return;
@@ -1027,7 +1421,20 @@ export class DatabaseExplorerComponent implements OnInit {
     if (!item.id) return;
 
     const updates: Partial<RepairItem> = {};
+
+    if (field === 'RCDay' && (!value || value.trim() === '')) {
+      return;
+      return; // Block blank date updates
+    }
+
     updates[field as keyof RepairItem] = value;
+
+    // RECALCULATE SEQUENCE if RCDay is changed
+    if (field === 'RCDay') {
+      const newSequence = await this.repairService.getSuggestedDisplayNumber(value);
+      updates.displayNumber = newSequence;
+      (item as any).displayNumber = newSequence; // Optimistic update
+    }
 
     // Logic: Auto-update status based on repairer assignment
     if (field === 'repairer') {
@@ -1048,7 +1455,46 @@ export class DatabaseExplorerComponent implements OnInit {
     } catch (err) {
       console.error('Failed to update item:', err);
       // Revert/Refresh on failure
-      this.refresh();
+      this.selectCollection(this.selectedCollection || 'repairItems');
+    }
+  }
+
+  async updateRecord(record: any, schema: string, field: string, event: any) {
+    const value = event.target.value;
+    if (record[field] === value) return; // No change
+
+    if (schema === 'repairItems') {
+      await this.updateItem(record, field, value);
+      return;
+    }
+
+    // Generic update for other schemas
+    try {
+      const updates: any = {};
+      updates[field] = value;
+
+      // Optimistic update
+      record[field] = value;
+
+      if (schema === 'repairers') {
+        await this.repairService.updateRepairer(record.id, updates);
+      } else if (schema === 'owners' || schema === 'tags') {
+        // We might need a more generic update method in RepairService
+        // but for now we'll use a local implementation or updateDoc directly if shared?
+        // Actually RepairService should have it.
+        await this.repairService.updateRecord(schema, record.id, updates);
+      }
+    } catch (err) {
+      console.error(`Failed to update ${schema} record ${record.id}:`, err);
+      this.selectCollection(this.selectedCollection!); // Refresh
+    }
+  }
+
+  onRowDoubleClick(record: any, schema: string) {
+    if (schema === 'repairItems' && record.id) {
+      this.router.navigate(['/edit', record.id]);
+    } else if (schema === 'repairers') {
+      this.editRepairer(record);
     }
   }
 
@@ -1080,20 +1526,20 @@ export class DatabaseExplorerComponent implements OnInit {
 
   async deleteSelected() {
     const count = this.selectedItems.size;
-    if (count === 0) return;
+    if (count === 0 || !this.selectedCollection) return;
 
-    const confirmed = confirm(`Are you sure you want to delete ${count} selected item${count > 1 ? 's' : ''}?\n\nThis action cannot be undone.`);
+    const confirmed = confirm(`Are you sure you want to delete ${count} selected record${count > 1 ? 's' : ''} from "${this.getCollectionLabel(this.selectedCollection)}"?\n\nThis action cannot be undone.`);
     if (!confirmed) return;
 
     try {
       const idsToDelete = Array.from(this.selectedItems);
-      await this.repairService.deleteMultipleRepairItems(idsToDelete);
+      await this.repairService.deleteMultipleRecords(this.selectedCollection, idsToDelete);
       this.selectedItems.clear();
       // Refresh the view
-      this.refresh();
+      this.selectCollection(this.selectedCollection);
     } catch (error) {
-      console.error('Error deleting items:', error);
-      alert('Failed to delete items. Please try again.');
+      console.error('Error deleting records:', error);
+      alert('Failed to delete records. Please try again.');
     }
   }
 
@@ -1118,7 +1564,7 @@ export class DatabaseExplorerComponent implements OnInit {
       }
       this.closeEdit();
       // Refresh list
-      this.refresh();
+      this.selectCollection(this.selectedCollection || 'repairItems');
     } catch (error) {
       console.error('Error saving repairer:', error);
       alert('Failed to save repairer.');
@@ -1129,18 +1575,12 @@ export class DatabaseExplorerComponent implements OnInit {
     try {
       await this.repairService.deleteRepairer(id);
       this.closeEdit();
-      this.refresh();
+      this.selectCollection(this.selectedCollection || 'repairItems');
     } catch (error) {
       console.error('Error deleting repairer:', error);
       alert('Failed to delete repairer.');
     }
   }
 
-  onRowDoubleClick(record: any, schema: string) {
-    if (schema === 'repairItems' && record.id) {
-      this.router.navigate(['/edit', record.id]);
-    } else if (schema === 'repairers') {
-      this.editRepairer(record);
-    }
-  }
+
 }
