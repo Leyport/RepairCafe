@@ -168,7 +168,8 @@ type SortOption = 'newest' | 'oldest' | 'number';
     }
     .compact-list {
       border-radius: 12px;
-      overflow: hidden;
+      overflow-x: auto;
+      overflow-y: hidden;
     }
     .list-header {
       display: grid;

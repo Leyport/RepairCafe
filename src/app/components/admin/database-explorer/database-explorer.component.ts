@@ -1,6 +1,6 @@
 import { Component, inject, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { RouterLink, Router } from '@angular/router';
+import { Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { RepairService } from '../../../services/repair.service';
 import { Observable, of, BehaviorSubject, combineLatest } from 'rxjs';
@@ -12,7 +12,7 @@ import { RepairerFormComponent } from '../repairer-form/repairer-form.component'
 @Component({
   selector: 'app-database-explorer',
   standalone: true,
-  imports: [CommonModule, RouterLink, FormsModule, RepairerFormComponent],
+  imports: [CommonModule, FormsModule, RepairerFormComponent],
   template: `
     <div class="explorer-container">
       <app-repairer-form 
@@ -87,8 +87,8 @@ import { RepairerFormComponent } from '../repairer-form/repairer-form.component'
       <div class="header-section">
         <h2>Database Explorer</h2>
         <p class="subtitle">View and manage system collections</p>
-            <button class="btn-action" (click)="addRecord()">
-              ➕ Add
+            <button class="btn-action" (click)="addRecord()" title="Add New Record">
+              ➕
             </button>
          </div>
 
@@ -117,12 +117,13 @@ import { RepairerFormComponent } from '../repairer-form/repairer-form.component'
                 <button 
                     *ngIf="selectedCount > 0"
                     class="btn-delete-selected" 
-                    (click)="deleteSelected()">
-                    🗑️ Delete Selected ({{ selectedCount }})
+                    (click)="deleteSelected()"
+                    title="Delete Selected Records">
+                    🗑️ ({{ selectedCount }})
                 </button>
                 <span class="count" *ngIf="data$ | async as data">{{ data.length }} records</span>
-                <button class="btn-toggle" (click)="toggleView()" title="Toggle View">
-                    {{ viewMode === 'table' ? '📝 Table' : '{} JSON' }}
+                <button class="btn-toggle" (click)="toggleView()" [title]="viewMode === 'table' ? 'Switch to JSON View' : 'Switch to Table View'">
+                    {{ viewMode === 'table' ? '📝' : '{}' }}
                 </button>
             </div>
           </div>
@@ -144,26 +145,27 @@ import { RepairerFormComponent } from '../repairer-form/repairer-form.component'
                                     title="Select All">
                             </th>
                             <th *ngIf="schema === 'repairItems'" class="photo-col">Photo</th>
-                            <th *ngIf="schema === 'repairItems'" (click)="onSort('itemNumber')" class="sortable">Item No. {{ getSortIcon('itemNumber') }}</th>
-                            <th *ngIf="schema === 'repairItems'" (click)="onSort('itemDescription')" class="sortable">Description {{ getSortIcon('itemDescription') }}</th>
-                            <th *ngIf="schema === 'repairItems'" (click)="onSort('telephone')" class="sortable">Telephone {{ getSortIcon('telephone') }}</th>
-                            <th *ngIf="schema === 'repairItems'" (click)="onSort('owner')" class="sortable">Owner {{ getSortIcon('owner') }}</th>
-                            <th *ngIf="schema === 'repairItems'" (click)="onSort('repairItem')" class="sortable">Type {{ getSortIcon('repairItem') }}</th>
-                             <th *ngIf="schema === 'repairItems'" (click)="onSort('repairer')" class="sortable">Repairer {{ getSortIcon('repairer') }}</th>
-                             <th *ngIf="schema === 'repairItems'" (click)="onSort('RCDay')" class="sortable">Repair Date {{ getSortIcon('RCDay') }}</th>
-                             <th *ngIf="schema === 'repairItems'" (click)="onSort('creationDate')" class="sortable">Creation Date {{ getSortIcon('creationDate') }}</th>
-                            <th *ngIf="schema === 'repairItems'" (click)="onSort('status')" class="sortable">Status {{ getSortIcon('status') }}</th>
+                            <th *ngIf="schema === 'repairItems'" (click)="onSort('itemNumber')" class="sortable" title="Item Number"># {{ getSortIcon('itemNumber') }}</th>
+                            <th *ngIf="schema === 'repairItems'" (click)="onSort('itemDescription')" class="sortable description-col" title="Item Description">📝 {{ getSortIcon('itemDescription') }}</th>
+                            <th *ngIf="schema === 'repairItems'" (click)="onSort('owner')" class="sortable owner-col" title="Owner">👤 {{ getSortIcon('owner') }}</th>
+                            <th *ngIf="schema === 'repairItems'" (click)="onSort('repairItem')" class="sortable" title="Item Type">🏷️ {{ getSortIcon('repairItem') }}</th>
+                             <th *ngIf="schema === 'repairItems'" (click)="onSort('repairer')" class="sortable" title="Assigned Repairer">🔧 {{ getSortIcon('repairer') }}</th>
+                             <th *ngIf="schema === 'repairItems'" (click)="onSort('RCDay')" class="sortable" title="Repair Session Date">📅 {{ getSortIcon('RCDay') }}</th>
+                             <th *ngIf="schema === 'repairItems'" (click)="onSort('creationDate')" class="sortable" title="Record Creation Date">⏱️ {{ getSortIcon('creationDate') }}</th>
+                            <th *ngIf="schema === 'repairItems'" (click)="onSort('status')" class="sortable" title="Status Indicator">🚥 {{ getSortIcon('status') }}</th>
                             
                             <th *ngIf="schema === 'repairers'" (click)="onSort('name')" class="sortable">Name {{ getSortIcon('name') }}</th>
                             <th *ngIf="schema === 'repairers'" (click)="onSort('createdAt')" class="sortable">Joined {{ getSortIcon('createdAt') }}</th>
 
-                            <th *ngIf="schema === 'owners'" (click)="onSort('name')" class="sortable">Name {{ getSortIcon('name') }}</th>
-                            <th *ngIf="schema === 'owners'" (click)="onSort('firstSeen')" class="sortable">First Seen {{ getSortIcon('firstSeen') }}</th>
+                            <th *ngIf="schema === 'owners'" (click)="onSort('name')" class="sortable" title="Owner Name">👤 {{ getSortIcon('name') }}</th>
+                            <th *ngIf="schema === 'owners'" (click)="onSort('telephone')" class="sortable" title="Telephone">📞 {{ getSortIcon('telephone') }}</th>
+                            <th *ngIf="schema === 'owners'" (click)="onSort('email')" class="sortable" title="Email">📧 {{ getSortIcon('email') }}</th>
+                            <th *ngIf="schema === 'owners'" (click)="onSort('firstSeen')" class="sortable" title="First Seen Date">📅 {{ getSortIcon('firstSeen') }}</th>
 
-                            <th *ngIf="schema === 'tags'" (click)="onSort('name')" class="sortable">Tag Name {{ getSortIcon('name') }}</th>
-                            <th *ngIf="schema === 'tags'" (click)="onSort('emoji')" class="sortable">Emoji {{ getSortIcon('emoji') }}</th>
+                            <th *ngIf="schema === 'tags'" (click)="onSort('name')" class="sortable" title="Tag Name">🏷️ {{ getSortIcon('name') }}</th>
+                            <th *ngIf="schema === 'tags'" (click)="onSort('emoji')" class="sortable" title="Emoji">😀 {{ getSortIcon('emoji') }}</th>
                             
-                            <th>Actions</th>
+                            <th [title]="schema === 'owners' ? 'Delete Owner' : 'Actions'">{{ schema === 'owners' ? '🗑️' : 'Actions' }}</th>
                         </tr>
                         </thead>
                         <tbody>
@@ -181,59 +183,68 @@ import { RepairerFormComponent } from '../repairer-form/repairer-form.component'
                                         <img [src]="record.photos[0]" alt="Item" class="item-thumbnail" loading="lazy">
                                     </a>
                                 </div>
-                                <span *ngIf="!record.photos || record.photos.length === 0" class="no-photo">-</span>
+                                <label *ngIf="!record.photos || record.photos.length === 0"
+                                       class="btn-add-photo"
+                                       [class.uploading]="uploadingPhotoId === record.id"
+                                       [title]="uploadingPhotoId === record.id ? 'Uploading...' : 'Add photo'"
+                                       (click)="$event.stopPropagation()">
+                                    <input type="file" accept="image/*" style="display:none"
+                                           (change)="uploadPhotoForRecord(record, $event)"
+                                           [disabled]="uploadingPhotoId === record.id">
+                                    <span *ngIf="uploadingPhotoId !== record.id">📷</span>
+                                    <span *ngIf="uploadingPhotoId === record.id" class="photo-spinner"></span>
+                                </label>
                             </td>
-                            <td>{{ record.displayNumber || record.itemNumber }}</td>
-                            <td>
+                            <td [title]="record.displayNumber || record.itemNumber">{{ record.displayNumber || record.itemNumber }}</td>
+                            <td class="description-col">
                                 <input 
                                     [ngModel]="record.itemDescription" 
                                     (blur)="updateRecord(record, schema, 'itemDescription', $event)"
                                     class="inline-input"
+                                    [title]="record.itemDescription"
                                     placeholder="Description">
                             </td>
-                            <td>
-                                <input 
-                                    [ngModel]="record.telephone" 
-                                    (blur)="updateRecord(record, schema, 'telephone', $event)"
-                                    class="inline-input"
-                                    placeholder="Telephone">
-                            </td>
-                            <td>
-                                <div class="autocomplete-container inline-autocomplete">
-                                    <input 
-                                        [ngModel]="record.owner" 
-                                        (input)="onInlineOwnerSearch($any($event.target).value, record.id)"
-                                        (focus)="onInlineOwnerSearch($any($event.target).value, record.id)"
-                                        (blur)="hideInlineSuggestions()"
-                                        class="inline-input"
-                                        placeholder="Owner"
-                                        autocomplete="off">
-                                    
+                            <td class="owner-col" (dblclick)="selectCollection('owners')" title="Double-click to manage owners">
+                                <div class="lov-container">
+                                    <select 
+                                        [ngModel]="record.owner || ''" 
+                                        (ngModelChange)="updateItem(record, 'owner', $event)"
+                                        class="inline-select owner-select"
+                                        [title]="record.owner || ''"
+                                        (click)="$event.stopPropagation()">
+                                        <option value="" disabled>Select Owner...</option>
+                                        <option *ngFor="let owner of owners" [value]="owner.name">{{ owner.name }}</option>
+                                    </select>
                                     <button 
-                                        type="button" 
+                                        *ngIf="record.owner"
                                         class="clear-btn inline-clear" 
-                                        *ngIf="record.owner" 
-                                        (mousedown)="clearInlineOwner(record); $event.stopPropagation()"
-                                        title="Clear owner">×</button>
-
-                                    <div class="suggestions-list glass inline-suggestions" *ngIf="activeSuggestionCell?.id === record.id && activeSuggestionCell?.field === 'owner' && filteredOwners.length > 0">
-                                      <div 
-                                        class="suggestion-item" 
-                                        *ngFor="let owner of filteredOwners"
-                                        (mousedown)="selectInlineOwner(owner, record)">
-                                        <span class="suggestion-name">{{ owner.name }}</span>
-                                      </div>
-                                    </div>
+                                        (click)="$event.stopPropagation(); updateItem(record, 'owner', '')"
+                                        title="Clear owner">
+                                        &times;
+                                    </button>
                                 </div>
                             </td>
-                            <td>
-                                <input 
-                                    [ngModel]="record.repairItem" 
-                                    (blur)="updateRecord(record, schema, 'repairItem', $event)"
-                                    class="inline-input"
-                                    placeholder="Type">
+                            <td class="type-col" (dblclick)="selectCollection('tags')" title="Double-click to manage tags">
+                                <div class="lov-container">
+                                    <select 
+                                        [ngModel]="record.repairItem || ''" 
+                                        (ngModelChange)="updateItem(record, 'repairItem', $event)"
+                                        class="inline-select type-select"
+                                        [title]="record.repairItem || ''"
+                                        (click)="$event.stopPropagation()">
+                                        <option value="" disabled>Select Type...</option>
+                                        <option *ngFor="let tag of tags" [value]="tag.name">{{ tag.name }}</option>
+                                    </select>
+                                    <button 
+                                        *ngIf="record.repairItem"
+                                        class="clear-btn inline-clear" 
+                                        (click)="$event.stopPropagation(); updateItem(record, 'repairItem', '')"
+                                        title="Clear type">
+                                        &times;
+                                    </button>
+                                </div>
                             </td>
-                            <td>
+                            <td (dblclick)="selectCollection('repairers')" title="Double-click to manage repairers">
                               <div class="repairer-select-wrapper">
                                 <img *ngIf="getRepairerPhoto(record.repairer)" 
                                      [src]="getRepairerPhoto(record.repairer)" 
@@ -245,39 +256,24 @@ import { RepairerFormComponent } from '../repairer-form/repairer-form.component'
                                     +{{ record.additionalRepairers?.length }}
                                 </span>
 
-                                <div class="autocomplete-container inline-autocomplete repairer-autocomplete">
-                                  <input 
-                                      [ngModel]="record.repairer" 
-                                      (input)="onInlineRepairerSearch($any($event.target).value, record.id)"
-                                      (focus)="onInlineRepairerSearch($any($event.target).value, record.id)"
-                                      (blur)="hideInlineSuggestions()"
-                                      class="inline-input"
-                                      [class.hidden-text]="getRepairerPhoto(record.repairer)"
-                                      placeholder="Repairer"
-                                      autocomplete="off">
-
-                                  <button 
-                                      type="button" 
-                                      class="clear-btn inline-clear" 
-                                      *ngIf="record.repairer" 
-                                      (mousedown)="clearInlineRepairer(record); $event.stopPropagation()"
-                                      title="Clear repairer">×</button>
-
-                                  <div class="suggestions-list glass inline-suggestions" *ngIf="activeSuggestionCell?.id === record.id && activeSuggestionCell?.field === 'repairer' && filteredRepairers.length > 0">
-                                    <div 
-                                      class="suggestion-item" 
-                                      *ngFor="let repairer of filteredRepairers"
-                                      (mousedown)="selectInlineRepairer(repairer, record)">
-                                      <img [src]="repairer.photoUrl || '/assets/default-avatar.png'" 
-                                           style="width: 24px; height: 24px; border-radius: 50%; object-fit: cover;">
-                                      <span class="suggestion-name">{{ repairer.name }}</span>
-                                    </div>
-                                  </div>
+                                <div class="lov-container">
+                                    <select
+                                        [ngModel]="record.repairer || ''"
+                                        (ngModelChange)="updateItem(record, 'repairer', $event)"
+                                        class="inline-select repairer-select"
+                                        [title]="record.repairer || ''"
+                                        (click)="$event.stopPropagation()">
+                                        <option value="" disabled>Select Repairer...</option>
+                                        <option *ngFor="let r of filteredRepairers" [value]="r.name">{{ r.name }}</option>
+                                    </select>
+                                    <button
+                                        *ngIf="record.repairer"
+                                        class="clear-btn inline-clear"
+                                        (click)="$event.stopPropagation(); updateItem(record, 'repairer', '')"
+                                        title="Clear repairer">
+                                        &times;
+                                    </button>
                                 </div>
-                                
-                                <button class="btn-manage-repairers" (click)="openAssignmentModal(record); $event.stopPropagation()" title="Manage Repairers">
-                                    👥
-                                </button>
                               </div>
                             </td>
                              <td>
@@ -287,18 +283,20 @@ import { RepairerFormComponent } from '../repairer-form/repairer-form.component'
                                  class="inline-select"
                                  [style.color]="!record.RCDay ? '#ff4444' : 'inherit'"
                                  [style.font-weight]="!record.RCDay ? 'bold' : 'normal'"
+                                 [title]="record.RCDay || 'MISSING DATE'"
                                  (click)="$event.stopPropagation()">
                                  <option value="" disabled>{{ record.RCDay ? 'Change Date...' : '⚠️ MISSING DATE' }}</option>
                                  <option *ngFor="let d of availableRCDates" [value]="d.value">{{ d.label }}</option>
                                </select>
                              </td>
-                             <td>{{ record.creationDate?.toDate ? (record.creationDate?.toDate() | date:'short') : '-' }}</td>
+                             <td [title]="record.creationDate?.toDate ? (record.creationDate?.toDate() | date:'short') : '-'">{{ record.creationDate?.toDate ? (record.creationDate?.toDate() | date:'short') : '-' }}</td>
                             <td>
                               <select 
                                 [ngModel]="record.status || 'New'" 
                                 (ngModelChange)="updateItem(record, 'status', $event)"
                                 class="inline-select status-select"
                                 [ngClass]="{'status-new': (record.status || 'New') === 'New', 'status-assigned': record.status === 'Assigned', 'status-completed': record.status === 'Completed'}"
+                                [title]="record.status || 'New'"
                                 (click)="$event.stopPropagation()">
                                 <option value="New">New</option>
                                 <option value="Assigned">Assigned</option>
@@ -315,10 +313,11 @@ import { RepairerFormComponent } from '../repairer-form/repairer-form.component'
                                     [ngModel]="record.name" 
                                     (blur)="updateRecord(record, schema, 'name', $event)"
                                     class="inline-input"
+                                    [title]="record.name || ''"
                                     placeholder="Name">
                               </div>
                             </td>
-                            <td>{{ record.createdAt?.toDate ? (record.createdAt?.toDate() | date:'mediumDate') : (record.createdAt | date:'mediumDate') }}</td>
+                            <td [title]="record.createdAt?.toDate ? (record.createdAt?.toDate() | date:'mediumDate') : (record.createdAt | date:'mediumDate')">{{ record.createdAt?.toDate ? (record.createdAt?.toDate() | date:'mediumDate') : (record.createdAt | date:'mediumDate') }}</td>
                             </ng-container>
 
                             <ng-container *ngIf="schema === 'owners'">
@@ -327,9 +326,26 @@ import { RepairerFormComponent } from '../repairer-form/repairer-form.component'
                                     [ngModel]="record.name" 
                                     (blur)="updateRecord(record, schema, 'name', $event)"
                                     class="inline-input"
+                                    [title]="record.name || ''"
                                     placeholder="Name">
                             </td>
-                            <td>{{ record.firstSeen?.toDate ? (record.firstSeen?.toDate() | date:'mediumDate') : '-' }}</td>
+                            <td>
+                                <input 
+                                    [ngModel]="record.telephone" 
+                                    (blur)="updateRecord(record, schema, 'telephone', $event)"
+                                    class="inline-input"
+                                    [title]="record.telephone || ''"
+                                    placeholder="Telephone">
+                            </td>
+                            <td>
+                                <input 
+                                    [ngModel]="record.email" 
+                                    (blur)="updateRecord(record, schema, 'email', $event)"
+                                    class="inline-input"
+                                    [title]="record.email || ''"
+                                    placeholder="Email">
+                            </td>
+                            <td [title]="record.firstSeen?.toDate ? (record.firstSeen?.toDate() | date:'mediumDate') : '-'">{{ record.firstSeen?.toDate ? (record.firstSeen?.toDate() | date:'mediumDate') : '-' }}</td>
                             </ng-container>
 
                             <ng-container *ngIf="schema === 'tags'">
@@ -338,6 +354,7 @@ import { RepairerFormComponent } from '../repairer-form/repairer-form.component'
                                     [ngModel]="record.name" 
                                     (blur)="updateRecord(record, schema, 'name', $event)"
                                     class="inline-input"
+                                    [title]="record.name || ''"
                                     placeholder="Tag Name">
                             </td>
                             <td class="emoji-cell">
@@ -345,13 +362,15 @@ import { RepairerFormComponent } from '../repairer-form/repairer-form.component'
                                     [ngModel]="record.emoji" 
                                     (blur)="updateRecord(record, schema, 'emoji', $event)"
                                     class="inline-input emoji-input"
+                                    [title]="record.emoji || ''"
                                     placeholder="Emoji">
                             </td>
                             </ng-container>
 
                             <td>
-                                <a *ngIf="schema === 'repairItems'" [routerLink]="['/edit', record.id]" class="btn-icon" title="Edit Item">✏️</a>
+                                <button *ngIf="schema === 'repairItems'" (click)="deleteRepairItem(record.id, record.displayNumber || record.itemNumber, $event)" class="btn-icon btn-icon-delete" title="Delete Item">🗑️</button>
                                 <button *ngIf="schema === 'repairers'" (click)="editRepairer(record)" class="btn-icon" title="Edit Repairer">✏️</button>
+                                <button *ngIf="schema === 'owners'" (click)="deleteOwner(record.id, record.name, $event)" class="btn-icon" title="Delete Owner">🗑️</button>
                             </td>
                         </tr>
                         </tbody>
@@ -666,6 +685,10 @@ import { RepairerFormComponent } from '../repairer-form/repairer-form.component'
       color: rgba(255, 255, 255, 0.8);
     }
 
+    .description-col {
+        min-width: 250px;
+    }
+
     .data-table tr:hover td {
       background: rgba(255, 255, 255, 0.04);
       cursor: pointer;
@@ -698,6 +721,35 @@ import { RepairerFormComponent } from '../repairer-form/repairer-form.component'
         width: 100%;
         min-width: 120px;
         cursor: pointer;
+    }
+
+    .owner-select {
+        width: 100%;
+        min-width: 150px !important;
+        padding-right: 50px; /* Space for clear button and arrow */
+    }
+
+    .owner-col {
+        min-width: 220px !important;
+        width: 220px !important;
+    }
+
+    .type-col {
+        min-width: 180px !important;
+        width: 180px !important;
+    }
+
+    .type-select {
+        width: 100%;
+        min-width: 120px !important;
+        padding-right: 50px; /* Space for clear button and arrow */
+    }
+
+    .lov-container {
+        position: relative;
+        display: flex;
+        align-items: center;
+        width: 100%;
     }
     
     .inline-select:focus {
@@ -820,6 +872,38 @@ import { RepairerFormComponent } from '../repairer-form/repairer-form.component'
         color: rgba(255, 255, 255, 0.2);
         font-size: 0.8rem;
     }
+
+    .btn-add-photo {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 40px;
+        height: 40px;
+        border-radius: 4px;
+        border: 1px dashed rgba(255, 255, 255, 0.2);
+        cursor: pointer;
+        font-size: 1.1rem;
+        transition: all 0.2s;
+        background: transparent;
+    }
+    .btn-add-photo:hover {
+        border-color: var(--accent-color);
+        background: rgba(0, 242, 255, 0.08);
+    }
+    .btn-add-photo.uploading {
+        border-color: var(--accent-color);
+        opacity: 0.7;
+        cursor: not-allowed;
+    }
+    .photo-spinner {
+        width: 16px;
+        height: 16px;
+        border: 2px solid rgba(255,255,255,0.2);
+        border-top-color: var(--accent-color);
+        border-radius: 50%;
+        animation: spin 0.7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
 
     .loading-state {
       display: flex;
@@ -1025,7 +1109,7 @@ import { RepairerFormComponent } from '../repairer-form/repairer-form.component'
 
     .inline-clear {
         position: absolute;
-        right: 5px;
+        right: 30px;
         top: 50%;
         transform: translateY(-50%);
         z-index: 5;
@@ -1071,6 +1155,7 @@ export class DatabaseExplorerComponent implements OnInit {
 
   // Inline Autocomplete
   owners: any[] = [];
+  tags: any[] = [];
   filteredOwners: any[] = [];
   filteredRepairers: any[] = [];
   activeSuggestionCell: { id: string, field: string } | null = null;
@@ -1111,7 +1196,10 @@ export class DatabaseExplorerComponent implements OnInit {
 
     this.repairService.getOwners().subscribe(owners => {
       this.owners = owners;
-      this.filteredOwners = owners;
+    });
+
+    this.repairService.getCollectionData('tags').subscribe(tags => {
+      this.tags = tags;
     });
   }
 
@@ -1168,23 +1256,6 @@ export class DatabaseExplorerComponent implements OnInit {
   }
 
   // Inline Autocomplete Logic
-  onInlineOwnerSearch(value: string, recordId: string) {
-    this.activeSuggestionCell = { id: recordId, field: 'owner' };
-    const term = (value || '').toLowerCase();
-    this.filteredOwners = this.owners.filter(o =>
-      !term || o.name.toLowerCase().includes(term)
-    );
-  }
-
-  selectInlineOwner(owner: any, record: any) {
-    this.updateRecord(record, 'repairItems', 'owner', { target: { value: owner.name } });
-    this.hideInlineSuggestions();
-  }
-
-  clearInlineOwner(record: any) {
-    this.updateRecord(record, 'repairItems', 'owner', { target: { value: '' } });
-    this.hideInlineSuggestions();
-  }
 
   onInlineRepairerSearch(value: string, recordId: string) {
     this.activeSuggestionCell = { id: recordId, field: 'repairer' };
@@ -1342,8 +1413,8 @@ export class DatabaseExplorerComponent implements OnInit {
         // Create new RepairItem with minimal required fields
         // ID, creationDate, itemNumber, etc. are handled by the service
         const newItem = {
-          itemDescription: 'New Item',
-          owner: 'New Owner',
+          itemDescription: '',
+          owner: '',
           status: 'New',
           photos: [],
           RCDay: this.repairService.getNextRCDay(),
@@ -1579,6 +1650,55 @@ export class DatabaseExplorerComponent implements OnInit {
     } catch (error) {
       console.error('Error deleting repairer:', error);
       alert('Failed to delete repairer.');
+    }
+  }
+
+  async deleteOwner(id: string, name: string, event: Event) {
+    event.stopPropagation();
+    if (confirm(`Are you sure you want to delete owner "${name}"? This will not delete their repair records, but they will be removed from the owners list.`)) {
+      try {
+        await this.repairService.deleteMultipleRecords('owners', [id]);
+        this.selectCollection('owners');
+      } catch (error) {
+        console.error('Error deleting owner:', error);
+        alert('Failed to delete owner.');
+      }
+    }
+  }
+
+  async deleteRepairItem(id: string, label: any, event: Event) {
+    event.stopPropagation();
+    if (confirm(`Delete repair item "${label}"? This cannot be undone.`)) {
+      try {
+        await this.repairService.deleteMultipleRecords('repairItems', [id]);
+        this.selectCollection('repairItems');
+      } catch (error) {
+        console.error('Error deleting repair item:', error);
+        alert('Failed to delete repair item.');
+      }
+    }
+  }
+
+  uploadingPhotoId: string | null = null;
+
+  async uploadPhotoForRecord(record: any, event: Event) {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file || this.uploadingPhotoId) return;
+    this.uploadingPhotoId = record.id;
+    try {
+      const url = await this.repairService.uploadPhoto(file);
+      await this.repairService.updateRepairItem(record.id, {
+        ...record,
+        photos: [...(record.photos || []), url]
+      });
+      this.selectCollection(this.selectedCollection || 'repairItems');
+    } catch (err) {
+      console.error('Photo upload failed:', err);
+      alert('Photo upload failed. Please try again.');
+    } finally {
+      this.uploadingPhotoId = null;
+      input.value = '';
     }
   }
 

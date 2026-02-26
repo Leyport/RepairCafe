@@ -20,6 +20,8 @@ export interface RepairItem {
 export interface Owner {
   id?: string;
   name: string;
+  telephone?: string;
+  email?: string;
   firstSeen: any; // Timestamp
 }
 
