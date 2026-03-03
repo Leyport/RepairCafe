@@ -1,4 +1,4 @@
 export const APP_VERSION = {
-    version: 'v1.22.7',
-    description: 'Database Explorer: delete button per row, photo upload button, blank owner/description on new records.'
+    version: 'v1.22.8',
+    description: 'Moved to Anthropic.'
 };
