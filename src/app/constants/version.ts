@@ -1,4 +1,4 @@
 export const APP_VERSION = {
-    version: 'v1.22.8',
-    description: 'Moved to Anthropic.'
+    version: 'v1.22.9',
+    description: 'Version bump and production deployment.'
 };
