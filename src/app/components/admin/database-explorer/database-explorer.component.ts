@@ -29,7 +29,7 @@ import { RepairerFormComponent } from '../repairer-form/repairer-form.component'
             <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1rem;">
                 <div>
                     <h2 style="margin: 0;">Assign Repairers</h2>
-                    <p class="subtitle" style="margin: 0.5rem 0 0 0;">Select primary and additional repairers.</p>
+                    <p class="subtitle" style="margin: 0.5rem 0 0 0;">Select a primary repairer and secondary repairers.</p>
                 </div>
                 <button (click)="closeAssignmentModal()" style="background: none; border: none; color: white; font-size: 1.5rem; cursor: pointer; opacity: 0.7;">&times;</button>
             </div>
@@ -56,22 +56,23 @@ import { RepairerFormComponent } from '../repairer-form/repairer-form.component'
                         <span>{{ repairer.name }}</span>
                     </div>
                     <div class="repairer-role-actions">
-                         <!-- Primary Radio -->
-                         <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
-                            <input type="radio" 
-                                   name="primary" 
+                         <!-- Primary Radio (only for repairers marked as canBePrimary) -->
+                         <label *ngIf="repairer.canBePrimary" style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                            <input type="radio"
+                                   name="primary"
                                    [checked]="assignmentPrimary === repairer.name"
                                    (change)="setPrimaryRepairer(repairer.name)">
                             <span class="role-badge" [class.primary]="assignmentPrimary === repairer.name">Primary</span>
                          </label>
+                         <span *ngIf="!repairer.canBePrimary" class="role-badge" style="opacity: 0.3; font-size: 0.75rem;">—</span>
 
-                         <!-- Additional Checkbox -->
+                         <!-- Secondary Checkbox -->
                          <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
-                            <input type="checkbox" 
+                            <input type="checkbox"
                                    [checked]="assignmentAdditional.has(repairer.name)"
                                    [disabled]="assignmentPrimary === repairer.name"
                                    (change)="toggleAdditionalRepairer(repairer.name)">
-                            <span class="role-badge" [class.helper]="assignmentAdditional.has(repairer.name)">Helper</span>
+                            <span class="role-badge" [class.helper]="assignmentAdditional.has(repairer.name)">Secondary</span>
                          </label>
                     </div>
                 </div>
@@ -155,6 +156,7 @@ import { RepairerFormComponent } from '../repairer-form/repairer-form.component'
                             <th *ngIf="schema === 'repairItems'" (click)="onSort('status')" class="sortable" title="Status Indicator">🚥 {{ getSortIcon('status') }}</th>
                             
                             <th *ngIf="schema === 'repairers'" (click)="onSort('name')" class="sortable">Name {{ getSortIcon('name') }}</th>
+                            <th *ngIf="schema === 'repairers'" (click)="onSort('canBePrimary')" class="sortable">Primary {{ getSortIcon('canBePrimary') }}</th>
                             <th *ngIf="schema === 'repairers'" (click)="onSort('createdAt')" class="sortable">Joined {{ getSortIcon('createdAt') }}</th>
 
                             <th *ngIf="schema === 'owners'" (click)="onSort('name')" class="sortable" title="Owner Name">👤 {{ getSortIcon('name') }}</th>
@@ -252,7 +254,7 @@ import { RepairerFormComponent } from '../repairer-form/repairer-form.component'
                                      [title]="record.repairer"
                                      alt="Repairer">
                                 
-                                <span class="additional-count" *ngIf="record.additionalRepairers?.length" [title]="'Helpers: ' + record.additionalRepairers?.join(', ')">
+                                <span class="additional-count" *ngIf="record.additionalRepairers?.length" [title]="'Secondary: ' + record.additionalRepairers?.join(', ')">
                                     +{{ record.additionalRepairers?.length }}
                                 </span>
 
@@ -264,7 +266,7 @@ import { RepairerFormComponent } from '../repairer-form/repairer-form.component'
                                         [title]="record.repairer || ''"
                                         (click)="$event.stopPropagation()">
                                         <option value="" disabled>Select Repairer...</option>
-                                        <option *ngFor="let r of filteredRepairers" [value]="r.name">{{ r.name }}</option>
+                                        <option *ngFor="let r of primaryEligibleRepairers" [value]="r.name">{{ r.name }}</option>
                                     </select>
                                     <button
                                         *ngIf="record.repairer"
@@ -309,13 +311,21 @@ import { RepairerFormComponent } from '../repairer-form/repairer-form.component'
                             <td>
                               <div class="repairer-cell">
                                 <img [src]="record.photoUrl || 'assets/placeholder-avatar.png'" class="repairer-avatar" alt="Avatar">
-                                <input 
-                                    [ngModel]="record.name" 
+                                <input
+                                    [ngModel]="record.name"
                                     (blur)="updateRecord(record, schema, 'name', $event)"
                                     class="inline-input"
                                     [title]="record.name || ''"
                                     placeholder="Name">
                               </div>
+                            </td>
+                            <td style="text-align: center;">
+                              <input
+                                type="checkbox"
+                                [checked]="record.canBePrimary"
+                                (change)="toggleCanBePrimary(record)"
+                                style="width: 18px; height: 18px; accent-color: var(--accent-color); cursor: pointer;"
+                                title="Toggle primary repairer eligibility">
                             </td>
                             <td [title]="record.createdAt?.toDate ? (record.createdAt?.toDate() | date:'mediumDate') : (record.createdAt | date:'mediumDate')">{{ record.createdAt?.toDate ? (record.createdAt?.toDate() | date:'mediumDate') : (record.createdAt | date:'mediumDate') }}</td>
                             </ng-container>
@@ -1158,6 +1168,7 @@ export class DatabaseExplorerComponent implements OnInit {
   tags: any[] = [];
   filteredOwners: any[] = [];
   filteredRepairers: any[] = [];
+  primaryEligibleRepairers: any[] = [];
   activeSuggestionCell: { id: string, field: string } | null = null;
 
   // Sorting
@@ -1192,6 +1203,7 @@ export class DatabaseExplorerComponent implements OnInit {
         }
       });
       this.filteredRepairers = repairers;
+      this.primaryEligibleRepairers = repairers.filter(r => r.canBePrimary);
     });
 
     this.repairService.getOwners().subscribe(owners => {
@@ -1623,15 +1635,16 @@ export class DatabaseExplorerComponent implements OnInit {
     this.editingRepairer = null;
   }
 
-  async saveRepairer(event: { id?: string, name: string, photoUrl?: string }) {
+  async saveRepairer(event: { id?: string, name: string, photoUrl?: string, canBePrimary?: boolean }) {
     try {
       if (event.id) {
         await this.repairService.updateRepairer(event.id, {
           name: event.name,
-          photoUrl: event.photoUrl
+          photoUrl: event.photoUrl,
+          canBePrimary: event.canBePrimary || false
         });
       } else {
-        await this.repairService.addRepairer(event.name, event.photoUrl);
+        await this.repairService.addRepairer(event.name, event.photoUrl, event.canBePrimary || false);
       }
       this.closeEdit();
       // Refresh list
@@ -1639,6 +1652,17 @@ export class DatabaseExplorerComponent implements OnInit {
     } catch (error) {
       console.error('Error saving repairer:', error);
       alert('Failed to save repairer.');
+    }
+  }
+
+  async toggleCanBePrimary(record: any) {
+    const newValue = !record.canBePrimary;
+    record.canBePrimary = newValue; // Optimistic update
+    try {
+      await this.repairService.updateRepairer(record.id, { canBePrimary: newValue });
+    } catch (err) {
+      console.error('Failed to toggle canBePrimary:', err);
+      record.canBePrimary = !newValue; // Revert
     }
   }
 

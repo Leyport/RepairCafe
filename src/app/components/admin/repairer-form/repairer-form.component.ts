@@ -71,12 +71,23 @@ import { inject } from '@angular/core';
           </div>
 
           <label for="repairerName">Name</label>
-          <input 
-            type="text" 
-            id="repairerName" 
-            [(ngModel)]="name" 
+          <input
+            type="text"
+            id="repairerName"
+            [(ngModel)]="name"
             placeholder="Enter repairer name"
             autofocus>
+
+          <div class="primary-toggle">
+            <label class="toggle-label">
+              <input
+                type="checkbox"
+                [(ngModel)]="canBePrimary"
+                class="toggle-checkbox">
+              <span class="toggle-text">Can be Primary Repairer</span>
+            </label>
+            <small class="toggle-hint">Primary repairers lead repairs and have secondary repairers reporting to them.</small>
+          </div>
         </div>
 
         <footer>
@@ -393,6 +404,38 @@ import { inject } from '@angular/core';
         background: rgba(255, 255, 255, 0.1);
         transform: scale(1.2);
     }
+
+    .primary-toggle {
+        margin-top: 1.5rem;
+    }
+
+    .toggle-label {
+        display: flex;
+        align-items: center;
+        gap: 0.8rem;
+        cursor: pointer;
+        color: rgba(255, 255, 255, 0.9);
+        font-size: 1rem;
+    }
+
+    .toggle-checkbox {
+        width: 18px;
+        height: 18px;
+        accent-color: var(--accent-color);
+        cursor: pointer;
+    }
+
+    .toggle-text {
+        font-weight: 500;
+    }
+
+    .toggle-hint {
+        display: block;
+        margin-top: 0.4rem;
+        margin-left: 26px;
+        color: rgba(255, 255, 255, 0.4);
+        font-size: 0.8rem;
+    }
   `]
 })
 export class RepairerFormComponent {
@@ -401,10 +444,11 @@ export class RepairerFormComponent {
 
   @Input() repairer: Repairer | null = null;
   @Output() closeEvent = new EventEmitter<void>();
-  @Output() saveEvent = new EventEmitter<{ id?: string, name: string, photoUrl?: string }>();
+  @Output() saveEvent = new EventEmitter<{ id?: string, name: string, photoUrl?: string, canBePrimary?: boolean }>();
   @Output() deleteEvent = new EventEmitter<string>();
 
   name = '';
+  canBePrimary = false;
   photoUrl: string | null = null;
   photoPreview: string | null = null;
   selectedFile: File | null = null;
@@ -427,10 +471,12 @@ export class RepairerFormComponent {
   ngOnChanges() {
     if (this.repairer) {
       this.name = this.repairer.name;
+      this.canBePrimary = this.repairer.canBePrimary || false;
       this.photoUrl = this.repairer.photoUrl || null;
       this.photoPreview = null;
     } else {
       this.name = '';
+      this.canBePrimary = false;
       this.photoUrl = null;
       this.photoPreview = null;
     }
@@ -557,7 +603,8 @@ export class RepairerFormComponent {
       this.saveEvent.emit({
         id: this.repairer?.id,
         name: this.name,
-        photoUrl: finalPhotoUrl
+        photoUrl: finalPhotoUrl,
+        canBePrimary: this.canBePrimary
       });
     } catch (error) {
       console.error('Error saving repairer:', error);

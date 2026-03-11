@@ -946,7 +946,7 @@ export class RepairFormComponent implements OnInit {
   onRepairerSearch(value: string) {
     const term = (value || '').toLowerCase();
     this.filteredRepairers = this.allRepairers.filter(r =>
-      !term || r.name.toLowerCase().includes(term)
+      r.canBePrimary && (!term || r.name.toLowerCase().includes(term))
     );
     this.showRepairerSuggestions = true;
   }

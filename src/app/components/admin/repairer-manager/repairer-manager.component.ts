@@ -38,6 +38,7 @@ import { Observable } from 'rxjs';
         <div class="repairer-row" *ngFor="let repairer of repairers$ | async">
           <div class="repairer-info">
             <span class="repairer-name">{{ repairer.name }}</span>
+            <span class="primary-badge" *ngIf="repairer.canBePrimary">Primary</span>
           </div>
           <button class="btn-delete" (click)="deleteRepairer(repairer)" title="Remove repairer">
             <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -133,9 +134,25 @@ import { Observable } from 'rxjs';
       background: rgba(255, 255, 255, 0.06);
       transform: translateX(5px);
     }
+    .repairer-info {
+      display: flex;
+      align-items: center;
+      gap: 0.8rem;
+    }
     .repairer-name {
       font-size: 1.1rem;
       color: rgba(255, 255, 255, 0.9);
+    }
+    .primary-badge {
+      font-size: 0.7rem;
+      font-weight: 600;
+      padding: 0.2rem 0.5rem;
+      border-radius: 10px;
+      background: rgba(0, 242, 255, 0.15);
+      color: var(--accent-color);
+      border: 1px solid rgba(0, 242, 255, 0.3);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
     }
     .btn-delete {
       background: none;

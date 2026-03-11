@@ -423,12 +423,13 @@ export class RepairService {
         return collectionData(q, { idField: 'id' }) as Observable<Repairer[]>;
     }
 
-    async addRepairer(name: string, photoUrl?: string): Promise<void> {
+    async addRepairer(name: string, photoUrl?: string, canBePrimary: boolean = false): Promise<void> {
         if (!name) return;
         await addDoc(this.repairersCollection, {
             name,
             createdAt: Timestamp.now(),
-            photoUrl: photoUrl || null
+            photoUrl: photoUrl || null,
+            canBePrimary: canBePrimary
         });
     }
 
