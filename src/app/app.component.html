@@ -3,7 +3,7 @@
     <div class="header-top">
       <div style="display: flex; align-items: baseline; gap: 0.8rem;">
         <h1 routerLink="/">RepairCafe</h1>
-        <span class="header-version">{{ version }}</span>
+        <span class="header-version">{{ (appVersion$ | async)?.version }}</span>
       </div>
       <div class="header-controls">
         <div class="header-actions">
@@ -90,8 +90,10 @@
         &copy; 2026 RepairCafe. Built with Antigravity.
       </div>
       <div class="footer-right">
-        <span class="version-tag">{{ version }}</span>
-        <span class="version-description">{{ changeDescription }}</span>
+        <ng-container *ngIf="appVersion$ | async as v">
+          <span class="version-tag">{{ v.version }}</span>
+          <span class="version-description">{{ v.description }}</span>
+        </ng-container>
       </div>
     </div>
   </footer>

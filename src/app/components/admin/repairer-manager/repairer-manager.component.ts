@@ -1,32 +1,20 @@
 import { Component, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormsModule } from '@angular/forms';
 import { RepairService } from '../../../services/repair.service';
+import { AuthService } from '../../../services/auth.service';
 import { Repairer } from '../../../models/repairer.model';
-import { Observable } from 'rxjs';
+import { RepairerFormComponent } from '../repairer-form/repairer-form.component';
 
 @Component({
   selector: 'app-repairer-manager',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, RepairerFormComponent],
   template: `
     <div class="manager-section">
       <div class="section-header">
         <h3>👥 Volunteer Repairers</h3>
-        <button class="btn-primary" (click)="showAddForm = !showAddForm">
-          {{ showAddForm ? 'Cancel' : 'Add New Repairer' }}
-        </button>
-      </div>
-
-      <div class="add-form glass" *ngIf="showAddForm">
-        <input 
-          type="text" 
-          [(ngModel)]="newRepairerName" 
-          placeholder="Enter repairer's full name"
-          (keyup.enter)="addRepairer()"
-          #nameInput>
-        <button class="btn-save" (click)="addRepairer()" [disabled]="!newRepairerName.trim()">
-          Save Repairer
+        <button class="btn-primary" (click)="openAddForm()">
+          Add New Repairer
         </button>
       </div>
 
@@ -34,20 +22,45 @@ import { Observable } from 'rxjs';
         <div *ngIf="(repairers$ | async)?.length === 0" class="empty-state">
           No repairers added yet.
         </div>
-        
-        <div class="repairer-row" *ngFor="let repairer of repairers$ | async">
+
+        <div class="repairer-row" *ngFor="let repairer of repairers$ | async" (click)="openEditForm(repairer)">
           <div class="repairer-info">
+            <div class="avatar" [style.backgroundImage]="repairer.photoUrl ? 'url(' + repairer.photoUrl + ')' : 'none'">
+              <span *ngIf="!repairer.photoUrl">{{ repairer.name.charAt(0) }}</span>
+            </div>
             <span class="repairer-name">{{ repairer.name }}</span>
+            <span class="badge primary-badge" *ngIf="repairer.isPrimary">Primary</span>
+            <span class="badge secondary-badge" *ngIf="!repairer.isPrimary">Secondary</span>
           </div>
-          <button class="btn-delete" (click)="deleteRepairer(repairer)" title="Remove repairer">
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <polyline points="3 6 5 6 21 6"></polyline>
-              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-            </svg>
-          </button>
+          <div class="row-actions">
+            <button
+              *ngIf="(isAdmin$ | async)"
+              class="btn-toggle-primary"
+              [class.is-primary]="repairer.isPrimary"
+              (click)="togglePrimary(repairer, $event)"
+              [disabled]="loading[repairer.id!]"
+              [title]="repairer.isPrimary ? 'Make Secondary' : 'Make Primary'">
+              {{ loading[repairer.id!] ? '...' : (repairer.isPrimary ? 'Make Secondary' : 'Make Primary') }}
+            </button>
+            <button class="btn-delete" (click)="deleteRepairer(repairer, $event)" title="Remove repairer">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="3 6 5 6 21 6"></polyline>
+                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+              </svg>
+            </button>
+          </div>
         </div>
       </div>
     </div>
+
+    <app-repairer-form
+      *ngIf="showForm"
+      [repairer]="selectedRepairer"
+      [isAdmin]="(isAdmin$ | async) === true"
+      (closeEvent)="closeForm()"
+      (saveEvent)="onSave($event)"
+      (deleteEvent)="onDelete($event)">
+    </app-repairer-form>
   `,
   styles: [`
     .manager-section {
@@ -73,47 +86,6 @@ import { Observable } from 'rxjs';
       margin: 0;
       color: white;
     }
-    .add-form {
-      display: flex;
-      gap: 1rem;
-      padding: 1.5rem;
-      margin-bottom: 2rem;
-      border: 1px solid rgba(0, 242, 255, 0.2);
-    }
-    @media (max-width: 480px) {
-      .add-form {
-        flex-direction: column;
-        padding: 1rem;
-      }
-      .btn-save {
-        width: 100%;
-      }
-    }
-    .add-form input {
-      flex: 1;
-      background: rgba(0, 0, 0, 0.3);
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      padding: 0.8rem 1rem;
-      border-radius: 8px;
-      color: white;
-      outline: none;
-    }
-    .add-form input:focus {
-      border-color: var(--accent-color);
-    }
-    .btn-save {
-      background: var(--accent-color);
-      color: #000;
-      border: none;
-      padding: 0.8rem 1.5rem;
-      border-radius: 8px;
-      font-weight: 600;
-      cursor: pointer;
-    }
-    .btn-save:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-    }
     .repairer-list {
       display: flex;
       flex-direction: column;
@@ -128,14 +100,85 @@ import { Observable } from 'rxjs';
       border: 1px solid rgba(255, 255, 255, 0.05);
       border-radius: 10px;
       transition: all 0.2s ease;
+      cursor: pointer;
     }
     .repairer-row:hover {
       background: rgba(255, 255, 255, 0.06);
       transform: translateX(5px);
     }
+    .repairer-info {
+      display: flex;
+      align-items: center;
+      gap: 0.8rem;
+    }
+    .avatar {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background-size: cover;
+      background-position: center;
+      background-color: rgba(255, 255, 255, 0.1);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1rem;
+      color: rgba(255, 255, 255, 0.7);
+      flex-shrink: 0;
+    }
     .repairer-name {
       font-size: 1.1rem;
       color: rgba(255, 255, 255, 0.9);
+    }
+    .badge {
+      font-size: 0.7rem;
+      font-weight: 600;
+      padding: 0.2rem 0.6rem;
+      border-radius: 20px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .primary-badge {
+      background: rgba(0, 242, 255, 0.15);
+      color: var(--accent-color, #00f2ff);
+      border: 1px solid rgba(0, 242, 255, 0.3);
+    }
+    .secondary-badge {
+      background: rgba(255, 255, 255, 0.06);
+      color: rgba(255, 255, 255, 0.4);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    .row-actions {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      flex-shrink: 0;
+    }
+    .btn-toggle-primary {
+      padding: 0.35rem 0.85rem;
+      border-radius: 6px;
+      border: 1px solid rgba(0, 242, 255, 0.4);
+      background: rgba(0, 242, 255, 0.08);
+      color: var(--accent-color, #00f2ff);
+      font-size: 0.8rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      white-space: nowrap;
+    }
+    .btn-toggle-primary:hover:not(:disabled) {
+      background: rgba(0, 242, 255, 0.18);
+    }
+    .btn-toggle-primary.is-primary {
+      border-color: rgba(255, 200, 0, 0.4);
+      background: rgba(255, 200, 0, 0.08);
+      color: #ffc800;
+    }
+    .btn-toggle-primary.is-primary:hover:not(:disabled) {
+      background: rgba(255, 200, 0, 0.18);
+    }
+    .btn-toggle-primary:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
     }
     .btn-delete {
       background: none;
@@ -145,10 +188,23 @@ import { Observable } from 'rxjs';
       padding: 0.5rem;
       border-radius: 6px;
       transition: all 0.2s;
+      flex-shrink: 0;
     }
     .btn-delete:hover {
       background: rgba(255, 89, 89, 0.1);
       color: #ff5959;
+    }
+    .btn-primary {
+      background: var(--accent-color, #00f2ff);
+      color: #000;
+      border: none;
+      padding: 0.8rem 1.5rem;
+      border-radius: 8px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .btn-primary:hover {
+      opacity: 0.9;
     }
     .empty-state {
       text-align: center;
@@ -162,24 +218,70 @@ import { Observable } from 'rxjs';
 })
 export class RepairerManagerComponent {
   private repairService = inject(RepairService);
+  private authService = inject(AuthService);
+
   repairers$ = this.repairService.getRepairers();
+  isAdmin$ = this.authService.isAdmin$;
 
-  showAddForm = false;
-  newRepairerName = '';
+  showForm = false;
+  selectedRepairer: Repairer | null = null;
+  loading: { [id: string]: boolean } = {};
 
-  async addRepairer() {
-    if (!this.newRepairerName.trim()) return;
+  openAddForm() {
+    this.selectedRepairer = null;
+    this.showForm = true;
+  }
 
+  openEditForm(repairer: Repairer) {
+    this.selectedRepairer = repairer;
+    this.showForm = true;
+  }
+
+  closeForm() {
+    this.showForm = false;
+    this.selectedRepairer = null;
+  }
+
+  async onSave(event: { id?: string, name: string, photoUrl?: string, isPrimary: boolean }) {
     try {
-      await this.repairService.addRepairer(this.newRepairerName.trim());
-      this.newRepairerName = '';
-      this.showAddForm = false;
+      if (event.id) {
+        await this.repairService.updateRepairer(event.id, {
+          name: event.name,
+          photoUrl: event.photoUrl,
+          isPrimary: event.isPrimary
+        });
+      } else {
+        await this.repairService.addRepairer(event.name, event.photoUrl, event.isPrimary);
+      }
+      this.closeForm();
     } catch (error) {
-      console.error('Error adding repairer:', error);
+      console.error('Error saving repairer:', error);
     }
   }
 
-  async deleteRepairer(repairer: Repairer) {
+  async onDelete(id: string) {
+    try {
+      await this.repairService.deleteRepairer(id);
+      this.closeForm();
+    } catch (error) {
+      console.error('Error deleting repairer:', error);
+    }
+  }
+
+  async togglePrimary(repairer: Repairer, event: MouseEvent) {
+    event.stopPropagation();
+    this.loading[repairer.id!] = true;
+    try {
+      await this.repairService.updateRepairer(repairer.id!, { isPrimary: !repairer.isPrimary });
+    } catch (error) {
+      console.error('Error updating repairer:', error);
+    } finally {
+      this.loading[repairer.id!] = false;
+    }
+  }
+
+  async deleteRepairer(repairer: Repairer, event: MouseEvent) {
+    event.stopPropagation();
     if (confirm(`Are you sure you want to remove ${repairer.name}?`)) {
       try {
         await this.repairService.deleteRepairer(repairer.id!);

@@ -23,6 +23,14 @@ export const routes: Routes = [
       {
         path: 'database',
         loadComponent: () => import('./components/admin/database-explorer/database-explorer.component').then(m => m.DatabaseExplorerComponent)
+      },
+      {
+        path: 'users',
+        loadComponent: () => import('./components/admin/user-manager/user-manager.component').then(m => m.UserManagerComponent)
+      },
+      {
+        path: 'version',
+        loadComponent: () => import('./components/admin/version-manager/version-manager.component').then(m => m.VersionManagerComponent)
       }
     ]
   },

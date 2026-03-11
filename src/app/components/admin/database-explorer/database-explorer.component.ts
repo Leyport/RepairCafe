@@ -146,13 +146,13 @@ import { RepairerFormComponent } from '../repairer-form/repairer-form.component'
                             </th>
                             <th *ngIf="schema === 'repairItems'" class="photo-col">Photo</th>
                             <th *ngIf="schema === 'repairItems'" (click)="onSort('itemNumber')" class="sortable" title="Item Number"># {{ getSortIcon('itemNumber') }}</th>
-                            <th *ngIf="schema === 'repairItems'" (click)="onSort('itemDescription')" class="sortable description-col" title="Item Description">📝 {{ getSortIcon('itemDescription') }}</th>
-                            <th *ngIf="schema === 'repairItems'" (click)="onSort('owner')" class="sortable owner-col" title="Owner">👤 {{ getSortIcon('owner') }}</th>
-                            <th *ngIf="schema === 'repairItems'" (click)="onSort('repairItem')" class="sortable" title="Item Type">🏷️ {{ getSortIcon('repairItem') }}</th>
-                             <th *ngIf="schema === 'repairItems'" (click)="onSort('repairer')" class="sortable" title="Assigned Repairer">🔧 {{ getSortIcon('repairer') }}</th>
-                             <th *ngIf="schema === 'repairItems'" (click)="onSort('RCDay')" class="sortable" title="Repair Session Date">📅 {{ getSortIcon('RCDay') }}</th>
-                             <th *ngIf="schema === 'repairItems'" (click)="onSort('creationDate')" class="sortable" title="Record Creation Date">⏱️ {{ getSortIcon('creationDate') }}</th>
-                            <th *ngIf="schema === 'repairItems'" (click)="onSort('status')" class="sortable" title="Status Indicator">🚥 {{ getSortIcon('status') }}</th>
+                            <th *ngIf="schema === 'repairItems'" (click)="onSort('itemDescription')" class="sortable description-col" title="Item Description">Description {{ getSortIcon('itemDescription') }}</th>
+                            <th *ngIf="schema === 'repairItems'" (click)="onSort('owner')" class="sortable owner-col" title="Owner">Owner {{ getSortIcon('owner') }}</th>
+                            <th *ngIf="schema === 'repairItems'" (click)="onSort('repairItem')" class="sortable" title="Item Type">Category {{ getSortIcon('repairItem') }}</th>
+                             <th *ngIf="schema === 'repairItems'" (click)="onSort('repairer')" class="sortable" title="Assigned Primary Repairer">Primary Repairer {{ getSortIcon('repairer') }}</th>
+                             <th *ngIf="schema === 'repairItems'" (click)="onSort('RCDay')" class="sortable" title="Repair Session Date">RC Session {{ getSortIcon('RCDay') }}</th>
+                             <th *ngIf="schema === 'repairItems'" (click)="onSort('creationDate')" class="sortable" title="Record Creation Date">Created {{ getSortIcon('creationDate') }}</th>
+                            <th *ngIf="schema === 'repairItems'" (click)="onSort('status')" class="sortable" title="Status Indicator">Status {{ getSortIcon('status') }}</th>
                             
                             <th *ngIf="schema === 'repairers'" (click)="onSort('name')" class="sortable">Name {{ getSortIcon('name') }}</th>
                             <th *ngIf="schema === 'repairers'" (click)="onSort('createdAt')" class="sortable">Joined {{ getSortIcon('createdAt') }}</th>
@@ -277,31 +277,54 @@ import { RepairerFormComponent } from '../repairer-form/repairer-form.component'
                               </div>
                             </td>
                              <td>
-                               <select 
-                                 [ngModel]="record.RCDay || ''" 
-                                 (ngModelChange)="updateItem(record, 'RCDay', $event)"
-                                 class="inline-select"
-                                 [style.color]="!record.RCDay ? '#ff4444' : 'inherit'"
-                                 [style.font-weight]="!record.RCDay ? 'bold' : 'normal'"
-                                 [title]="record.RCDay || 'MISSING DATE'"
-                                 (click)="$event.stopPropagation()">
-                                 <option value="" disabled>{{ record.RCDay ? 'Change Date...' : '⚠️ MISSING DATE' }}</option>
-                                 <option *ngFor="let d of availableRCDates" [value]="d.value">{{ d.label }}</option>
-                               </select>
+                               <div class="lov-container">
+                                 <select
+                                   [ngModel]="record.RCDay || ''"
+                                   (ngModelChange)="updateItem(record, 'RCDay', $event)"
+                                   class="inline-select rcsession-select"
+                                   [style.color]="!record.RCDay ? '#ff4444' : 'inherit'"
+                                   [style.font-weight]="!record.RCDay ? 'bold' : 'normal'"
+                                   [title]="record.RCDay || 'MISSING DATE'"
+                                   (click)="$event.stopPropagation()">
+                                   <option value="" disabled>{{ record.RCDay ? 'Change Date...' : '⚠️ MISSING DATE' }}</option>
+                                   <option *ngFor="let d of availableRCDates" [value]="d.value">{{ d.label }}</option>
+                                 </select>
+                                 <button
+                                   *ngIf="record.RCDay"
+                                   class="clear-btn inline-clear"
+                                   (click)="$event.stopPropagation(); updateItem(record, 'RCDay', '')"
+                                   title="Clear date">
+                                   &times;
+                                 </button>
+                               </div>
                              </td>
                              <td [title]="record.creationDate?.toDate ? (record.creationDate?.toDate() | date:'short') : '-'">{{ record.creationDate?.toDate ? (record.creationDate?.toDate() | date:'short') : '-' }}</td>
                             <td>
-                              <select 
-                                [ngModel]="record.status || 'New'" 
-                                (ngModelChange)="updateItem(record, 'status', $event)"
-                                class="inline-select status-select"
-                                [ngClass]="{'status-new': (record.status || 'New') === 'New', 'status-assigned': record.status === 'Assigned', 'status-completed': record.status === 'Completed'}"
-                                [title]="record.status || 'New'"
-                                (click)="$event.stopPropagation()">
-                                <option value="New">New</option>
-                                <option value="Assigned">Assigned</option>
-                                <option value="Completed">Completed</option>
-                              </select>
+                              <div class="lov-container">
+                                <select
+                                  [ngModel]="record.status || 'New'"
+                                  (ngModelChange)="updateItem(record, 'status', $event)"
+                                  class="inline-select status-select"
+                                  [ngClass]="{
+                                    'status-new':              (record.status || 'New') === 'New',
+                                    'status-assigned':         record.status === 'Assigned',
+                                    'status-repaired':         record.status === 'Repaired',
+                                    'status-advice':           record.status === 'Advice Given',
+                                    'status-partial':          record.status === 'Partially Repaired',
+                                    'status-not-repaired':     record.status === 'Not Repaired'
+                                  }"
+                                  [title]="record.status || 'New'"
+                                  (click)="$event.stopPropagation()">
+                                  <option value="New">New</option>
+                                  <option value="Assigned">Assigned</option>
+                                  <optgroup label="Completed">
+                                    <option value="Repaired">Repaired</option>
+                                    <option value="Advice Given">Advice Given</option>
+                                    <option value="Partially Repaired">Partially Repaired</option>
+                                    <option value="Not Repaired">Not Repaired</option>
+                                  </optgroup>
+                                </select>
+                              </div>
                             </td>
                             </ng-container>
 
@@ -765,29 +788,46 @@ import { RepairerFormComponent } from '../repairer-form/repairer-form.component'
     
     .status-select {
         font-weight: 500;
-        width: auto;
-        min-width: 100px;
+        width: 100%;
+        min-width: 140px;
+        padding-right: 10px;
     }
-    
-    .status-new { 
+
+    .rcsession-select {
+        width: 100%;
+        min-width: 130px;
+        padding-right: 50px;
+    }
+
+    .status-new {
         background: rgba(74, 144, 226, 0.15) !important;
-        color: #7ab1f7 !important; 
-        border: 1px solid rgba(74, 144, 226, 0.4) !important; 
+        color: #7ab1f7 !important;
+        border: 1px solid rgba(74, 144, 226, 0.4) !important;
     }
-    .status-assigned { 
+    .status-assigned {
         background: rgba(241, 196, 15, 0.15) !important;
-        color: #fce170 !important; 
-        border: 1px solid rgba(241, 196, 15, 0.4) !important; 
+        color: #fce170 !important;
+        border: 1px solid rgba(241, 196, 15, 0.4) !important;
     }
-    .status-completed { 
+    .status-repaired {
         background: rgba(40, 180, 99, 0.15) !important;
-        color: #58d68d !important; 
-        border: 1px solid rgba(40, 180, 99, 0.4) !important; 
+        color: #58d68d !important;
+        border: 1px solid rgba(40, 180, 99, 0.4) !important;
     }
-    .status-fixed { 
-        background: rgba(165, 105, 189, 0.15) !important;
-        color: #d7bde2 !important; 
-        border: 1px solid rgba(165, 105, 189, 0.4) !important; 
+    .status-advice {
+        background: rgba(230, 126, 34, 0.15) !important;
+        color: #f0a055 !important;
+        border: 1px solid rgba(230, 126, 34, 0.4) !important;
+    }
+    .status-partial {
+        background: rgba(230, 126, 34, 0.15) !important;
+        color: #f0a055 !important;
+        border: 1px solid rgba(230, 126, 34, 0.4) !important;
+    }
+    .status-not-repaired {
+        background: rgba(231, 76, 60, 0.15) !important;
+        color: #f1948a !important;
+        border: 1px solid rgba(231, 76, 60, 0.4) !important;
     }
 
     .inline-input {
@@ -948,24 +988,25 @@ import { RepairerFormComponent } from '../repairer-form/repairer-form.component'
     }
     
     .repairer-select-wrapper {
-        position: relative;
         display: flex;
         align-items: center;
+        gap: 6px;
         width: 100%;
         min-width: 120px;
-        height: 40px;
     }
-    
+
     .repairer-avatar-display {
-        width: 32px;
-        height: 32px;
+        width: 28px;
+        height: 28px;
         border-radius: 50%;
         object-fit: cover;
-        position: absolute;
-        left: 5px;
-        z-index: 1;
-        pointer-events: none;
+        flex-shrink: 0;
         box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.2);
+    }
+
+    .repairer-select-wrapper .lov-container {
+        flex: 1;
+        min-width: 0;
     }
     
     .inline-select.hidden-text {

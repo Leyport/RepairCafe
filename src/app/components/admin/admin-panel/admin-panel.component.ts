@@ -40,6 +40,22 @@ import { ExportService } from '../../../services/export.service';
           </div>
         </a>
         
+        <a routerLink="users" routerLinkActive="active" class="nav-card">
+          <div class="card-icon">👤</div>
+          <div class="card-content">
+            <h3>Manage Users</h3>
+            <p>View logged-in users and assign admin roles.</p>
+          </div>
+        </a>
+
+        <a routerLink="version" routerLinkActive="active" class="nav-card">
+          <div class="card-icon">🏷️</div>
+          <div class="card-content">
+            <h3>App Version</h3>
+            <p>Update the app version number and change description.</p>
+          </div>
+        </a>
+
         <div class="nav-card" (click)="doExport()" [class.disabled]="isExporting">
           <div class="card-icon" *ngIf="!isExporting">📊</div>
           <div class="spinner" *ngIf="isExporting"></div>

@@ -98,34 +98,66 @@ interface PhotoFile {
           </div>
 
           <div class="form-group">
-            <label for="repairer">Assigned Repairer</label>
+            <label for="repairer">Primary Repairer</label>
             <div class="autocomplete-container">
-                <input 
-                    id="repairer" 
-                    type="text" 
-                    formControlName="repairer" 
-                    placeholder="Who is fixing this?" 
+                <input
+                    id="repairer"
+                    type="text"
+                    formControlName="repairer"
+                    placeholder="Who is the lead repairer?"
                     (input)="onRepairerSearch($any($event.target).value)"
                     (focus)="onRepairerSearch($any($event.target).value)"
                     (blur)="hideRepairerSuggestions()"
                     autocomplete="off">
-                <button 
-                  type="button" 
-                  class="clear-btn" 
-                  *ngIf="repairForm.get('repairer')?.value" 
+                <button
+                  type="button"
+                  class="clear-btn"
+                  *ngIf="repairForm.get('repairer')?.value"
                   (click)="clearRepairer()"
                   title="Clear repairer">×</button>
-                
+
                 <div class="suggestions-list glass" *ngIf="filteredRepairers.length > 0 && showRepairerSuggestions">
-                  <div 
-                    class="suggestion-item" 
+                  <div
+                    class="suggestion-item"
                     *ngFor="let repairer of filteredRepairers"
                     (mousedown)="selectRepairer(repairer)">
-                    <img [src]="repairer.photoUrl || '/assets/default-avatar.png'" 
+                    <img [src]="repairer.photoUrl || '/assets/default-avatar.png'"
                          style="width: 24px; height: 24px; border-radius: 50%; object-fit: cover;">
                     <span class="suggestion-name">{{ repairer.name }}</span>
                   </div>
                 </div>
+            </div>
+            <small class="hint" *ngIf="allPrimaryRepairers.length === 0">No primary repairers available. An admin must mark repairers as primary.</small>
+          </div>
+
+          <div class="form-group">
+            <label>Secondary Repairers</label>
+            <div class="autocomplete-container">
+                <input
+                    type="text"
+                    #secondaryInput
+                    (input)="onSecondaryRepairerSearch(secondaryInput.value)"
+                    (focus)="onSecondaryRepairerSearch(secondaryInput.value)"
+                    (blur)="hideSecondaryRepairerSuggestions()"
+                    placeholder="Add supporting repairers..."
+                    autocomplete="off">
+
+                <div class="suggestions-list glass" *ngIf="filteredSecondaryRepairers.length > 0 && showSecondaryRepairerSuggestions">
+                  <div
+                    class="suggestion-item"
+                    *ngFor="let repairer of filteredSecondaryRepairers"
+                    (mousedown)="addSecondaryRepairer(repairer, secondaryInput)">
+                    <img [src]="repairer.photoUrl || '/assets/default-avatar.png'"
+                         style="width: 24px; height: 24px; border-radius: 50%; object-fit: cover;">
+                    <span class="suggestion-name">{{ repairer.name }}</span>
+                  </div>
+                </div>
+            </div>
+            <div class="tag-chips" *ngIf="secondaryRepairers.length > 0">
+              <span class="tag-chip" *ngFor="let name of secondaryRepairers; let i = index">
+                {{ name }}
+                <button type="button" class="btn-remove-tag" (click)="removeSecondaryRepairer(i)">×</button>
+              </span>
             </div>
           </div>
 
@@ -136,7 +168,12 @@ interface PhotoFile {
                 <select id="status" formControlName="status">
                     <option value="New">New</option>
                     <option value="Assigned">Assigned</option>
-                    <option value="Completed">Completed</option>
+                    <optgroup label="Completed">
+                        <option value="Repaired">Repaired</option>
+                        <option value="Advice Given">Advice Given</option>
+                        <option value="Partially Repaired">Partially Repaired</option>
+                        <option value="Not Repaired">Not Repaired</option>
+                    </optgroup>
                 </select>
                 <div class="select-arrow">▼</div>
             </div>
@@ -696,10 +733,14 @@ export class RepairFormComponent implements OnInit {
   filteredOwners: Owner[] = [];
   showOwnerSuggestions = false;
 
-  repairers$: Observable<any[]> = this.repairService.getRepairers();
   allRepairers: any[] = [];
+  allPrimaryRepairers: any[] = [];
   filteredRepairers: any[] = [];
   showRepairerSuggestions = false;
+
+  secondaryRepairers: string[] = [];
+  filteredSecondaryRepairers: any[] = [];
+  showSecondaryRepairerSuggestions = false;
 
   constructor() {
     this.generateAvailableDates();
@@ -774,8 +815,12 @@ export class RepairFormComponent implements OnInit {
       this.owners = owners;
     });
 
-    this.repairers$.subscribe((repairers: any[]) => {
+    this.repairService.getRepairers().subscribe((repairers: any[]) => {
       this.allRepairers = repairers;
+    });
+
+    this.repairService.getPrimaryRepairers().subscribe((repairers: any[]) => {
+      this.allPrimaryRepairers = repairers;
     });
 
     const id = this.route.snapshot.paramMap.get('id');
@@ -816,6 +861,7 @@ export class RepairFormComponent implements OnInit {
           this.repairForm.patchValue(updates);
           this.existingPhotos = item.photos || [];
           this.tags = item.tags || [];
+          this.secondaryRepairers = item.additionalRepairers || [];
         }
       });
     } else {
@@ -945,7 +991,7 @@ export class RepairFormComponent implements OnInit {
 
   onRepairerSearch(value: string) {
     const term = (value || '').toLowerCase();
-    this.filteredRepairers = this.allRepairers.filter(r =>
+    this.filteredRepairers = this.allPrimaryRepairers.filter(r =>
       !term || r.name.toLowerCase().includes(term)
     );
     this.showRepairerSuggestions = true;
@@ -966,6 +1012,34 @@ export class RepairFormComponent implements OnInit {
   hideRepairerSuggestions() {
     setTimeout(() => {
       this.showRepairerSuggestions = false;
+    }, 200);
+  }
+
+  onSecondaryRepairerSearch(value: string) {
+    const term = (value || '').toLowerCase();
+    this.filteredSecondaryRepairers = this.allRepairers.filter(r =>
+      (!term || r.name.toLowerCase().includes(term)) &&
+      !this.secondaryRepairers.includes(r.name)
+    );
+    this.showSecondaryRepairerSuggestions = true;
+  }
+
+  addSecondaryRepairer(repairer: any, input: HTMLInputElement) {
+    if (!this.secondaryRepairers.includes(repairer.name)) {
+      this.secondaryRepairers.push(repairer.name);
+    }
+    input.value = '';
+    this.filteredSecondaryRepairers = [];
+    this.showSecondaryRepairerSuggestions = false;
+  }
+
+  removeSecondaryRepairer(index: number) {
+    this.secondaryRepairers.splice(index, 1);
+  }
+
+  hideSecondaryRepairerSuggestions() {
+    setTimeout(() => {
+      this.showSecondaryRepairerSuggestions = false;
     }, 200);
   }
 
@@ -996,7 +1070,8 @@ export class RepairFormComponent implements OnInit {
         const itemData = {
           ...this.repairForm.value,
           photos: allPhotos,
-          tags: this.tags
+          tags: this.tags,
+          additionalRepairers: this.secondaryRepairers
         };
 
         if (this.isEdit && this.editItemId) {

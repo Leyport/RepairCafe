@@ -4,7 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { Repairer } from '../../../models/repairer.model';
 import { RepairService } from '../../../services/repair.service';
 import { AvatarService } from '../../../services/avatar.service';
-import { inject } from '@angular/core';
+import { inject, OnChanges } from '@angular/core';
 
 @Component({
   selector: 'app-repairer-form',
@@ -71,12 +71,21 @@ import { inject } from '@angular/core';
           </div>
 
           <label for="repairerName">Name</label>
-          <input 
-            type="text" 
-            id="repairerName" 
-            [(ngModel)]="name" 
+          <input
+            type="text"
+            id="repairerName"
+            [(ngModel)]="name"
             placeholder="Enter repairer name"
             autofocus>
+
+          <div class="primary-toggle" *ngIf="isAdmin">
+            <label class="checkbox-label">
+              <input type="checkbox" [(ngModel)]="isPrimary">
+              <span class="checkmark"></span>
+              Primary Repairer
+            </label>
+            <small class="hint">Primary repairers can be assigned to repair items</small>
+          </div>
         </div>
 
         <footer>
@@ -393,18 +402,47 @@ import { inject } from '@angular/core';
         background: rgba(255, 255, 255, 0.1);
         transform: scale(1.2);
     }
+
+    .primary-toggle {
+      margin-top: 1.2rem;
+    }
+
+    .checkbox-label {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      cursor: pointer;
+      color: rgba(255, 255, 255, 0.9);
+      font-size: 1rem;
+    }
+
+    .checkbox-label input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+      accent-color: var(--accent-color);
+      cursor: pointer;
+    }
+
+    .hint {
+      display: block;
+      font-size: 0.8rem;
+      color: rgba(255, 255, 255, 0.4);
+      margin-top: 0.3rem;
+    }
   `]
 })
-export class RepairerFormComponent {
+export class RepairerFormComponent implements OnChanges {
   private repairService = inject(RepairService);
   private avatarService = inject(AvatarService);
 
   @Input() repairer: Repairer | null = null;
+  @Input() isAdmin = false;
   @Output() closeEvent = new EventEmitter<void>();
-  @Output() saveEvent = new EventEmitter<{ id?: string, name: string, photoUrl?: string }>();
+  @Output() saveEvent = new EventEmitter<{ id?: string, name: string, photoUrl?: string, isPrimary: boolean }>();
   @Output() deleteEvent = new EventEmitter<string>();
 
   name = '';
+  isPrimary = false;
   photoUrl: string | null = null;
   photoPreview: string | null = null;
   selectedFile: File | null = null;
@@ -429,10 +467,12 @@ export class RepairerFormComponent {
       this.name = this.repairer.name;
       this.photoUrl = this.repairer.photoUrl || null;
       this.photoPreview = null;
+      this.isPrimary = this.repairer.isPrimary || false;
     } else {
       this.name = '';
       this.photoUrl = null;
       this.photoPreview = null;
+      this.isPrimary = false;
     }
     this.selectedFile = null;
     this.isEmojiMode = false;
@@ -557,7 +597,8 @@ export class RepairerFormComponent {
       this.saveEvent.emit({
         id: this.repairer?.id,
         name: this.name,
-        photoUrl: finalPhotoUrl
+        photoUrl: finalPhotoUrl,
+        isPrimary: this.isPrimary
       });
     } catch (error) {
       console.error('Error saving repairer:', error);

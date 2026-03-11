@@ -1,13 +1,36 @@
 import { Injectable, inject } from '@angular/core';
 import { Auth, GoogleAuthProvider, OAuthProvider, signInWithPopup, signOut, user, User, signInWithEmailAndPassword, createUserWithEmailAndPassword } from '@angular/fire/auth';
-import { Observable, from, map } from 'rxjs';
+import { Firestore, doc, getDoc, setDoc, Timestamp } from '@angular/fire/firestore';
+import { Observable, from, map, of, switchMap, catchError } from 'rxjs';
 
 @Injectable({
     providedIn: 'root'
 })
 export class AuthService {
     private auth: Auth = inject(Auth);
+    private firestore: Firestore = inject(Firestore);
     user$: Observable<User | null> = user(this.auth);
+
+    isAdmin$: Observable<boolean> = this.user$.pipe(
+        switchMap(currentUser => {
+            if (!currentUser) return of(false);
+            return from(getDoc(doc(this.firestore, 'admins', currentUser.uid))).pipe(
+                map(snapshot => snapshot.exists()),
+                catchError(() => of(false))
+            );
+        })
+    );
+
+    private async saveUserProfile(user: User): Promise<void> {
+        const userRef = doc(this.firestore, 'users', user.uid);
+        await setDoc(userRef, {
+            uid: user.uid,
+            email: user.email || null,
+            displayName: user.displayName || null,
+            photoURL: user.photoURL || null,
+            lastSeen: Timestamp.now()
+        }, { merge: true });
+    }
 
     async loginWithGoogle(): Promise<any> {
         const provider = new GoogleAuthProvider();
@@ -17,6 +40,7 @@ export class AuthService {
         try {
             const result = await signInWithPopup(this.auth, provider);
             const credential = GoogleAuthProvider.credentialFromResult(result);
+            await this.saveUserProfile(result.user);
             return { user: result.user, token: credential?.accessToken };
         } catch (error) {
             console.error('Google Login error:', error);
@@ -32,6 +56,7 @@ export class AuthService {
         try {
             const result = await signInWithPopup(this.auth, provider);
             const credential = OAuthProvider.credentialFromResult(result);
+            await this.saveUserProfile(result.user);
             return { user: result.user, token: credential?.accessToken };
         } catch (error) {
             console.error('Apple Login error:', error);
@@ -46,6 +71,7 @@ export class AuthService {
     async loginWithEmail(email: string, password: string): Promise<any> {
         try {
             const result = await signInWithEmailAndPassword(this.auth, email, password);
+            await this.saveUserProfile(result.user);
             return { user: result.user };
         } catch (error) {
             console.error('Email Login error:', error);
@@ -56,6 +82,7 @@ export class AuthService {
     async signUpWithEmail(email: string, password: string): Promise<any> {
         try {
             const result = await createUserWithEmailAndPassword(this.auth, email, password);
+            await this.saveUserProfile(result.user);
             return { user: result.user };
         } catch (error) {
             console.error('Email Sign-up error:', error);

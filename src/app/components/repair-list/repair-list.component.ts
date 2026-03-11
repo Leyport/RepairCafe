@@ -41,37 +41,51 @@ type SortOption = 'newest' | 'oldest' | 'number';
       
       <div class="compact-list glass">
         <div class="list-header">
-          <span class="col-code pointer" (click)="setSort('number')">No. {{ getSortIcon('number') }}</span>
+          <span class="col-photo"></span>
+          <span class="col-code pointer" (click)="setSort('number')"># {{ getSortIcon('number') }}</span>
           <span class="col-desc">Description</span>
-          <span class="col-time">Time</span>
+          <span class="col-owner">Owner</span>
+          <span class="col-category">Category</span>
+          <span class="col-repairer">Repairer</span>
+          <span class="col-session">RC Session</span>
+          <span class="col-created pointer" (click)="setSort('newest')">Created {{ getSortIcon('newest') }}</span>
+          <span class="col-status">Status</span>
           <span class="col-actions"></span>
         </div>
-        <div *ngFor="let item of filteredItems$ | async" 
-             class="list-row" 
+        <div *ngFor="let item of filteredItems$ | async"
+             class="list-row"
              [routerLink]="['/item', item.id]">
+
+          <!-- Photo -->
+          <div class="col-photo">
+            <div class="thumb" [style.backgroundImage]="item.photos?.length ? 'url(' + item.photos![0] + ')' : 'none'">
+              <span *ngIf="!item.photos?.length" class="thumb-placeholder">📷</span>
+            </div>
+          </div>
+
+          <!-- # -->
           <div class="col-code">
-            <span class="seq-badge linkable" 
-                  [routerLink]="['/edit', item.id]" 
+            <span class="seq-badge linkable"
+                  [routerLink]="['/edit', item.id]"
                   (click)="$event.stopPropagation()"
                   title="Edit item">
               {{ item.displayNumber }}
             </span>
           </div>
-          <span class="col-desc truncate">
-            <span class="desc-text">{{ item.itemDescription }}</span>
-          </span>
-          <span class="col-time">{{ item.creationDate?.toDate() | date:'HH:mm:ss' }}</span>
-          <div class="col-actions actions" (click)="$event.stopPropagation()">
-            <div class="tag-trigger-wrapper" *ngIf="item.tags && item.tags.length > 0" (click)="$event.stopPropagation()">
-              <div class="tag-with-emoji" [routerLink]="['/edit', item.id]" title="Edit item">
-                <span class="main-emoji" *ngIf="getFirstTagEmoji(item.tags)">{{ getFirstTagEmoji(item.tags) }}</span>
-                <button class="btn-action btn-tags" [class.has-emoji]="getFirstTagEmoji(item.tags)">
-                  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path>
-                    <line x1="7" y1="7" x2="7.01" y2="7"></line>
-                  </svg>
-                </button>
-              </div>
+
+          <!-- Description -->
+          <span class="col-desc truncate">{{ item.itemDescription }}</span>
+
+          <!-- Owner -->
+          <span class="col-owner truncate">{{ item.owner || '—' }}</span>
+
+          <!-- Category -->
+          <div class="col-category">
+            <div class="tag-trigger-wrapper" *ngIf="item.tags && item.tags.length > 0">
+              <span class="tag-pill">
+                <span *ngIf="getFirstTagEmoji(item.tags)">{{ getFirstTagEmoji(item.tags) }}</span>
+                {{ item.tags[0] }}<span *ngIf="item.tags.length > 1"> +{{ item.tags.length - 1 }}</span>
+              </span>
               <div class="tags-popup glass">
                 <div class="popup-title">Tags</div>
                 <div class="popup-tags">
@@ -79,6 +93,27 @@ type SortOption = 'newest' | 'oldest' | 'number';
                 </div>
               </div>
             </div>
+            <span *ngIf="!item.tags || item.tags.length === 0" class="muted">—</span>
+          </div>
+
+          <!-- Repairer -->
+          <span class="col-repairer truncate">{{ item.repairer || '—' }}</span>
+
+          <!-- RC Session -->
+          <span class="col-session truncate">{{ formatRCDay(item.RCDay) }}</span>
+
+          <!-- Created -->
+          <span class="col-created">{{ item.creationDate?.toDate() | date:'dd MMM yy' }}</span>
+
+          <!-- Status -->
+          <div class="col-status">
+            <span class="status-badge" [ngClass]="getStatusClass(item.status)">
+              {{ item.status || 'New' }}
+            </span>
+          </div>
+
+          <!-- Actions -->
+          <div class="col-actions actions" (click)="$event.stopPropagation()">
             <button (click)="onDelete(item.id!)" class="btn-action btn-delete" title="Delete record">
               <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <polyline points="3 6 5 6 21 6"></polyline>
@@ -171,54 +206,51 @@ type SortOption = 'newest' | 'oldest' | 'number';
       overflow-x: auto;
       overflow-y: hidden;
     }
-    .list-header {
+
+    .list-header,
+    .list-row {
       display: grid;
-      grid-template-columns: 100px 1fr 120px 80px;
-      padding: 1rem 1.5rem;
+      grid-template-columns: 48px 70px 1fr 110px 120px 120px 130px 95px 90px 40px;
+      padding: 0.75rem 1rem;
+      align-items: center;
+      gap: 0.5rem;
+      min-width: 900px;
+    }
+    .list-header {
       background: rgba(255, 255, 255, 0.08);
       font-weight: bold;
       color: rgba(255, 255, 255, 0.5);
-      font-size: 0.85rem;
+      font-size: 0.8rem;
       text-transform: uppercase;
       letter-spacing: 0.05em;
     }
     .pointer { cursor: pointer; }
     .pointer:hover { color: var(--accent-color); }
     .list-row {
-      display: grid;
-      grid-template-columns: 100px 1fr 120px 80px;
-      padding: 1rem 1.5rem;
       border-top: 1px solid rgba(255, 255, 255, 0.05);
-      align-items: center;
       cursor: pointer;
       transition: background 0.2s;
     }
-    
+
     @media (max-width: 768px) {
-      .list-header {
-        display: none; /* Hide header on mobile */
-      }
+      .list-header { display: none; }
       .list-row {
-        grid-template-columns: 1fr auto;
-        grid-template-areas: 
-          "code actions"
-          "desc desc";
-        gap: 0.8rem;
-        padding: 1.2rem;
+        min-width: unset;
+        grid-template-columns: 48px 70px 1fr auto;
+        grid-template-areas:
+          "photo code desc actions"
+          "photo . status .";
+        gap: 0.5rem;
+        padding: 0.8rem 1rem;
       }
+      .col-photo { grid-area: photo; }
       .col-code { grid-area: code; }
-      .col-actions { grid-area: actions; }
       .col-desc { grid-area: desc; }
-      .col-time { display: none; } /* Hide time on narrow screens */
-      
-      .truncate {
-        white-space: normal;
-        overflow: visible;
-      }
-      .seq-badge {
-        padding: 0.3rem 0.6rem;
-      }
+      .col-actions { grid-area: actions; }
+      .col-status { grid-area: status; }
+      .col-owner, .col-category, .col-repairer, .col-session, .col-created { display: none; }
     }
+
     .list-row:hover {
       background: rgba(255, 255, 255, 0.03);
     }
@@ -243,40 +275,60 @@ type SortOption = 'newest' | 'oldest' | 'number';
       text-overflow: ellipsis;
       color: rgba(255, 255, 255, 0.9);
     }
-    .desc-text {
-      display: block;
-      margin-bottom: 0.3rem;
+    .muted {
+      color: rgba(255, 255, 255, 0.3);
     }
-    .list-tags {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 0.4rem;
-    }
-    .list-tag {
-      font-size: 0.65rem;
-      background: rgba(0, 242, 255, 0.05);
-      border: 1px solid rgba(0, 242, 255, 0.2);
-      color: var(--accent-color);
-      padding: 0.1rem 0.4rem;
-      border-radius: 4px;
-      font-weight: 600;
-    }
-    
-    .tag-with-emoji {
+
+    /* Photo thumbnail */
+    .col-photo { display: flex; align-items: center; }
+    .thumb {
+      width: 36px;
+      height: 36px;
+      border-radius: 6px;
+      background-size: cover;
+      background-position: center;
+      background-color: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.08);
       display: flex;
       align-items: center;
-      gap: 0.4rem;
+      justify-content: center;
+      flex-shrink: 0;
     }
-    .main-emoji {
-      font-size: 1.2rem;
-      text-shadow: 0 0 10px rgba(0, 242, 255, 0.4);
-      filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));
-      cursor: pointer;
+    .thumb-placeholder { font-size: 0.9rem; opacity: 0.3; }
+
+    /* Status badge */
+    .status-badge {
+      font-size: 0.72rem;
+      font-weight: 700;
+      padding: 0.2rem 0.55rem;
+      border-radius: 20px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      white-space: nowrap;
     }
-    .btn-tags.has-emoji {
-      padding: 0.1rem 0.3rem;
+    .status-new       { background: rgba(74,144,226,0.12);  color: #7ab1f7; border: 1px solid rgba(74,144,226,0.3); }
+    .status-assigned  { background: rgba(241,196,15,0.12);  color: #fce170; border: 1px solid rgba(241,196,15,0.3); }
+    .status-repaired  { background: rgba(40,180,99,0.12);   color: #58d68d; border: 1px solid rgba(40,180,99,0.3); }
+    .status-advice    { background: rgba(230,126,34,0.12);  color: #f0a055; border: 1px solid rgba(230,126,34,0.3); }
+    .status-partial   { background: rgba(230,126,34,0.12);  color: #f0a055; border: 1px solid rgba(230,126,34,0.3); }
+    .status-not       { background: rgba(231,76,60,0.12);   color: #f1948a; border: 1px solid rgba(231,76,60,0.3); }
+
+    /* Tag pill in category column */
+    .tag-pill {
+      font-size: 0.78rem;
+      background: rgba(0, 242, 255, 0.07);
+      border: 1px solid rgba(0, 242, 255, 0.2);
+      color: var(--accent-color);
+      padding: 0.2rem 0.5rem;
+      border-radius: 6px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 110px;
+      display: inline-block;
+      cursor: default;
     }
-    
+
     .tag-trigger-wrapper {
       position: relative;
       display: flex;
@@ -355,9 +407,9 @@ type SortOption = 'newest' | 'oldest' | 'number';
       white-space: nowrap;
       font-weight: 700;
     }
-    .col-time {
-      color: rgba(255, 255, 255, 0.5);
-      font-size: 0.9rem;
+    .col-created, .col-session, .col-owner, .col-repairer {
+      color: rgba(255, 255, 255, 0.6);
+      font-size: 0.85rem;
     }
     .actions {
       display: flex;
@@ -451,6 +503,29 @@ export class RepairListComponent {
       if (emoji) return emoji;
     }
     return '';
+  }
+
+  getStatusClass(status: string | undefined): string {
+    switch (status) {
+      case 'Assigned':          return 'status-assigned';
+      case 'Repaired':          return 'status-repaired';
+      case 'Advice Given':      return 'status-advice';
+      case 'Partially Repaired': return 'status-partial';
+      case 'Not Repaired':      return 'status-not';
+      default:                  return 'status-new';
+    }
+  }
+
+  formatRCDay(rcDay: string): string {
+    if (!rcDay) return '—';
+    // Format is "Saturday, 15, 03, 2025" → "15 Mar 25"
+    const parts = rcDay.split(',').map(p => p.trim());
+    if (parts.length < 4) return rcDay;
+    const months = ['', 'Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    const day = parts[1];
+    const month = months[parseInt(parts[2], 10)] || parts[2];
+    const year = parts[3].slice(-2);
+    return `${day} ${month} ${year}`;
   }
 
   async onDelete(id: string) {

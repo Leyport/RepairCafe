@@ -1,7 +1,6 @@
 import { Component, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterOutlet, RouterLink } from '@angular/router';
-import { APP_VERSION } from './constants/version';
 import { RepairService } from './services/repair.service';
 import { map } from 'rxjs/operators';
 
@@ -17,12 +16,12 @@ import { LoginComponent } from './components/auth/login/login.component';
 })
 export class AppComponent {
   title = 'RepairCafe';
-  version = APP_VERSION.version;
-  changeDescription = APP_VERSION.description;
   showLogin = false;
 
   private repairService = inject(RepairService);
   private authService = inject(AuthService);
+
+  appVersion$ = this.repairService.getAppVersion();
 
   issueCount$ = this.repairService.getIssues().pipe(
     map(issues => issues.length)

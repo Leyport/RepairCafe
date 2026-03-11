@@ -1,10 +1,11 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
-import { Firestore, collection, collectionData, addDoc, Timestamp, doc, deleteDoc, query, where, getDocs, orderBy, updateDoc, setDoc, writeBatch, getDoc } from '@angular/fire/firestore';
+import { Firestore, collection, collectionData, addDoc, Timestamp, doc, deleteDoc, query, where, getDocs, orderBy, updateDoc, setDoc, writeBatch, getDoc, docData } from '@angular/fire/firestore';
 import { Storage, ref, uploadBytes, getDownloadURL, deleteObject } from '@angular/fire/storage';
-import { Observable, BehaviorSubject } from 'rxjs';
-import { map } from 'rxjs/operators';
+import { Observable, BehaviorSubject, of } from 'rxjs';
+import { map, catchError } from 'rxjs/operators';
+import { APP_VERSION } from '../constants/version';
 import { RepairItem, Owner } from '../models/repair-item.model';
 import { Tag } from '../models/tag.model';
 import { Repairer } from '../models/repairer.model';
@@ -423,13 +424,20 @@ export class RepairService {
         return collectionData(q, { idField: 'id' }) as Observable<Repairer[]>;
     }
 
-    async addRepairer(name: string, photoUrl?: string): Promise<void> {
+    async addRepairer(name: string, photoUrl?: string, isPrimary?: boolean): Promise<void> {
         if (!name) return;
         await addDoc(this.repairersCollection, {
             name,
             createdAt: Timestamp.now(),
-            photoUrl: photoUrl || null
+            photoUrl: photoUrl || null,
+            isPrimary: isPrimary || false
         });
+    }
+
+    getPrimaryRepairers(): Observable<Repairer[]> {
+        return this.getRepairers().pipe(
+            map(repairers => repairers.filter(r => r.isPrimary === true))
+        );
     }
 
     async updateRepairer(id: string, data: Partial<Repairer>): Promise<void> {
@@ -564,6 +572,42 @@ export class RepairService {
     async deleteIssue(id: string): Promise<void> {
         const docRef = doc(this.firestore, 'issues', id);
         await deleteDoc(docRef);
+    }
+
+    // Users
+    getUsers(): Observable<any[]> {
+        const usersCollection = collection(this.firestore, 'users');
+        return collectionData(usersCollection, { idField: 'id' }) as Observable<any[]>;
+    }
+
+    getAdmins(): Observable<string[]> {
+        const adminsCollection = collection(this.firestore, 'admins');
+        return collectionData(adminsCollection, { idField: 'id' }).pipe(
+            map((docs: any[]) => docs.map(d => d.id))
+        );
+    }
+
+    async setAdminStatus(uid: string, isAdmin: boolean): Promise<void> {
+        const adminRef = doc(this.firestore, 'admins', uid);
+        if (isAdmin) {
+            await setDoc(adminRef, { uid });
+        } else {
+            await deleteDoc(adminRef);
+        }
+    }
+
+    // App Version
+    getAppVersion(): Observable<{ version: string, description: string }> {
+        const versionDocRef = doc(this.firestore, 'sys_settings', 'app_version');
+        return docData(versionDocRef).pipe(
+            map((data: any) => data && data.version ? data : { version: APP_VERSION.version, description: APP_VERSION.description }),
+            catchError(() => of({ version: APP_VERSION.version, description: APP_VERSION.description }))
+        );
+    }
+
+    async updateAppVersion(version: string, description: string): Promise<void> {
+        const versionDocRef = doc(this.firestore, 'sys_settings', 'app_version');
+        await setDoc(versionDocRef, { version, description });
     }
     async syncOwnersFromRepairItems(): Promise<void> {
         const itemsSnapshot = await getDocs(this.repairCollection);
