@@ -54,6 +54,16 @@ import { RepairService } from '../../services/repair.service';
           <div class="item-count-badge" *ngIf="getStats(date) > 0" title="Items created for this date">
             🛠️ {{ getStats(date) }}
           </div>
+
+          <!-- Mini Status Donut -->
+          <svg *ngIf="getStats(date) > 0" class="mini-donut" viewBox="0 0 50 50" width="50" height="50">
+            <path *ngFor="let s of getSessionSlices(date)"
+              [attr.d]="s.path"
+              [attr.fill]="s.color">
+              <title>{{ s.status }}: {{ s.count }}</title>
+            </path>
+            <circle cx="25" cy="25" r="10" fill="rgba(0,0,0,0.4)"/>
+          </svg>
         </div>
       </div>
     </div>
@@ -263,6 +273,11 @@ import { RepairService } from '../../services/repair.service';
         align-items: center;
         gap: 0.3rem;
     }
+
+    .mini-donut {
+        margin-top: 0.75rem;
+        filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));
+    }
   `]
 })
 export class ScheduleComponent implements OnInit {
@@ -275,7 +290,17 @@ export class ScheduleComponent implements OnInit {
   nextSession: Date | null = null;
   daysUntil = 0;
 
-  dateStats: Map<string, number> = new Map();
+  dateStatusMap: Map<string, { [status: string]: number }> = new Map();
+
+  private statusColors: { [key: string]: string } = {
+    'New': '#2196f3',
+    'Assigned': '#ffc107',
+    'Repaired': '#4caf50',
+    'Advice Given': '#ff9800',
+    'Partially Repaired': '#ff9800',
+    'Not Repaired': '#f44336'
+  };
+  private statusOrder = ['New', 'Assigned', 'Repaired', 'Advice Given', 'Partially Repaired', 'Not Repaired'];
 
   ngOnInit() {
     this.generateSchedule();
@@ -323,11 +348,13 @@ export class ScheduleComponent implements OnInit {
 
   loadStats() {
     this.repairService.getRepairItems().subscribe(items => {
-      this.dateStats.clear();
+      this.dateStatusMap.clear();
       items.forEach(item => {
         if (item.RCDay) {
-          const current = this.dateStats.get(item.RCDay) || 0;
-          this.dateStats.set(item.RCDay, current + 1);
+          const breakdown = this.dateStatusMap.get(item.RCDay) || {};
+          const s = item.status || 'New';
+          breakdown[s] = (breakdown[s] || 0) + 1;
+          this.dateStatusMap.set(item.RCDay, breakdown);
         }
       });
     });
@@ -336,7 +363,46 @@ export class ScheduleComponent implements OnInit {
   getStats(date: Date | null): number {
     if (!date) return 0;
     const key = this.repairService.generateRCDay(date);
-    return this.dateStats.get(key) || 0;
+    const breakdown = this.dateStatusMap.get(key);
+    if (!breakdown) return 0;
+    return Object.values(breakdown).reduce((sum, n) => sum + n, 0);
+  }
+
+  getSessionSlices(date: Date) {
+    const key = this.repairService.generateRCDay(date);
+    const breakdown = this.dateStatusMap.get(key) || {};
+    const total = Object.values(breakdown).reduce((sum, n) => sum + n, 0) || 1;
+    let angle = -90;
+    const slices: { path: string; color: string; status: string; count: number }[] = [];
+    for (const status of this.statusOrder) {
+      const count = breakdown[status] || 0;
+      if (!count) continue;
+      const sweep = (count / total) * 360;
+      slices.push({
+        path: this.donutSlicePath(25, 25, 22, 13, angle, angle + sweep),
+        color: this.statusColors[status] || '#888',
+        status,
+        count
+      });
+      angle += sweep;
+    }
+    return slices;
+  }
+
+  private polarToCartesian(cx: number, cy: number, r: number, angleDeg: number) {
+    const rad = (angleDeg * Math.PI) / 180;
+    return { x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad) };
+  }
+
+  private donutSlicePath(cx: number, cy: number, outerR: number, innerR: number, startAngle: number, endAngle: number): string {
+    const sweep = Math.min(endAngle - startAngle, 359.999);
+    const end = startAngle + sweep;
+    const large = sweep > 180 ? 1 : 0;
+    const os = this.polarToCartesian(cx, cy, outerR, startAngle);
+    const oe = this.polarToCartesian(cx, cy, outerR, end);
+    const ie = this.polarToCartesian(cx, cy, innerR, end);
+    const is_ = this.polarToCartesian(cx, cy, innerR, startAngle);
+    return `M ${os.x} ${os.y} A ${outerR} ${outerR} 0 ${large} 1 ${oe.x} ${oe.y} L ${ie.x} ${ie.y} A ${innerR} ${innerR} 0 ${large} 0 ${is_.x} ${is_.y} Z`;
   }
 
   openDashboard(date: Date) {

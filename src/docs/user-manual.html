@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RepairCafe – User Manual</title>
+  <link rel="icon" type="image/svg+xml" href="../favicon.svg">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #0f0a1e;
+      color: rgba(255,255,255,0.85);
+      line-height: 1.7;
+    }
+
+    /* ── Layout ── */
+    .layout {
+      display: flex;
+      min-height: 100vh;
+    }
+
+    /* ── Sidebar ── */
+    nav {
+      width: 260px;
+      flex-shrink: 0;
+      background: rgba(255,255,255,0.03);
+      border-right: 1px solid rgba(255,255,255,0.07);
+      padding: 2rem 1.5rem;
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      overflow-y: auto;
+    }
+
+    .nav-logo {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin-bottom: 2rem;
+      text-decoration: none;
+    }
+    .nav-logo svg { flex-shrink: 0; }
+    .nav-logo span {
+      font-size: 1.1rem;
+      font-weight: 700;
+      background: linear-gradient(45deg, #fff, #00f2ff);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    nav ul { list-style: none; }
+    nav ul li { margin-bottom: 0.2rem; }
+    nav ul li a {
+      display: block;
+      padding: 0.4rem 0.75rem;
+      color: rgba(255,255,255,0.55);
+      text-decoration: none;
+      font-size: 0.9rem;
+      border-radius: 6px;
+      transition: all 0.15s;
+    }
+    nav ul li a:hover {
+      background: rgba(0,242,255,0.08);
+      color: #00f2ff;
+    }
+    .nav-section {
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: rgba(255,255,255,0.25);
+      padding: 1rem 0.75rem 0.3rem;
+      font-weight: 600;
+    }
+
+    /* ── Main content ── */
+    main {
+      flex: 1;
+      padding: 3rem 4rem;
+      max-width: 860px;
+    }
+
+    .page-header {
+      margin-bottom: 3rem;
+      padding-bottom: 1.5rem;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+    }
+    .page-header h1 {
+      font-size: 2.2rem;
+      font-weight: 800;
+      background: linear-gradient(45deg, #fff, #00f2ff);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 0.5rem;
+    }
+    .page-header p { color: rgba(255,255,255,0.45); font-size: 1rem; }
+
+    section {
+      margin-bottom: 3rem;
+      scroll-margin-top: 2rem;
+    }
+
+    h2 {
+      font-size: 1.4rem;
+      font-weight: 700;
+      color: #00f2ff;
+      margin-bottom: 1rem;
+      padding-bottom: 0.4rem;
+      border-bottom: 1px solid rgba(0,242,255,0.2);
+    }
+
+    h3 {
+      font-size: 1.05rem;
+      font-weight: 600;
+      color: rgba(255,255,255,0.9);
+      margin: 1.5rem 0 0.6rem;
+    }
+
+    p { margin-bottom: 0.9rem; color: rgba(255,255,255,0.75); }
+
+    /* ── Tables ── */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 1rem 0 1.5rem;
+      font-size: 0.92rem;
+    }
+    thead tr { background: rgba(0,242,255,0.06); }
+    th {
+      text-align: left;
+      padding: 0.65rem 1rem;
+      color: #00f2ff;
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      font-weight: 600;
+      border-bottom: 1px solid rgba(0,242,255,0.2);
+    }
+    td {
+      padding: 0.65rem 1rem;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+      color: rgba(255,255,255,0.8);
+      vertical-align: top;
+    }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: rgba(255,255,255,0.02); }
+
+    /* ── Status pills ── */
+    .pill {
+      display: inline-block;
+      padding: 0.15rem 0.55rem;
+      border-radius: 20px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    .pill-new      { background: rgba(33,150,243,0.2);  color: #2196f3; }
+    .pill-assigned { background: rgba(255,193,7,0.2);   color: #ffc107; }
+    .pill-repaired { background: rgba(76,175,80,0.2);   color: #4caf50; }
+    .pill-advice   { background: rgba(255,152,0,0.2);   color: #ff9800; }
+    .pill-partial  { background: rgba(255,152,0,0.15);  color: #ff9800; }
+    .pill-not      { background: rgba(244,67,54,0.2);   color: #f44336; }
+    .pill-fixed    { background: rgba(76,175,80,0.2);   color: #4caf50; }
+
+    /* ── Callout ── */
+    .callout {
+      background: rgba(0,242,255,0.06);
+      border-left: 3px solid #00f2ff;
+      border-radius: 0 8px 8px 0;
+      padding: 0.9rem 1.2rem;
+      margin: 1rem 0 1.5rem;
+      font-size: 0.92rem;
+      color: rgba(255,255,255,0.75);
+    }
+    .callout strong { color: #00f2ff; }
+
+    /* ── Steps ── */
+    ol.steps {
+      padding-left: 1.5rem;
+      color: rgba(255,255,255,0.75);
+    }
+    ol.steps li { margin-bottom: 0.5rem; }
+
+    /* ── Responsive ── */
+    @media (max-width: 720px) {
+      nav { display: none; }
+      main { padding: 2rem 1.5rem; }
+    }
+  </style>
+</head>
+<body>
+<div class="layout">
+
+  <!-- Sidebar navigation -->
+  <nav>
+    <a class="nav-logo" href="index.html">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="36" height="36">
+        <circle cx="32" cy="32" r="32" fill="#1a0a2e"/>
+        <ellipse cx="32" cy="14" rx="4" ry="7" fill="#00b8f0"/>
+        <ellipse cx="32" cy="30" rx="13" ry="12" fill="#8b3fc8"/>
+        <circle cx="27" cy="28" r="3.5" fill="white"/><circle cx="37" cy="28" r="3.5" fill="white"/>
+        <circle cx="28" cy="29" r="1.8" fill="#1a0a2e"/><circle cx="38" cy="29" r="1.8" fill="#1a0a2e"/>
+        <path d="M27 33 Q32 37 37 33" stroke="white" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+        <path d="M20 35 Q10 38 8 46 Q10 50 14 48" stroke="#d966b0" stroke-width="3" fill="none" stroke-linecap="round"/>
+        <path d="M44 35 Q54 38 56 46 Q54 50 50 48" stroke="#d966b0" stroke-width="3" fill="none" stroke-linecap="round"/>
+        <rect x="8" y="56" width="48" height="10" rx="3" fill="#8B5A2B"/>
+        <text x="32" y="64" font-family="Arial,sans-serif" font-size="5.5" font-weight="bold" fill="#fff8e0" text-anchor="middle" letter-spacing="0.5">REPAIR CAFE</text>
+      </svg>
+      <span>RepairCafe</span>
+    </a>
+
+    <div class="nav-section">Getting Started</div>
+    <ul>
+      <li><a href="#overview">Overview</a></li>
+      <li><a href="#login">Logging In</a></li>
+      <li><a href="#navigation">Navigation</a></li>
+    </ul>
+
+    <div class="nav-section">Repairs</div>
+    <ul>
+      <li><a href="#new-repair">New Repair Record</a></li>
+      <li><a href="#statuses">Repair Statuses</a></li>
+    </ul>
+
+    <div class="nav-section">Sessions</div>
+    <ul>
+      <li><a href="#schedule">Session Schedule</a></li>
+      <li><a href="#session-dashboard">Session Dashboard</a></li>
+    </ul>
+
+    <div class="nav-section">People</div>
+    <ul>
+      <li><a href="#repairer-dashboard">Repairer Dashboard</a></li>
+    </ul>
+
+    <div class="nav-section">Tools</div>
+    <ul>
+      <li><a href="#issues">Issue Tracker</a></li>
+      <li><a href="#admin">Admin Panel</a></li>
+      <li><a href="#tips">Tips</a></li>
+    </ul>
+  </nav>
+
+  <!-- Main content -->
+  <main>
+    <div class="page-header">
+      <h1>User Manual</h1>
+      <p>RepairCafe &mdash; repair tracking for a sustainable future &mdash; v1.24</p>
+    </div>
+
+    <!-- Overview -->
+    <section id="overview">
+      <h2>Overview</h2>
+      <p>RepairCafe is a web application for tracking repair items at Repair Cafe sessions. Volunteers use it to register items brought in for repair, assign repairers, record outcomes, and review how each session went.</p>
+      <p>The app is hosted online and works on any modern browser &mdash; no installation needed.</p>
+    </section>
+
+    <!-- Login -->
+    <section id="login">
+      <h2>Logging In</h2>
+      <p>Click one of the login buttons in the top-right corner of the header:</p>
+      <table>
+        <thead><tr><th>Button</th><th>Method</th></tr></thead>
+        <tbody>
+          <tr><td>Envelope icon</td><td>Email address and password</td></tr>
+          <tr><td>Google icon</td><td>Sign in with a Google account</td></tr>
+          <tr><td>Apple icon</td><td>Sign in with an Apple account</td></tr>
+        </tbody>
+      </table>
+      <p>Once logged in your name appears in the header. Admin-only features (Admin panel, Issues log) become visible. To log out, click the arrow/logout icon in the top-right corner.</p>
+    </section>
+
+    <!-- Navigation -->
+    <section id="navigation">
+      <h2>Navigation</h2>
+      <table>
+        <thead><tr><th>Button</th><th>What it does</th></tr></thead>
+        <tbody>
+          <tr><td><strong>RepairCafe</strong> (title)</td><td>Returns to the home repair list</td></tr>
+          <tr><td><strong>New</strong></td><td>Opens the form to create a new repair record</td></tr>
+          <tr><td><strong>Sessions</strong> (calendar icon)</td><td>Opens the session schedule</td></tr>
+          <tr><td><strong>Issues</strong> (circle icon)</td><td>Opens the issue tracker <em>(logged-in users only)</em></td></tr>
+          <tr><td><strong>Admin</strong> (grid icon)</td><td>Opens the admin panel <em>(logged-in users only)</em></td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- New Repair -->
+    <section id="new-repair">
+      <h2>Creating a Repair Record</h2>
+      <p>Click <strong>New</strong> in the header to open the new repair form and fill in the following fields:</p>
+      <table>
+        <thead><tr><th>Field</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Owner</strong></td><td>Name of the person who brought the item</td></tr>
+          <tr><td><strong>Item Type</strong></td><td>Category of the item (e.g. Clothing, Electronics)</td></tr>
+          <tr><td><strong>Description</strong></td><td>Brief description of the item and the fault</td></tr>
+          <tr><td><strong>RC Day</strong></td><td>The session date this item belongs to</td></tr>
+          <tr><td><strong>Primary Repairer</strong></td><td>The volunteer assigned as the lead repairer</td></tr>
+          <tr><td><strong>Secondary Repairers</strong></td><td>Additional volunteers assisting (optional)</td></tr>
+          <tr><td><strong>Status</strong></td><td>Current repair status (defaults to <em>New</em>)</td></tr>
+        </tbody>
+      </table>
+      <p>Click <strong>Save</strong> to create the record, or <strong>Cancel</strong> to discard it.</p>
+    </section>
+
+    <!-- Statuses -->
+    <section id="statuses">
+      <h2>Repair Statuses</h2>
+      <table>
+        <thead><tr><th>Status</th><th>Meaning</th></tr></thead>
+        <tbody>
+          <tr><td><span class="pill pill-new">New</span></td><td>Item registered, not yet assigned to a repairer</td></tr>
+          <tr><td><span class="pill pill-assigned">Assigned</span></td><td>A repairer has been assigned and is working on it</td></tr>
+          <tr><td><span class="pill pill-repaired">Repaired</span></td><td>Item successfully fixed</td></tr>
+          <tr><td><span class="pill pill-advice">Advice Given</span></td><td>Item could not be repaired; advice was provided to the owner</td></tr>
+          <tr><td><span class="pill pill-partial">Partially Repaired</span></td><td>Some repair was carried out but the item is not fully fixed</td></tr>
+          <tr><td><span class="pill pill-not">Not Repaired</span></td><td>Item could not be fixed and no further action taken</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- Schedule -->
+    <section id="schedule">
+      <h2>Session Schedule</h2>
+      <p>Click the <strong>Sessions</strong> button to view the Repair Cafe calendar. Sessions are held on the <strong>3rd Saturday of every month</strong>.</p>
+      <h3>Next Session banner</h3>
+      <p>The highlighted card at the top shows the next upcoming session with a countdown in days and the number of pre-registered items.</p>
+      <h3>Month cards</h3>
+      <p>Each month is shown as a card displaying the date. Cards with repair items also show:</p>
+      <ul style="padding-left:1.5rem; color:rgba(255,255,255,0.75); margin-bottom:1rem;">
+        <li>A <strong>🛠 item count</strong> badge</li>
+        <li>A <strong>mini donut chart</strong> showing the status breakdown at a glance, using the same colours as the session dashboard</li>
+      </ul>
+      <p>Use the <strong>year buttons</strong> to switch between years. Click any card to open the <strong>Session Dashboard</strong> for that date.</p>
+    </section>
+
+    <!-- Session Dashboard -->
+    <section id="session-dashboard">
+      <h2>Session Dashboard</h2>
+      <p>The session dashboard shows all repair items recorded for a specific session.</p>
+
+      <h3>Summary cards</h3>
+      <table>
+        <thead><tr><th>Card</th><th>What it shows</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Total Items</strong></td><td>All items recorded for the session</td></tr>
+          <tr><td><strong>Completed</strong></td><td>Items with a resolved outcome (Repaired, Advice Given, Partially Repaired, Not Repaired)</td></tr>
+          <tr><td><strong>In Progress</strong></td><td>Items currently <em>Assigned</em></td></tr>
+          <tr><td><strong>Awaiting</strong></td><td>Items still at <em>New</em> status</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Status distribution chart</h3>
+      <p>A donut chart shows the proportion of items in each status. A colour-coded legend appears below it.</p>
+
+      <h3>Items list</h3>
+      <table>
+        <thead><tr><th>Column</th><th>Notes</th></tr></thead>
+        <tbody>
+          <tr><td><strong>#</strong></td><td>Row number</td></tr>
+          <tr><td><strong>Owner</strong></td><td>Person who brought the item</td></tr>
+          <tr><td><strong>Item Type</strong></td><td>Category</td></tr>
+          <tr><td><strong>Description</strong></td><td>Fault description</td></tr>
+          <tr><td><strong>Primary Repairer</strong></td><td>Lead repairer assigned</td></tr>
+          <tr><td><strong>Secondary Repairers</strong></td><td>Click <strong>+</strong> to add helpers; click <strong>&times;</strong> on a chip to remove them</td></tr>
+          <tr><td><strong>Status</strong></td><td>Inline dropdown &mdash; change directly in the table without opening the full form</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- Repairer Dashboard -->
+    <section id="repairer-dashboard">
+      <h2>Repairer Dashboard</h2>
+      <p>Each repairer has a personal dashboard showing all items assigned to them, either as primary repairer or as a helper.</p>
+
+      <h3>How to open</h3>
+      <ol class="steps">
+        <li>Go to <strong>Admin &rarr; Repairers</strong></li>
+        <li>Click the <strong>chart icon</strong> next to the repairer's name</li>
+      </ol>
+
+      <h3>What it shows</h3>
+      <ul style="padding-left:1.5rem; color:rgba(255,255,255,0.75); margin-bottom:1rem;">
+        <li><strong>Total Assigned</strong>, <strong>As Primary</strong>, <strong>As Helper</strong>, <strong>Completed</strong> stat cards</li>
+        <li>A <strong>donut chart</strong> of repair statuses across all assigned items</li>
+        <li>A table of every assigned item with session date and role (Primary / Helper)</li>
+      </ul>
+    </section>
+
+    <!-- Issue Tracker -->
+    <section id="issues">
+      <h2>Issue Tracker</h2>
+      <p>Use the issue tracker to log operational problems or improvement ideas (e.g. equipment faults, process suggestions). Access it via the <strong>Issues</strong> icon in the header &mdash; logged-in users only.</p>
+      <p>A count badge on the Issues button shows the number of open issues at a glance.</p>
+
+      <h3>Reporting an issue</h3>
+      <ol class="steps">
+        <li>Click <strong>Report Issue</strong></li>
+        <li>Enter a description of the issue</li>
+        <li>Click <strong>Submit Issue</strong></li>
+      </ol>
+
+      <h3>Managing issues</h3>
+      <table>
+        <thead><tr><th>Action</th><th>How</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Edit description</strong></td><td>Click the description text to edit inline. Press Enter or click away to save; Escape to cancel.</td></tr>
+          <tr><td><strong>Enter a fix</strong></td><td>Click the Fix cell and type the resolution. Press Enter or click away to save.</td></tr>
+          <tr><td><strong>Change status</strong></td><td>Use the dropdown: <span class="pill pill-new">New</span> <span class="pill pill-assigned">Assigned</span> <span class="pill pill-fixed">Fixed</span></td></tr>
+          <tr><td><strong>Sort by status</strong></td><td>Click the <strong>Status</strong> column header &mdash; toggles ascending/descending order</td></tr>
+          <tr><td><strong>Delete</strong></td><td>Click the 🗑 icon on the row</td></tr>
+        </tbody>
+      </table>
+
+      <div class="callout">
+        <strong>Amber highlight:</strong> Issues with no fix entered are shown with an amber left border so they stand out and can be actioned quickly.
+      </div>
+    </section>
+
+    <!-- Admin Panel -->
+    <section id="admin">
+      <h2>Admin Panel</h2>
+      <p>Accessible to logged-in users via the <strong>Admin</strong> (grid) icon in the header.</p>
+
+      <h3>Repairers</h3>
+      <p>Manage the list of volunteer repairers.</p>
+      <table>
+        <thead><tr><th>Action</th><th>How</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Add</strong></td><td>Click <em>Add New Repairer</em>, enter a name and optional photo URL</td></tr>
+          <tr><td><strong>Edit</strong></td><td>Click a repairer row to open the edit form</td></tr>
+          <tr><td><strong>Make Primary / Secondary</strong></td><td>Toggle whether the repairer appears in the primary repairer list on new repair forms</td></tr>
+          <tr><td><strong>Open dashboard</strong></td><td>Click the chart icon to view the repairer's personal dashboard</td></tr>
+          <tr><td><strong>Delete</strong></td><td>Click the bin icon on the row</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Database Explorer</h3>
+      <p>A full searchable view of all repair records across every session. Click a row to open the full repair detail. Use the print icon on a row to generate a PDF repair receipt in a new window.</p>
+
+      <h3>User Manager</h3>
+      <p>Lists every user who has ever logged in. Admins can grant or revoke admin access here.</p>
+
+      <h3>Version Manager</h3>
+      <p>Displays the current application version and description. The version shown in the header and footer always reflects the latest deployed code automatically &mdash; no manual update needed after a deployment.</p>
+    </section>
+
+    <!-- Tips -->
+    <section id="tips">
+      <h2>Tips</h2>
+      <ul style="padding-left:1.5rem; color:rgba(255,255,255,0.75);">
+        <li style="margin-bottom:0.6rem">The version shown in the header updates automatically on every new deployment &mdash; you never need to set it manually.</li>
+        <li style="margin-bottom:0.6rem">Secondary repairers can be added or removed directly from the session dashboard without opening the full edit form.</li>
+        <li style="margin-bottom:0.6rem">Past session cards on the schedule screen show a mini donut chart so you can see at a glance how a session went.</li>
+        <li style="margin-bottom:0.6rem">The Issues badge count keeps open issues visible at all times without having to visit the tracker.</li>
+        <li>Status changes made in the session dashboard items list are saved to Firestore immediately &mdash; no separate save step required.</li>
+      </ul>
+    </section>
+
+  </main>
+</div>
+</body>
+</html>

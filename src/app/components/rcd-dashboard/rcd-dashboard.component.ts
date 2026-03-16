@@ -6,13 +6,15 @@ import { ExportService } from '../../services/export.service';
 import { ImportService } from '../../services/import.service';
 import { AuthService } from '../../services/auth.service';
 import { RepairItem } from '../../models/repair-item.model';
+import { Repairer } from '../../models/repairer.model';
 import { map, switchMap } from 'rxjs/operators';
 import { Observable, take, firstValueFrom } from 'rxjs';
+import { FormsModule } from '@angular/forms';
 
 @Component({
   selector: 'app-rcd-dashboard',
   standalone: true,
-  imports: [CommonModule, RouterModule],
+  imports: [CommonModule, RouterModule, FormsModule],
   template: `
     <div class="dashboard-container">
       <header class="dashboard-header">
@@ -92,17 +94,17 @@ import { Observable, take, firstValueFrom } from 'rxjs';
           <div class="stat-value">{{ items.length }}</div>
           <div class="stat-label">Total Items</div>
         </div>
-        <div class="stat-card glass">
-          <div class="stat-value">{{ countByStatus(items, 'Fixed') }}</div>
-          <div class="stat-label">Fixed</div>
+        <div class="stat-card glass stat-repaired">
+          <div class="stat-value">{{ countCompleted(items) }}</div>
+          <div class="stat-label">Completed</div>
         </div>
-        <div class="stat-card glass">
+        <div class="stat-card glass stat-assigned">
           <div class="stat-value">{{ countByStatus(items, 'Assigned') }}</div>
-          <div class="stat-label">Ongoing / Assigned</div>
+          <div class="stat-label">In Progress</div>
         </div>
-        <div class="stat-card glass">
-          <div class="stat-value">{{ getCompletionRate(items) }}%</div>
-          <div class="stat-label">Success Rate</div>
+        <div class="stat-card glass stat-new">
+          <div class="stat-value">{{ countByStatus(items, 'New') }}</div>
+          <div class="stat-label">Awaiting</div>
         </div>
       </div>
 
@@ -113,14 +115,36 @@ import { Observable, take, firstValueFrom } from 'rxjs';
             <div class="status-item" *ngFor="let stat of getStatusBreakdown(items)">
               <span class="status-name">{{ stat.status }}</span>
               <div class="status-bar-container">
-                <div class="status-bar" [style.width.%]="stat.percentage" [class]="stat.status.toLowerCase()"></div>
+                <div class="status-bar" [style.width.%]="stat.percentage" [ngClass]="stat.cssClass"></div>
               </div>
               <span class="status-count">{{ stat.count }}</span>
             </div>
           </div>
         </div>
 
-        <div class="report-card glass">
+        <div class="report-card glass pie-card">
+          <h2>Distribution</h2>
+          <div class="pie-wrapper">
+            <svg viewBox="0 0 160 160" class="pie-svg">
+              <ng-container *ngFor="let slice of getPieSlices(items)">
+                <path [attr.d]="slice.path" [attr.fill]="slice.color" class="pie-slice">
+                  <title>{{ slice.status }}: {{ slice.count }}</title>
+                </path>
+              </ng-container>
+              <text x="80" y="75" text-anchor="middle" class="pie-center-value">{{ items.length }}</text>
+              <text x="80" y="93" text-anchor="middle" class="pie-center-label">total</text>
+            </svg>
+            <div class="pie-legend">
+              <div class="legend-item" *ngFor="let slice of getPieSlices(items)">
+                <span class="legend-dot" [style.background]="slice.color"></span>
+                <span class="legend-text">{{ slice.status }}</span>
+                <span class="legend-count">{{ slice.count }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="report-card glass items-card">
           <h2>Items List</h2>
           <div class="items-list">
             <table>
@@ -128,16 +152,52 @@ import { Observable, take, firstValueFrom } from 'rxjs';
                 <tr>
                   <th>No.</th>
                   <th>Description</th>
+                  <th>Owner</th>
+                  <th>Category</th>
                   <th>Status</th>
-                  <th>Repairer</th>
+                  <th>Primary Repairer</th>
+                  <th>Secondary Repairers</th>
                 </tr>
               </thead>
               <tbody>
                 <tr *ngFor="let item of items">
-                  <td>{{ item.displayNumber }}</td>
+                  <td class="col-num">{{ item.displayNumber }}</td>
                   <td>{{ item.itemDescription }}</td>
-                  <td><span class="status-pill" [class]="item.status?.toLowerCase()">{{ item.status }}</span></td>
-                  <td>{{ item.repairer || 'Unassigned' }}</td>
+                  <td class="col-meta">{{ item.owner || '—' }}</td>
+                  <td class="col-meta">{{ item.repairItem || '—' }}</td>
+                  <td>
+                    <select class="status-select" [ngClass]="getStatusClass(item.status)"
+                      [(ngModel)]="item.status"
+                      (change)="updateStatus(item)"
+                      [disabled]="!!saving[item.id!]">
+                      <option value="New">New</option>
+                      <option value="Assigned">Assigned</option>
+                      <optgroup label="Completed">
+                        <option value="Repaired">Repaired</option>
+                        <option value="Advice Given">Advice Given</option>
+                        <option value="Partially Repaired">Partially Repaired</option>
+                        <option value="Not Repaired">Not Repaired</option>
+                      </optgroup>
+                    </select>
+                  </td>
+                  <td class="col-repairer">{{ item.repairer || 'Unassigned' }}</td>
+                  <td class="col-secondary">
+                    <div class="secondary-chips">
+                      <span class="sec-chip" *ngFor="let name of (item.additionalRepairers || [])">
+                        {{ name }}
+                        <button class="chip-remove" (click)="removeSecondaryRepairer(item, name)" title="Remove">×</button>
+                      </span>
+                      <div class="add-picker-wrapper" *ngIf="openPickerId !== item.id">
+                        <button class="chip-add" (click)="openPickerId = item.id!" title="Add secondary repairer">＋</button>
+                      </div>
+                      <div class="add-picker-wrapper" *ngIf="openPickerId === item.id">
+                        <select class="add-select" (change)="addSecondaryRepairer(item, $event)" (blur)="openPickerId = null">
+                          <option value="">— pick repairer —</option>
+                          <option *ngFor="let r of getAvailableRepairers(item)" [value]="r.name">{{ r.name }}</option>
+                        </select>
+                      </div>
+                    </div>
+                  </td>
                 </tr>
               </tbody>
             </table>
@@ -352,6 +412,12 @@ import { Observable, take, firstValueFrom } from 'rxjs';
 
     .stat-card { text-align: center; }
 
+    .stat-repaired { border-color: rgba(76, 175, 80, 0.4) !important; }
+    .stat-repaired .stat-value { color: #81c784; }
+    .stat-assigned { border-color: rgba(255, 193, 7, 0.4) !important; }
+    .stat-assigned .stat-value { color: #ffd54f; }
+    .stat-new { border-color: rgba(33, 150, 243, 0.4) !important; }
+    .stat-new .stat-value { color: #64b5f6; }
     .stat-value {
       font-size: 2.5rem;
       font-weight: 800;
@@ -371,6 +437,8 @@ import { Observable, take, firstValueFrom } from 'rxjs';
       grid-template-columns: 1fr;
       gap: 2rem;
     }
+
+    .items-card { grid-column: 1 / -1; }
 
     .report-card h2 {
       margin-top: 0;
@@ -413,9 +481,12 @@ import { Observable, take, firstValueFrom } from 'rxjs';
       transition: width 0.6s ease-out;
     }
 
-    .status-bar.fixed { background: #4caf50; }
-    .status-bar.assigned { background: #2196f3; }
-    .status-bar.new { background: #ff9800; }
+    .status-bar.bar-new { background: #2196f3; }
+    .status-bar.bar-assigned { background: #ffc107; }
+    .status-bar.bar-repaired { background: #4caf50; }
+    .status-bar.bar-advice { background: #ff9800; }
+    .status-bar.bar-partial { background: #ff9800; }
+    .status-bar.bar-not-repaired { background: #f44336; }
 
     .status-count {
       width: 30px;
@@ -454,11 +525,114 @@ import { Observable, take, firstValueFrom } from 'rxjs';
       font-weight: 600;
       text-transform: uppercase;
       background: rgba(255, 255, 255, 0.1);
+      white-space: nowrap;
     }
 
-    .status-pill.fixed { background: rgba(76, 175, 80, 0.2); color: #81c784; }
-    .status-pill.assigned { background: rgba(33, 150, 243, 0.2); color: #64b5f6; }
-    .status-pill.new { background: rgba(255, 152, 0, 0.2); color: #ffb74d; }
+    .status-pill.pill-new { background: rgba(33, 150, 243, 0.2); color: #64b5f6; }
+    .status-pill.pill-assigned { background: rgba(255, 193, 7, 0.2); color: #ffd54f; }
+    .status-pill.pill-repaired { background: rgba(76, 175, 80, 0.2); color: #81c784; }
+    .status-pill.pill-advice { background: rgba(255, 152, 0, 0.2); color: #ffb74d; }
+    .status-pill.pill-partial { background: rgba(255, 152, 0, 0.2); color: #ffb74d; }
+    .status-pill.pill-not-repaired { background: rgba(244, 67, 54, 0.2); color: #ef9a9a; }
+
+    .col-num { width: 50px; text-align: center; color: rgba(255,255,255,0.5); font-size: 0.85rem; }
+    .col-meta { color: rgba(255,255,255,0.6); font-size: 0.85rem; }
+    .col-repairer { color: var(--accent-color, #00f2ff); font-size: 0.85rem; }
+    .col-secondary { min-width: 140px; }
+
+    .secondary-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.3rem;
+      align-items: center;
+    }
+
+    .sec-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.25rem;
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 20px;
+      padding: 0.15rem 0.5rem;
+      font-size: 0.75rem;
+      color: rgba(255, 255, 255, 0.85);
+      white-space: nowrap;
+    }
+
+    .chip-remove {
+      background: none;
+      border: none;
+      color: rgba(255, 255, 255, 0.4);
+      cursor: pointer;
+      font-size: 0.85rem;
+      padding: 0;
+      line-height: 1;
+      transition: color 0.15s;
+    }
+    .chip-remove:hover { color: #ff5959; }
+
+    .chip-add {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px dashed rgba(255, 255, 255, 0.2);
+      border-radius: 50%;
+      width: 22px;
+      height: 22px;
+      color: rgba(255, 255, 255, 0.5);
+      cursor: pointer;
+      font-size: 0.9rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.15s;
+      padding: 0;
+      flex-shrink: 0;
+    }
+    .chip-add:hover {
+      background: rgba(0, 242, 255, 0.1);
+      border-color: rgba(0, 242, 255, 0.4);
+      color: var(--accent-color, #00f2ff);
+    }
+
+    .add-picker-wrapper { display: inline-flex; }
+
+    .add-select {
+      background: rgba(0, 0, 0, 0.4);
+      border: 1px solid rgba(0, 242, 255, 0.3);
+      border-radius: 6px;
+      color: white;
+      font-size: 0.75rem;
+      padding: 0.2rem 0.4rem;
+      outline: none;
+      max-width: 140px;
+    }
+    .add-select option { background: #1a1a2e; }
+
+    .status-select {
+      appearance: none;
+      -webkit-appearance: none;
+      border: none;
+      border-radius: 12px;
+      padding: 0.2rem 0.7rem;
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      cursor: pointer;
+      background-color: rgba(255, 255, 255, 0.1);
+      color: rgba(255,255,255,0.8);
+      outline: none;
+      transition: opacity 0.2s;
+      max-width: 140px;
+    }
+    .status-select:disabled { opacity: 0.5; cursor: not-allowed; }
+    .status-select.pill-new { background: rgba(33, 150, 243, 0.2); color: #64b5f6; }
+    .status-select.pill-assigned { background: rgba(255, 193, 7, 0.2); color: #ffd54f; }
+    .status-select.pill-repaired { background: rgba(76, 175, 80, 0.2); color: #81c784; }
+    .status-select.pill-advice { background: rgba(255, 152, 0, 0.2); color: #ffb74d; }
+    .status-select.pill-partial { background: rgba(255, 152, 0, 0.2); color: #ffb74d; }
+    .status-select.pill-not-repaired { background: rgba(244, 67, 54, 0.2); color: #ef9a9a; }
+    .status-select option, .status-select optgroup { background: #1a1a2e; color: white; }
 
     .btn-primary { background: var(--accent-color); color: black; border: none; padding: 0.8rem 1.5rem; border-radius: 8px; font-weight: bold; cursor: pointer; }
     .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
@@ -466,7 +640,69 @@ import { Observable, take, firstValueFrom } from 'rxjs';
     .spinner-small { width: 16px; height: 16px; border: 2px solid rgba(255, 255, 255, 0.2); border-left-color: white; border-radius: 50%; animation: spin 1s linear infinite; }
     @keyframes spin { to { transform: rotate(360deg); } }
 
-    @media (min-width: 900px) { .reports-section { grid-template-columns: 1fr 2fr; } }
+    @media (min-width: 900px) { .reports-section { grid-template-columns: 1fr 1fr; } }
+
+    /* Pie chart */
+    .pie-wrapper {
+      display: flex;
+      align-items: center;
+      gap: 1.5rem;
+      flex-wrap: wrap;
+    }
+
+    .pie-svg {
+      width: 160px;
+      height: 160px;
+      flex-shrink: 0;
+    }
+
+    .pie-slice {
+      transition: opacity 0.2s;
+    }
+    .pie-slice:hover { opacity: 0.8; }
+
+    .pie-center-value {
+      fill: white;
+      font-size: 28px;
+      font-weight: 800;
+    }
+    .pie-center-label {
+      fill: rgba(255,255,255,0.5);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .pie-legend {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      flex: 1;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.85rem;
+    }
+
+    .legend-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .legend-text {
+      flex: 1;
+      color: rgba(255,255,255,0.8);
+    }
+
+    .legend-count {
+      font-weight: 700;
+      color: white;
+    }
   `]
 })
 export class RcdDashboardComponent implements OnInit {
@@ -478,6 +714,10 @@ export class RcdDashboardComponent implements OnInit {
 
   rcdDate: string = '';
   items$!: Observable<RepairItem[]>;
+
+  saving: { [id: string]: boolean } = {};
+  repairers: Repairer[] = [];
+  openPickerId: string | null = null;
 
   // Export State
   showPicker = false;
@@ -493,6 +733,8 @@ export class RcdDashboardComponent implements OnInit {
   exportUrl = '';
 
   ngOnInit() {
+    this.repairService.getRepairers().subscribe(r => this.repairers = r);
+
     this.items$ = this.route.paramMap.pipe(
       map(params => params.get('date') || ''),
       switchMap(date => {
@@ -585,27 +827,108 @@ export class RcdDashboardComponent implements OnInit {
     }
   }
 
+  getAvailableRepairers(item: RepairItem): Repairer[] {
+    const assigned = new Set([item.repairer, ...(item.additionalRepairers || [])]);
+    return this.repairers.filter(r => !assigned.has(r.name));
+  }
+
+  addSecondaryRepairer(item: RepairItem, event: Event) {
+    const name = (event.target as HTMLSelectElement).value;
+    if (!name || !item.id) return;
+    item.additionalRepairers = [...(item.additionalRepairers || []), name];
+    this.openPickerId = null;
+    this.repairService.updateRepairItem(item.id, { additionalRepairers: item.additionalRepairers });
+  }
+
+  removeSecondaryRepairer(item: RepairItem, name: string) {
+    if (!item.id) return;
+    item.additionalRepairers = (item.additionalRepairers || []).filter(n => n !== name);
+    this.repairService.updateRepairItem(item.id, { additionalRepairers: item.additionalRepairers });
+  }
+
+  async updateStatus(item: RepairItem) {
+    if (!item.id) return;
+    this.saving[item.id] = true;
+    try {
+      await this.repairService.updateRepairItem(item.id, { status: item.status });
+    } catch (e) {
+      console.error('Error updating status:', e);
+    } finally {
+      this.saving[item.id] = false;
+    }
+  }
+
   countByStatus(items: RepairItem[], status: string): number {
     return items.filter(i => i.status === status).length;
   }
 
-  getCompletionRate(items: RepairItem[]): number {
-    if (items.length === 0) return 0;
-    const fixed = this.countByStatus(items, 'Fixed');
-    return Math.round((fixed / items.length) * 100);
+  countCompleted(items: RepairItem[]): number {
+    const completedStatuses = ['Repaired', 'Advice Given', 'Partially Repaired', 'Not Repaired'];
+    return items.filter(i => completedStatuses.includes(i.status || '')).length;
+  }
+
+  private polarToCartesian(cx: number, cy: number, r: number, angleDeg: number) {
+    const rad = (angleDeg * Math.PI) / 180;
+    return { x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad) };
+  }
+
+  private donutSlicePath(cx: number, cy: number, outerR: number, innerR: number, startAngle: number, endAngle: number): string {
+    const sweep = Math.min(endAngle - startAngle, 359.999);
+    const end = startAngle + sweep;
+    const large = sweep > 180 ? 1 : 0;
+    const os = this.polarToCartesian(cx, cy, outerR, startAngle);
+    const oe = this.polarToCartesian(cx, cy, outerR, end);
+    const ie = this.polarToCartesian(cx, cy, innerR, end);
+    const is_ = this.polarToCartesian(cx, cy, innerR, startAngle);
+    return `M ${os.x} ${os.y} A ${outerR} ${outerR} 0 ${large} 1 ${oe.x} ${oe.y} L ${ie.x} ${ie.y} A ${innerR} ${innerR} 0 ${large} 0 ${is_.x} ${is_.y} Z`;
+  }
+
+  getPieSlices(items: RepairItem[]) {
+    const colors: { [key: string]: string } = {
+      'New': '#2196f3',
+      'Assigned': '#ffc107',
+      'Repaired': '#4caf50',
+      'Advice Given': '#ff9800',
+      'Partially Repaired': '#ff9800',
+      'Not Repaired': '#f44336'
+    };
+    const breakdown = this.getStatusBreakdown(items);
+    const total = items.length || 1;
+    let angle = -90;
+    return breakdown.map(({ status, count }) => {
+      const sweep = (count / total) * 360;
+      const path = this.donutSlicePath(80, 80, 70, 42, angle, angle + sweep);
+      angle += sweep;
+      return { path, color: colors[status] || '#888', status, count };
+    });
+  }
+
+  getStatusClass(status?: string): string {
+    const map: { [key: string]: string } = {
+      'New': 'pill-new',
+      'Assigned': 'pill-assigned',
+      'Repaired': 'pill-repaired',
+      'Advice Given': 'pill-advice',
+      'Partially Repaired': 'pill-partial',
+      'Not Repaired': 'pill-not-repaired'
+    };
+    return map[status || ''] || '';
   }
 
   getStatusBreakdown(items: RepairItem[]) {
-    const statuses = ['New', 'Assigned', 'Fixed', 'Failed', 'Cancelled'];
+    const statuses = [
+      { status: 'New', cssClass: 'bar-new' },
+      { status: 'Assigned', cssClass: 'bar-assigned' },
+      { status: 'Repaired', cssClass: 'bar-repaired' },
+      { status: 'Advice Given', cssClass: 'bar-advice' },
+      { status: 'Partially Repaired', cssClass: 'bar-partial' },
+      { status: 'Not Repaired', cssClass: 'bar-not-repaired' }
+    ];
     const total = items.length || 1;
 
-    return statuses.map(status => {
+    return statuses.map(({ status, cssClass }) => {
       const count = this.countByStatus(items, status);
-      return {
-        status,
-        count,
-        percentage: (count / total) * 100
-      };
+      return { status, cssClass, count, percentage: (count / total) * 100 };
     }).filter(s => s.count > 0);
   }
 }

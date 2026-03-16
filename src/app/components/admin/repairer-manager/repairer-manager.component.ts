@@ -1,5 +1,6 @@
 import { Component, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { Router } from '@angular/router';
 import { RepairService } from '../../../services/repair.service';
 import { AuthService } from '../../../services/auth.service';
 import { Repairer } from '../../../models/repairer.model';
@@ -9,6 +10,7 @@ import { RepairerFormComponent } from '../repairer-form/repairer-form.component'
   selector: 'app-repairer-manager',
   standalone: true,
   imports: [CommonModule, RepairerFormComponent],
+  // RouterModule not needed — navigation is via Router.navigate()
   template: `
     <div class="manager-section">
       <div class="section-header">
@@ -33,6 +35,14 @@ import { RepairerFormComponent } from '../repairer-form/repairer-form.component'
             <span class="badge secondary-badge" *ngIf="!repairer.isPrimary">Secondary</span>
           </div>
           <div class="row-actions">
+            <button class="btn-dashboard" (click)="openDashboard(repairer, $event)" title="View Dashboard">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="2" y="3" width="6" height="10" rx="1"></rect>
+                <rect x="10" y="3" width="12" height="6" rx="1"></rect>
+                <rect x="10" y="13" width="12" height="8" rx="1"></rect>
+                <rect x="2" y="17" width="6" height="4" rx="1"></rect>
+              </svg>
+            </button>
             <button
               *ngIf="(isAdmin$ | async)"
               class="btn-toggle-primary"
@@ -180,6 +190,23 @@ import { RepairerFormComponent } from '../repairer-form/repairer-form.component'
       opacity: 0.5;
       cursor: not-allowed;
     }
+    .btn-dashboard {
+      background: none;
+      border: 1px solid rgba(255,255,255,0.1);
+      color: rgba(255,255,255,0.4);
+      cursor: pointer;
+      padding: 0.45rem;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      transition: all 0.2s;
+      flex-shrink: 0;
+    }
+    .btn-dashboard:hover {
+      background: rgba(0,242,255,0.08);
+      border-color: rgba(0,242,255,0.3);
+      color: var(--accent-color, #00f2ff);
+    }
     .btn-delete {
       background: none;
       border: none;
@@ -219,6 +246,7 @@ import { RepairerFormComponent } from '../repairer-form/repairer-form.component'
 export class RepairerManagerComponent {
   private repairService = inject(RepairService);
   private authService = inject(AuthService);
+  private router = inject(Router);
 
   repairers$ = this.repairService.getRepairers();
   isAdmin$ = this.authService.isAdmin$;
@@ -226,6 +254,11 @@ export class RepairerManagerComponent {
   showForm = false;
   selectedRepairer: Repairer | null = null;
   loading: { [id: string]: boolean } = {};
+
+  openDashboard(repairer: Repairer, event: MouseEvent) {
+    event.stopPropagation();
+    this.router.navigate(['/repairer-dashboard', encodeURIComponent(repairer.name)]);
+  }
 
   openAddForm() {
     this.selectedRepairer = null;

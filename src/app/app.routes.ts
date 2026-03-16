@@ -45,5 +45,9 @@ export const routes: Routes = [
   {
     path: 'rcd-dashboard/:date',
     loadComponent: () => import('./components/rcd-dashboard/rcd-dashboard.component').then(m => m.RcdDashboardComponent)
+  },
+  {
+    path: 'repairer-dashboard/:name',
+    loadComponent: () => import('./components/repairer-dashboard/repairer-dashboard.component').then(m => m.RepairerDashboardComponent)
   }
 ];

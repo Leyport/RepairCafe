@@ -67,3 +67,27 @@
     background: rgba(255, 255, 255, 0.1);
     border-color: white;
 }
+
+.btn-sessions {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    background: rgba(0, 242, 255, 0.08);
+    border: 1px solid rgba(0, 242, 255, 0.3);
+    color: var(--accent-color, #00f2ff);
+    padding: 0.45rem 0.9rem;
+    border-radius: 8px;
+    cursor: pointer;
+    text-decoration: none;
+    font-size: 0.85rem;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    transition: all 0.2s;
+    white-space: nowrap;
+}
+
+.btn-sessions:hover {
+    background: rgba(0, 242, 255, 0.18);
+    border-color: rgba(0, 242, 255, 0.6);
+    box-shadow: 0 0 12px rgba(0, 242, 255, 0.2);
+}

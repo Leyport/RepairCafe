@@ -246,15 +246,11 @@ import { RepairerFormComponent } from '../repairer-form/repairer-form.component'
                             </td>
                             <td (dblclick)="selectCollection('repairers')" title="Double-click to manage repairers">
                               <div class="repairer-select-wrapper">
-                                <img *ngIf="getRepairerPhoto(record.repairer)" 
-                                     [src]="getRepairerPhoto(record.repairer)" 
-                                     class="repairer-avatar-display" 
+                                <img *ngIf="getRepairerPhoto(record.repairer)"
+                                     [src]="getRepairerPhoto(record.repairer)"
+                                     class="repairer-avatar-display"
                                      [title]="record.repairer"
                                      alt="Repairer">
-                                
-                                <span class="additional-count" *ngIf="record.additionalRepairers?.length" [title]="'Helpers: ' + record.additionalRepairers?.join(', ')">
-                                    +{{ record.additionalRepairers?.length }}
-                                </span>
 
                                 <div class="lov-container">
                                     <select
@@ -274,6 +270,10 @@ import { RepairerFormComponent } from '../repairer-form/repairer-form.component'
                                         &times;
                                     </button>
                                 </div>
+                                <span class="additional-count" *ngIf="record.additionalRepairers?.length"
+                                  [title]="'Secondary: ' + record.additionalRepairers?.join(', ')">
+                                  +{{ record.additionalRepairers?.length }}
+                                </span>
                               </div>
                             </td>
                              <td>
@@ -393,6 +393,14 @@ import { RepairerFormComponent } from '../repairer-form/repairer-form.component'
                             <td>
                                 <button *ngIf="schema === 'repairItems'" (click)="deleteRepairItem(record.id, record.displayNumber || record.itemNumber, $event)" class="btn-icon btn-icon-delete" title="Delete Item">🗑️</button>
                                 <button *ngIf="schema === 'repairers'" (click)="editRepairer(record)" class="btn-icon" title="Edit Repairer">✏️</button>
+                                <button *ngIf="schema === 'repairers'" (click)="openRepairerDashboard(record, $event)" class="btn-icon btn-icon-dashboard" title="View Dashboard">
+                                  <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <rect x="2" y="3" width="6" height="10" rx="1"></rect>
+                                    <rect x="10" y="3" width="12" height="6" rx="1"></rect>
+                                    <rect x="10" y="13" width="12" height="8" rx="1"></rect>
+                                    <rect x="2" y="17" width="6" height="4" rx="1"></rect>
+                                  </svg>
+                                </button>
                                 <button *ngIf="schema === 'owners'" (click)="deleteOwner(record.id, record.name, $event)" class="btn-icon" title="Delete Owner">🗑️</button>
                             </td>
                         </tr>
@@ -508,6 +516,8 @@ import { RepairerFormComponent } from '../repairer-form/repairer-form.component'
         transform: scale(1.1);
         border-color: var(--accent-color);
     }
+    .btn-icon-dashboard { color: rgba(255,255,255,0.4); }
+    .btn-icon-dashboard:hover { background: rgba(0,242,255,0.08) !important; border-color: rgba(0,242,255,0.4) !important; color: var(--accent-color); }
 
     .tabs-container {
       border-radius: 12px;
@@ -1094,16 +1104,16 @@ import { RepairerFormComponent } from '../repairer-form/repairer-form.component'
     }
     
     .additional-count {
-        background: var(--accent-color);
-        color: black;
+        background: rgba(0, 242, 255, 0.15);
+        color: var(--accent-color);
+        border: 1px solid rgba(0, 242, 255, 0.3);
         font-size: 0.7rem;
-        font-weight: bold;
-        padding: 0.1rem 0.3rem;
-        border-radius: 4px;
-        position: absolute;
-        top: -5px;
-        right: -5px;
-        z-index: 2;
+        font-weight: 700;
+        padding: 0.1rem 0.4rem;
+        border-radius: 10px;
+        flex-shrink: 0;
+        cursor: default;
+        white-space: nowrap;
     }
 
     .inline-autocomplete {
@@ -1232,7 +1242,7 @@ export class DatabaseExplorerComponent implements OnInit {
           this.repairerMap.set(r.name, r.photoUrl);
         }
       });
-      this.filteredRepairers = repairers;
+      this.filteredRepairers = repairers.filter(r => r.isPrimary === true);
     });
 
     this.repairService.getOwners().subscribe(owners => {
@@ -1658,6 +1668,11 @@ export class DatabaseExplorerComponent implements OnInit {
   // Repairer Editing
   editRepairer(repairer: any) {
     this.editingRepairer = { ...repairer }; // Clone to avoid direct mutation
+  }
+
+  openRepairerDashboard(repairer: any, event: MouseEvent) {
+    event.stopPropagation();
+    this.router.navigate(['/repairer-dashboard', encodeURIComponent(repairer.name)]);
   }
 
   closeEdit() {

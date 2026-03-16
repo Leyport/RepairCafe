@@ -597,11 +597,33 @@ export class RepairService {
     }
 
     // App Version
+    private parseVersion(v: string): number[] {
+        return v.replace(/^v/, '').split('.').map(n => parseInt(n, 10) || 0);
+    }
+
+    private isNewerVersion(a: string, b: string): boolean {
+        const av = this.parseVersion(a);
+        const bv = this.parseVersion(b);
+        for (let i = 0; i < Math.max(av.length, bv.length); i++) {
+            const diff = (av[i] || 0) - (bv[i] || 0);
+            if (diff !== 0) return diff > 0;
+        }
+        return false;
+    }
+
     getAppVersion(): Observable<{ version: string, description: string }> {
         const versionDocRef = doc(this.firestore, 'sys_settings', 'app_version');
+        const local = { version: APP_VERSION.version, description: APP_VERSION.description };
         return docData(versionDocRef).pipe(
-            map((data: any) => data && data.version ? data : { version: APP_VERSION.version, description: APP_VERSION.description }),
-            catchError(() => of({ version: APP_VERSION.version, description: APP_VERSION.description }))
+            map((data: any) => {
+                if (!data?.version || this.isNewerVersion(local.version, data.version)) {
+                    // Deployed version is newer — push it to Firestore so all clients stay in sync
+                    setDoc(versionDocRef, local).catch(e => console.warn('Version sync to Firestore failed:', e));
+                    return local;
+                }
+                return data;
+            }),
+            catchError(() => of(local))
         );
     }
 

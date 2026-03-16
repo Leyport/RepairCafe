@@ -3,8 +3,8 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RepairService } from '../../services/repair.service';
 import { Issue } from '../../models/issue.model';
-import { Observable } from 'rxjs';
-import { take } from 'rxjs/operators';
+import { Observable, BehaviorSubject, combineLatest } from 'rxjs';
+import { take, map } from 'rxjs/operators';
 
 @Component({
   selector: 'app-issues',
@@ -41,15 +41,45 @@ import { take } from 'rxjs/operators';
         <table *ngIf="(issues$ | async)?.length; else emptyState">
           <thead>
             <tr>
+              <th class="col-num">#</th>
               <th>Description</th>
+              <th>Fix</th>
               <th>Date Raised</th>
-              <th>Status</th>
+              <th class="col-status-header sortable" (click)="toggleSort()">
+                Status <span class="sort-icon">{{ sortDir === 'asc' ? '▲' : '▼' }}</span>
+              </th>
               <th>Actions</th>
             </tr>
           </thead>
           <tbody>
-            <tr *ngFor="let issue of issues$ | async">
-              <td class="col-desc">{{ issue.description }}</td>
+            <tr *ngFor="let issue of sortedIssues$ | async; let i = index"
+                [class.needs-fix]="!issue.fix">
+              <td class="col-num">{{ i + 1 }}</td>
+              <td class="col-desc" (click)="startEdit(issue)">
+                <textarea *ngIf="editingId === issue.id"
+                  class="inline-edit"
+                  [(ngModel)]="editingDescription"
+                  (blur)="saveEdit(issue)"
+                  (keydown.enter)="$event.preventDefault(); saveEdit(issue)"
+                  (keydown.escape)="cancelEdit()"
+                  (click)="$event.stopPropagation()"
+                  rows="2"></textarea>
+                <span *ngIf="editingId !== issue.id" class="desc-text" title="Click to edit">{{ issue.description }}</span>
+              </td>
+              <td class="col-fix" (click)="startFixEdit(issue)">
+                <span *ngIf="!issue.fix && editingFixId !== issue.id" class="no-fix-placeholder">
+                  ⚠ No fix entered
+                </span>
+                <textarea *ngIf="editingFixId === issue.id"
+                  class="inline-edit"
+                  [(ngModel)]="editingFix"
+                  (blur)="saveFix(issue)"
+                  (keydown.enter)="$event.preventDefault(); saveFix(issue)"
+                  (keydown.escape)="cancelFixEdit()"
+                  (click)="$event.stopPropagation()"
+                  rows="2"></textarea>
+                <span *ngIf="issue.fix && editingFixId !== issue.id" class="fix-text" title="Click to edit">{{ issue.fix }}</span>
+              </td>
               <td class="col-date">{{ issue.dateRaised?.toDate() | date:'short' }}</td>
               <td class="col-status">
                 <select 
@@ -194,17 +224,53 @@ import { take } from 'rxjs/operators';
       background: rgba(255, 255, 255, 0.02);
     }
 
+    .col-num {
+      width: 40px;
+      text-align: center;
+      color: rgba(255, 255, 255, 0.4);
+      font-size: 0.85rem;
+    }
     .col-desc {
-      width: 50%;
+      width: 30%;
+      cursor: pointer;
+    }
+    .col-desc:hover .desc-text { color: white; }
+    .desc-text {
+      display: block;
+      border-bottom: 1px dashed transparent;
+      transition: border-color 0.15s;
+    }
+    .col-desc:hover .desc-text { border-color: rgba(255,255,255,0.3); }
+    .inline-edit {
+      width: 100%;
+      background: rgba(0, 0, 0, 0.4);
+      border: 1px solid var(--accent-color, #00f2ff);
+      border-radius: 6px;
+      color: white;
+      font-family: inherit;
+      font-size: inherit;
+      padding: 0.4rem 0.6rem;
+      resize: none;
+      outline: none;
+      box-shadow: 0 0 0 2px rgba(0,242,255,0.15);
     }
     .col-date {
-      width: 20%;
+      width: 15%;
       font-size: 0.9rem;
       color: rgba(255, 255, 255, 0.6);
     }
     .col-status {
-      width: 20%;
+      width: 15%;
     }
+    .col-status-header {
+      width: 15%;
+    }
+    .sortable {
+      cursor: pointer;
+      user-select: none;
+    }
+    .sortable:hover { color: white; }
+    .sort-icon { font-size: 0.7rem; margin-left: 0.3rem; opacity: 0.7; }
     .col-actions {
       width: 10%;
       text-align: right;
@@ -244,6 +310,30 @@ import { take } from 'rxjs/operators';
       transform: scale(1.1);
     }
 
+    .col-fix {
+      width: 22%;
+      cursor: pointer;
+    }
+    .col-fix:hover .fix-text { color: white; }
+    .fix-text {
+      display: block;
+      border-bottom: 1px dashed transparent;
+      transition: border-color 0.15s;
+    }
+    .col-fix:hover .fix-text { border-color: rgba(255,255,255,0.3); }
+    .no-fix-placeholder {
+      color: rgba(255, 180, 0, 0.7);
+      font-size: 0.85rem;
+      font-style: italic;
+    }
+
+    tr.needs-fix td {
+      border-left: none;
+    }
+    tr.needs-fix td:first-child {
+      border-left: 3px solid rgba(255, 180, 0, 0.6);
+    }
+
     .empty-state {
         text-align: center;
         padding: 4rem;
@@ -256,6 +346,25 @@ export class IssuesComponent {
 
   issues$: Observable<Issue[]> = this.repairService.getIssues();
 
+  sortDir: 'asc' | 'desc' = 'asc';
+  private sortDir$ = new BehaviorSubject<'asc' | 'desc'>('asc');
+
+  private statusOrder = ['New', 'Assigned', 'Fixed'];
+
+  sortedIssues$ = combineLatest([this.issues$, this.sortDir$]).pipe(
+    map(([issues, dir]) => [...issues].sort((a, b) => {
+      const ai = this.statusOrder.indexOf(a.status);
+      const bi = this.statusOrder.indexOf(b.status);
+      return dir === 'asc' ? ai - bi : bi - ai;
+    }))
+  );
+
+  editingId: string | null = null;
+  editingDescription = '';
+
+  editingFixId: string | null = null;
+  editingFix = '';
+
   showForm = false;
   newIssueDescription = '';
 
@@ -263,6 +372,64 @@ export class IssuesComponent {
     this.issues$.pipe(take(1)).subscribe(issues => {
       this.showForm = issues.length === 0;
     });
+  }
+
+  startEdit(issue: Issue) {
+    this.editingId = issue.id!;
+    this.editingDescription = issue.description;
+    setTimeout(() => {
+      const el = document.querySelector('.inline-edit') as HTMLTextAreaElement;
+      if (el) { el.focus(); el.select(); }
+    });
+  }
+
+  cancelEdit() {
+    this.editingId = null;
+    this.editingDescription = '';
+  }
+
+  async saveEdit(issue: Issue) {
+    const trimmed = this.editingDescription.trim();
+    if (trimmed && trimmed !== issue.description && issue.id) {
+      try {
+        await this.repairService.updateIssue(issue.id, { description: trimmed } as any);
+      } catch (e) {
+        console.error('Failed to update description:', e);
+      }
+    }
+    this.cancelEdit();
+  }
+
+  startFixEdit(issue: Issue) {
+    this.editingFixId = issue.id!;
+    this.editingFix = issue.fix || '';
+    setTimeout(() => {
+      const els = document.querySelectorAll('.inline-edit') as NodeListOf<HTMLTextAreaElement>;
+      const last = els[els.length - 1];
+      if (last) { last.focus(); last.select(); }
+    });
+  }
+
+  cancelFixEdit() {
+    this.editingFixId = null;
+    this.editingFix = '';
+  }
+
+  async saveFix(issue: Issue) {
+    const trimmed = this.editingFix.trim();
+    if (issue.id && trimmed !== (issue.fix || '')) {
+      try {
+        await this.repairService.updateIssue(issue.id, { fix: trimmed } as any);
+      } catch (e) {
+        console.error('Failed to update fix:', e);
+      }
+    }
+    this.cancelFixEdit();
+  }
+
+  toggleSort() {
+    this.sortDir = this.sortDir === 'asc' ? 'desc' : 'asc';
+    this.sortDir$.next(this.sortDir);
   }
 
   toggleForm() {

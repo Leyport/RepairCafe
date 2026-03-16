@@ -1017,9 +1017,11 @@ export class RepairFormComponent implements OnInit {
 
   onSecondaryRepairerSearch(value: string) {
     const term = (value || '').toLowerCase();
+    const primaryRepairer = this.repairForm.get('repairer')?.value || '';
     this.filteredSecondaryRepairers = this.allRepairers.filter(r =>
       (!term || r.name.toLowerCase().includes(term)) &&
-      !this.secondaryRepairers.includes(r.name)
+      !this.secondaryRepairers.includes(r.name) &&
+      r.name !== primaryRepairer
     );
     this.showSecondaryRepairerSuggestions = true;
   }
