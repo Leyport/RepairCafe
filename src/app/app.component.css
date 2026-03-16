@@ -91,3 +91,13 @@
     border-color: rgba(0, 242, 255, 0.6);
     box-shadow: 0 0 12px rgba(0, 242, 255, 0.2);
 }
+.manual-link {
+    margin-left: 1rem;
+    color: rgba(255, 255, 255, 0.35);
+    text-decoration: none;
+    font-size: 0.8rem;
+    transition: color 0.2s;
+}
+.manual-link:hover {
+    color: var(--accent-color, #00f2ff);
+}

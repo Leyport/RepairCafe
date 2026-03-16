@@ -23,7 +23,8 @@
             "assets": [
               "src/favicon.png",
               "src/favicon.svg",
-              "src/assets"
+              "src/assets",
+              { "glob": "**/*", "input": "src/docs", "output": "docs" }
             ],
             "styles": [
               "src/styles.css"
