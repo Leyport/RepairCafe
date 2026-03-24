@@ -90,6 +90,10 @@ export class AuthService {
         }
     }
 
+    getCurrentUser(): User | null {
+        return this.auth.currentUser;
+    }
+
     getAccessToken(): Promise<string | null> {
         // Note: In a real app, you might want to handle token expiration/refresh.
         // Firebase Auth doesn't store the 3rd party access token indefinitely.
