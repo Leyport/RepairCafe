@@ -15,6 +15,14 @@ export interface RepairItem {
   owner?: string; // Name of the owner
   tags?: string[];
   photos?: string[];
+  make?: string;
+  model?: string;
+  colour?: string;
+  serialNumber?: string;
+  yearOfManufacture?: string;
+  repairVideos?: { url: string; title: string }[];
+  ownerSatisfied?: boolean;
+  donationAmount?: number;
 }
 
 export interface Owner {

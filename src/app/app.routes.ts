@@ -8,6 +8,7 @@ export const routes: Routes = [
   { path: 'new', component: RepairFormComponent },
   { path: 'edit/:id', component: RepairFormComponent },
   { path: 'item/:id', loadComponent: () => import('./components/repair-detail/repair-detail.component').then(m => m.RepairDetailComponent) },
+  { path: 'complete/:id', loadComponent: () => import('./components/repair-complete/repair-complete.component').then(m => m.RepairCompleteComponent) },
   {
     path: 'admin',
     loadComponent: () => import('./components/admin/admin-panel/admin-panel.component').then(m => m.AdminPanelComponent),

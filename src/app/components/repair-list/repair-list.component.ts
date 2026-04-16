@@ -1,4 +1,4 @@
-import { Component, inject } from '@angular/core';
+import { Component, inject, HostListener } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormControl, ReactiveFormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
@@ -7,6 +7,12 @@ import { Observable, combineLatest, startWith, map, BehaviorSubject } from 'rxjs
 import { RepairItem } from '../../models/repair-item.model';
 
 type SortOption = 'newest' | 'oldest' | 'number';
+
+interface RepairerGroup {
+  label: string;
+  rcDay: string;
+  items: RepairItem[];
+}
 
 @Component({
   selector: 'app-repair-list',
@@ -57,9 +63,11 @@ type SortOption = 'newest' | 'oldest' | 'number';
              [routerLink]="['/item', item.id]">
 
           <!-- Photo -->
-          <div class="col-photo">
-            <div class="thumb" [style.backgroundImage]="item.photos?.length ? 'url(' + item.photos![0] + ')' : 'none'">
+          <div class="col-photo" (click)="item.photos?.length ? openCarousel(item.photos!, $event) : null">
+            <div class="thumb" [style.backgroundImage]="item.photos?.length ? 'url(' + item.photos![0] + ')' : 'none'"
+                 [class.has-photos]="item.photos?.length">
               <span *ngIf="!item.photos?.length" class="thumb-placeholder">📷</span>
+              <span *ngIf="(item.photos?.length || 0) > 1" class="photo-count">{{ item.photos!.length }}</span>
             </div>
           </div>
 
@@ -97,7 +105,11 @@ type SortOption = 'newest' | 'oldest' | 'number';
           </div>
 
           <!-- Repairer -->
-          <span class="col-repairer truncate">{{ item.repairer || '—' }}</span>
+          <span class="col-repairer truncate repairer-link"
+                *ngIf="item.repairer; else noRepairer"
+                (click)="openRepairerPanel(item.repairer, $event)"
+                title="View all items for {{ item.repairer }}">{{ item.repairer }}</span>
+          <ng-template #noRepairer><span class="col-repairer muted">—</span></ng-template>
 
           <!-- RC Session -->
           <span class="col-session truncate">{{ formatRCDay(item.RCDay) }}</span>
@@ -113,21 +125,101 @@ type SortOption = 'newest' | 'oldest' | 'number';
           </div>
 
           <!-- Actions -->
-          <div class="col-actions actions" (click)="$event.stopPropagation()">
-            <button (click)="onDelete(item.id!)" class="btn-action btn-delete" title="Delete record">
-              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <polyline points="3 6 5 6 21 6"></polyline>
-                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                <line x1="10" y1="11" x2="10" y2="17"></line>
-                <line x1="14" y1="11" x2="14" y2="17"></line>
-              </svg>
-            </button>
+          <div class="col-actions" (click)="$event.stopPropagation()">
+            <div class="action-menu-wrapper">
+              <button class="btn-menu" (click)="toggleMenu(item.id!, $event)" title="Actions">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+                  <circle cx="12" cy="5" r="1.5"></circle>
+                  <circle cx="12" cy="12" r="1.5"></circle>
+                  <circle cx="12" cy="19" r="1.5"></circle>
+                </svg>
+              </button>
+              <div class="action-dropdown" *ngIf="openMenuId === item.id">
+                <button class="dropdown-item item-complete" (click)="onComplete(item.id!, $event)">
+                  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="20 6 9 17 4 12"></polyline>
+                  </svg>
+                  Complete
+                </button>
+                <div class="dropdown-divider"></div>
+                <button class="dropdown-item item-delete" (click)="onDelete(item.id!, $event)">
+                  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="3 6 5 6 21 6"></polyline>
+                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                  </svg>
+                  Delete
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       </div>
       
       <div *ngIf="(filteredItems$ | async)?.length === 0" class="empty-state">
         <p>No matching repair items found.</p>
+      </div>
+    </div>
+
+    <!-- Repairer Panel -->
+    <div class="repairer-overlay" *ngIf="selectedRepairer" (click)="closeRepairerPanel()">
+      <div class="repairer-panel glass" (click)="$event.stopPropagation()">
+        <div class="rp-header">
+          <div class="rp-title">
+            <span class="rp-avatar">{{ selectedRepairer![0] }}</span>
+            <div>
+              <h3>{{ selectedRepairer }}</h3>
+              <p class="rp-sub" *ngIf="repairerGroups">
+                {{ repairerTotalItems }} item{{ repairerTotalItems !== 1 ? 's' : '' }} across {{ repairerGroups.length }} event{{ repairerGroups.length !== 1 ? 's' : '' }}
+              </p>
+            </div>
+          </div>
+          <button class="rp-close" (click)="closeRepairerPanel()">✕</button>
+        </div>
+
+        <div class="rp-body">
+          <div *ngIf="!repairerGroups || repairerGroups.length === 0" class="rp-empty">
+            No items found for this repairer.
+          </div>
+          <div *ngFor="let group of repairerGroups" class="rp-event-group">
+            <div class="rp-event-heading">
+              <span class="rp-event-name">{{ group.label }}</span>
+              <span class="rp-event-count">{{ group.items.length }} item{{ group.items.length !== 1 ? 's' : '' }}</span>
+            </div>
+            <div *ngFor="let item of group.items" class="rp-item" [routerLink]="['/item', item.id]" (click)="closeRepairerPanel()">
+              <span class="rp-item-num">{{ item.displayNumber }}</span>
+              <span class="rp-item-desc">{{ item.itemDescription }}</span>
+              <span class="rp-item-role secondary" *ngIf="isSecondaryRepairer(item, selectedRepairer!)">2nd</span>
+              <span class="status-badge rp-item-status" [ngClass]="getStatusClass(item.status)">{{ item.status || 'New' }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Photo Carousel Overlay -->
+    <div class="carousel-overlay" *ngIf="carouselPhotos" (click)="closeCarousel()"
+         (touchstart)="onTouchStart($event)" (touchend)="onTouchEnd($event)">
+      <div class="carousel-content" (click)="$event.stopPropagation()">
+        <button class="carousel-close" (click)="closeCarousel()">✕</button>
+
+        <button class="carousel-nav carousel-prev" (click)="prevPhoto()"
+                *ngIf="carouselPhotos.length > 1" [disabled]="carouselIndex === 0">&#8249;</button>
+
+        <div class="carousel-image-wrapper">
+          <img [src]="carouselPhotos[carouselIndex]" alt="Repair photo" class="carousel-image">
+        </div>
+
+        <button class="carousel-nav carousel-next" (click)="nextPhoto()"
+                *ngIf="carouselPhotos.length > 1" [disabled]="carouselIndex === carouselPhotos.length - 1">&#8250;</button>
+
+        <div class="carousel-dots" *ngIf="carouselPhotos.length > 1">
+          <span *ngFor="let p of carouselPhotos; let i = index"
+                class="carousel-dot" [class.active]="i === carouselIndex"
+                (click)="carouselIndex = i"></span>
+        </div>
+        <div class="carousel-counter" *ngIf="carouselPhotos.length > 1">
+          {{ carouselIndex + 1 }} / {{ carouselPhotos.length }}
+        </div>
       </div>
     </div>
   `,
@@ -411,28 +503,323 @@ type SortOption = 'newest' | 'oldest' | 'number';
       color: rgba(255, 255, 255, 0.6);
       font-size: 0.85rem;
     }
-    .actions {
+    .repairer-link {
+      cursor: pointer;
+      color: var(--accent-color) !important;
+      border-bottom: 1px dashed rgba(0, 242, 255, 0.4);
+      transition: border-color 0.15s, color 0.15s;
+    }
+    .repairer-link:hover {
+      color: white !important;
+      border-bottom-color: white;
+    }
+
+    /* Repairer Panel */
+    .repairer-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.6);
+      z-index: 9000;
       display: flex;
-      gap: 0.5rem;
+      align-items: flex-start;
       justify-content: flex-end;
     }
-    .btn-action {
+    .repairer-panel {
+      width: 420px;
+      max-width: 95vw;
+      height: 100vh;
+      overflow-y: auto;
+      border-radius: 0;
+      border-left: 1px solid rgba(0, 242, 255, 0.2);
+      background: rgba(15, 15, 35, 0.97);
+      backdrop-filter: blur(20px);
+      display: flex;
+      flex-direction: column;
+      animation: slideInRight 0.25s ease-out;
+    }
+    @keyframes slideInRight {
+      from { transform: translateX(100%); opacity: 0; }
+      to   { transform: translateX(0);    opacity: 1; }
+    }
+    .rp-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      padding: 1.5rem;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+      position: sticky;
+      top: 0;
+      background: rgba(15, 15, 35, 0.98);
+      z-index: 1;
+    }
+    .rp-title { display: flex; align-items: center; gap: 1rem; }
+    .rp-avatar {
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      background: rgba(0, 242, 255, 0.15);
+      border: 2px solid rgba(0, 242, 255, 0.4);
+      color: var(--accent-color);
+      font-size: 1.3rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-transform: uppercase;
+      flex-shrink: 0;
+    }
+    .rp-title h3 { margin: 0; color: white; font-size: 1.1rem; }
+    .rp-sub { margin: 0.2rem 0 0; font-size: 0.8rem; color: rgba(255,255,255,0.45); }
+    .rp-close {
+      background: none;
+      border: none;
+      color: rgba(255,255,255,0.5);
+      font-size: 1.3rem;
+      cursor: pointer;
+      padding: 0.2rem 0.4rem;
+      transition: color 0.15s;
+      line-height: 1;
+    }
+    .rp-close:hover { color: white; }
+    .rp-body { padding: 1rem 1.5rem 2rem; flex: 1; }
+    .rp-empty { color: rgba(255,255,255,0.35); text-align: center; padding: 3rem 0; }
+    .rp-event-group { margin-bottom: 1.5rem; }
+    .rp-event-heading {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.4rem 0;
+      margin-bottom: 0.5rem;
+      border-bottom: 1px solid rgba(0, 242, 255, 0.15);
+    }
+    .rp-event-name { font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: var(--accent-color); }
+    .rp-event-count { font-size: 0.72rem; color: rgba(255,255,255,0.35); }
+    .rp-item {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      padding: 0.55rem 0.6rem;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background 0.15s;
+      margin-bottom: 2px;
+    }
+    .rp-item:hover { background: rgba(255,255,255,0.05); }
+    .rp-item-num {
+      font-size: 0.75rem;
+      color: rgba(0, 242, 255, 0.7);
+      font-weight: 700;
+      min-width: 50px;
+      flex-shrink: 0;
+    }
+    .rp-item-desc {
+      flex: 1;
+      font-size: 0.88rem;
+      color: rgba(255,255,255,0.85);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .rp-item-role {
+      font-size: 0.65rem;
+      font-weight: 700;
+      padding: 0.1rem 0.35rem;
+      border-radius: 3px;
+      flex-shrink: 0;
+    }
+    .rp-item-role.secondary {
+      background: rgba(241, 196, 15, 0.15);
+      color: #f1c40f;
+      border: 1px solid rgba(241, 196, 15, 0.3);
+    }
+    .rp-item-status { flex-shrink: 0; }
+    .action-menu-wrapper {
+      position: relative;
+      display: flex;
+      justify-content: flex-end;
+    }
+    .btn-menu {
       background: transparent;
       border: none;
-      color: rgba(255, 255, 255, 0.4);
+      color: rgba(255,255,255,0.35);
       cursor: pointer;
-      padding: 4px;
+      padding: 4px 6px;
       border-radius: 4px;
-      transition: all 0.2s;
+      transition: all 0.15s;
+      display: flex;
+      align-items: center;
     }
-    .btn-delete:hover {
-      color: #ff4d4d;
-      background: rgba(255, 77, 77, 0.1);
+    .btn-menu:hover {
+      color: white;
+      background: rgba(255,255,255,0.08);
+    }
+    .action-dropdown {
+      position: absolute;
+      right: 0;
+      top: calc(100% + 4px);
+      background: #1a2236;
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 8px;
+      padding: 0.3rem;
+      min-width: 140px;
+      z-index: 500;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+      animation: menuFadeIn 0.1s ease-out;
+    }
+    @keyframes menuFadeIn {
+      from { opacity: 0; transform: translateY(-4px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .dropdown-item {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      width: 100%;
+      background: transparent;
+      border: none;
+      color: rgba(255,255,255,0.75);
+      padding: 0.5rem 0.7rem;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 0.85rem;
+      font-weight: 500;
+      text-align: left;
+      transition: all 0.12s;
+    }
+    .dropdown-item:hover { background: rgba(255,255,255,0.07); color: white; }
+    .item-complete:hover { background: rgba(40,180,99,0.15); color: #58d68d; }
+    .item-delete:hover   { background: rgba(231,76,60,0.12);  color: #f1948a; }
+    .dropdown-divider {
+      height: 1px;
+      background: rgba(255,255,255,0.07);
+      margin: 0.2rem 0.4rem;
     }
     .empty-state {
       text-align: center;
       padding: 4rem;
       color: rgba(255, 255, 255, 0.4);
+    }
+
+    /* Photo thumbnail enhancements */
+    .thumb.has-photos {
+      cursor: zoom-in;
+      transition: transform 0.15s, border-color 0.15s;
+      border-color: rgba(0, 242, 255, 0.3);
+    }
+    .thumb.has-photos:hover {
+      transform: scale(1.1);
+      border-color: var(--accent-color);
+    }
+    .photo-count {
+      position: absolute;
+      bottom: -4px;
+      right: -4px;
+      background: var(--accent-color);
+      color: #1a1a2e;
+      font-size: 0.6rem;
+      font-weight: 800;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      line-height: 1;
+    }
+    .col-photo { position: relative; }
+    .thumb { position: relative; }
+
+    /* Carousel overlay */
+    .carousel-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.92);
+      z-index: 9999;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .carousel-content {
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      max-width: 90vw;
+      max-height: 90vh;
+      gap: 0.5rem;
+    }
+    .carousel-image-wrapper {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      max-width: 80vw;
+      max-height: 80vh;
+    }
+    .carousel-image {
+      max-width: 80vw;
+      max-height: 80vh;
+      object-fit: contain;
+      border-radius: 8px;
+      box-shadow: 0 8px 40px rgba(0,0,0,0.8);
+      display: block;
+    }
+    .carousel-nav {
+      background: rgba(255,255,255,0.1);
+      border: 1px solid rgba(255,255,255,0.2);
+      color: white;
+      font-size: 2.5rem;
+      line-height: 1;
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.2s;
+      flex-shrink: 0;
+      padding: 0;
+    }
+    .carousel-nav:hover:not(:disabled) { background: rgba(0,242,255,0.2); border-color: var(--accent-color); }
+    .carousel-nav:disabled { opacity: 0.2; cursor: default; }
+    .carousel-close {
+      position: absolute;
+      top: -40px;
+      right: 0;
+      background: transparent;
+      border: none;
+      color: rgba(255,255,255,0.7);
+      font-size: 1.5rem;
+      cursor: pointer;
+      padding: 4px 8px;
+      transition: color 0.2s;
+    }
+    .carousel-close:hover { color: white; }
+    .carousel-dots {
+      position: absolute;
+      bottom: -32px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 6px;
+    }
+    .carousel-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.3);
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .carousel-dot.active { background: var(--accent-color); }
+    .carousel-counter {
+      position: absolute;
+      bottom: -52px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 0.8rem;
+      color: rgba(255,255,255,0.4);
+      white-space: nowrap;
     }
   `]
 })
@@ -442,6 +829,101 @@ export class RepairListComponent {
 
   searchControl = new FormControl('');
   sortControl = new FormControl<SortOption>('newest');
+
+  openMenuId: string | null = null;
+
+  @HostListener('document:click')
+  onDocumentClick() {
+    this.openMenuId = null;
+  }
+
+  toggleMenu(id: string, event: Event) {
+    event.stopPropagation();
+    this.openMenuId = this.openMenuId === id ? null : id;
+  }
+
+  // Repairer panel state
+  selectedRepairer: string | null = null;
+  repairerGroups: RepairerGroup[] | null = null;
+  repairerTotalItems = 0;
+  private allItems: RepairItem[] = [];
+
+  carouselPhotos: string[] | null = null;
+  carouselIndex = 0;
+  private touchStartX = 0;
+
+  openCarousel(photos: string[], event: Event) {
+    event.stopPropagation();
+    this.carouselPhotos = photos;
+    this.carouselIndex = 0;
+  }
+
+  closeCarousel() {
+    this.carouselPhotos = null;
+  }
+
+  prevPhoto() {
+    if (this.carouselIndex > 0) this.carouselIndex--;
+  }
+
+  nextPhoto() {
+    if (this.carouselPhotos && this.carouselIndex < this.carouselPhotos.length - 1) this.carouselIndex++;
+  }
+
+  onTouchStart(event: TouchEvent) {
+    this.touchStartX = event.touches[0].clientX;
+  }
+
+  onTouchEnd(event: TouchEvent) {
+    const delta = this.touchStartX - event.changedTouches[0].clientX;
+    if (Math.abs(delta) > 50) {
+      delta > 0 ? this.nextPhoto() : this.prevPhoto();
+    }
+  }
+
+  private allItems$ = this.repairService.getRepairItems();
+
+  constructor() {
+    this.allItems$.subscribe(items => { this.allItems = items; });
+  }
+
+  openRepairerPanel(name: string, event: Event) {
+    event.stopPropagation();
+    this.selectedRepairer = name;
+    const matched = this.allItems.filter(item =>
+      item.repairer === name ||
+      (item.additionalRepairers || []).includes(name)
+    );
+    // Group by RCDay, most recent first
+    const groupMap = new Map<string, RepairItem[]>();
+    for (const item of matched) {
+      const key = item.RCDay || 'Unknown event';
+      if (!groupMap.has(key)) groupMap.set(key, []);
+      groupMap.get(key)!.push(item);
+    }
+    // Sort groups by the earliest item's rcDayNumber desc
+    this.repairerGroups = [...groupMap.entries()]
+      .map(([rcDay, items]) => ({
+        rcDay,
+        label: this.formatRCDay(rcDay),
+        items: items.sort((a, b) => a.itemNumber - b.itemNumber)
+      }))
+      .sort((a, b) => {
+        const numA = a.items[0]?.rcDayNumber ?? 0;
+        const numB = b.items[0]?.rcDayNumber ?? 0;
+        return numB - numA;
+      });
+    this.repairerTotalItems = matched.length;
+  }
+
+  closeRepairerPanel() {
+    this.selectedRepairer = null;
+    this.repairerGroups = null;
+  }
+
+  isSecondaryRepairer(item: RepairItem, name: string): boolean {
+    return item.repairer !== name && (item.additionalRepairers || []).includes(name);
+  }
 
   filteredItems$: Observable<RepairItem[]> = combineLatest([
     this.repairService.getRepairItems(),
@@ -528,7 +1010,15 @@ export class RepairListComponent {
     return `${day} ${month} ${year}`;
   }
 
-  async onDelete(id: string) {
+  onComplete(id: string, event: Event) {
+    event.stopPropagation();
+    this.openMenuId = null;
+    this.router.navigate(['/complete', id]);
+  }
+
+  async onDelete(id: string, event: Event) {
+    event.stopPropagation();
+    this.openMenuId = null;
     if (confirm('Are you sure you want to delete this repair item?')) {
       try {
         await this.repairService.deleteRepairItem(id);
