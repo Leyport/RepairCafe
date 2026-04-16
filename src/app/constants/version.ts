@@ -1,4 +1,4 @@
 export const APP_VERSION = {
-    version: 'v1.26.2',
-    description: 'Actions menu (Complete/Delete) on database explorer repair items rows.'
+    version: 'v1.26.3',
+    description: 'Photo click no longer triggers row navigation in database explorer.'
 };

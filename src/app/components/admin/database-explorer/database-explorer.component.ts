@@ -208,8 +208,9 @@ import { RepairerFormComponent } from '../repairer-form/repairer-form.component'
                             </td>
                             <ng-container *ngIf="schema === 'repairItems'">
                             <td>
-                                <div class="thumbnail-container" *ngIf="record.photos && record.photos.length > 0">
-                                    <a [href]="record.photos[0]" target="_blank" (click)="$event.stopPropagation()">
+                                <div class="thumbnail-container" *ngIf="record.photos && record.photos.length > 0"
+                                     (click)="$event.stopPropagation()" (dblclick)="$event.stopPropagation()">
+                                    <a [href]="record.photos[0]" target="_blank">
                                         <img [src]="record.photos[0]" alt="Item" class="item-thumbnail" loading="lazy">
                                     </a>
                                 </div>
@@ -217,7 +218,7 @@ import { RepairerFormComponent } from '../repairer-form/repairer-form.component'
                                        class="btn-add-photo"
                                        [class.uploading]="uploadingPhotoId === record.id"
                                        [title]="uploadingPhotoId === record.id ? 'Uploading...' : 'Add photo'"
-                                       (click)="$event.stopPropagation()">
+                                       (click)="$event.stopPropagation()" (dblclick)="$event.stopPropagation()">
                                     <input type="file" accept="image/*" style="display:none"
                                            (change)="uploadPhotoForRecord(record, $event)"
                                            [disabled]="uploadingPhotoId === record.id">
