@@ -1455,12 +1455,7 @@ export class RepairFormComponent implements OnInit, OnDestroy {
 
   onTakePhotoClick() {
     if (this.isUploading) return;
-    const isMobile = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
-    if (isMobile) {
-      this.cameraInputRef.nativeElement.click();
-    } else {
-      this.openWebcam();
-    }
+    this.openWebcam();
   }
 
   async openWebcam() {
