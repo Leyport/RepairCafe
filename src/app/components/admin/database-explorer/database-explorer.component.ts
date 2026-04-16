@@ -426,7 +426,26 @@ import { RepairerFormComponent } from '../repairer-form/repairer-form.component'
                             </ng-container>
 
                             <td>
-                                <button *ngIf="schema === 'repairItems'" (click)="deleteRepairItem(record.id, record.displayNumber || record.itemNumber, $event)" class="btn-icon btn-icon-delete" title="Delete Item">🗑️</button>
+                                <ng-container *ngIf="schema === 'repairItems'">
+                                  <div class="row-action-wrapper">
+                                    <button class="btn-row-menu" (click)="toggleRowMenu(record.id, $event)" title="Actions">&#8942;</button>
+                                    <div class="row-action-dropdown"
+                                         *ngIf="openRowMenuId === record.id"
+                                         [style.top.px]="rowMenuPosition.top"
+                                         [style.right.px]="rowMenuPosition.right"
+                                         style="position:fixed;">
+                                      <button class="row-dropdown-item item-complete" (click)="completeRepairItem(record.id, $event)">
+                                        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                                        Complete
+                                      </button>
+                                      <div class="row-dropdown-divider"></div>
+                                      <button class="row-dropdown-item item-delete" (click)="deleteRepairItem(record.id, record.displayNumber || record.itemNumber, $event)">
+                                        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                                        Delete
+                                      </button>
+                                    </div>
+                                  </div>
+                                </ng-container>
                                 <button *ngIf="schema === 'repairers'" (click)="editRepairer(record)" class="btn-icon" title="Edit Repairer">✏️</button>
                                 <button *ngIf="schema === 'repairers'" (click)="openRepairerDashboard(record, $event)" class="btn-icon btn-icon-dashboard" title="View Dashboard">
                                   <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -553,6 +572,58 @@ import { RepairerFormComponent } from '../repairer-form/repairer-form.component'
     }
     .btn-icon-dashboard { color: rgba(255,255,255,0.4); }
     .btn-icon-dashboard:hover { background: rgba(0,242,255,0.08) !important; border-color: rgba(0,242,255,0.4) !important; color: var(--accent-color); }
+
+    .row-action-wrapper { position: relative; display: flex; justify-content: center; }
+    .btn-row-menu {
+      background: rgba(255,255,255,0.08);
+      border: 1px solid rgba(255,255,255,0.18);
+      color: rgba(255,255,255,0.85);
+      cursor: pointer;
+      border-radius: 6px;
+      width: 32px;
+      height: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.1rem;
+      line-height: 1;
+      transition: all 0.15s;
+    }
+    .btn-row-menu:hover { background: rgba(255,255,255,0.16); border-color: rgba(255,255,255,0.35); color: white; }
+    .row-action-dropdown {
+      background: #1a2236;
+      border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 8px;
+      padding: 0.3rem;
+      min-width: 140px;
+      z-index: 2000;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.6);
+      animation: rowMenuFade 0.1s ease-out;
+    }
+    @keyframes rowMenuFade {
+      from { opacity: 0; transform: translateY(-4px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .row-dropdown-item {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      width: 100%;
+      background: transparent;
+      border: none;
+      color: rgba(255,255,255,0.8);
+      padding: 0.5rem 0.75rem;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 0.85rem;
+      font-weight: 500;
+      text-align: left;
+      transition: all 0.12s;
+    }
+    .row-dropdown-item:hover { background: rgba(255,255,255,0.07); color: white; }
+    .item-complete:hover { background: rgba(40,180,99,0.15) !important; color: #58d68d !important; }
+    .item-delete:hover   { background: rgba(231,76,60,0.12)  !important; color: #f1948a !important; }
+    .row-dropdown-divider { height: 1px; background: rgba(255,255,255,0.08); margin: 0.2rem 0.4rem; }
 
     .tabs-container {
       border-radius: 12px;
@@ -1841,6 +1912,7 @@ export class DatabaseExplorerComponent implements OnInit {
 
   async deleteRepairItem(id: string, label: any, event: Event) {
     event.stopPropagation();
+    this.openRowMenuId = null;
     if (confirm(`Delete repair item "${label}"? This cannot be undone.`)) {
       try {
         await this.repairService.deleteMultipleRecords('repairItems', [id]);
@@ -1853,6 +1925,32 @@ export class DatabaseExplorerComponent implements OnInit {
   }
 
   uploadingPhotoId: string | null = null;
+
+  // Row action menu (repair items)
+  openRowMenuId: string | null = null;
+  rowMenuPosition = { top: 0, right: 0 };
+
+  private router2 = inject(Router);
+
+  @HostListener('document:click')
+  onDocumentClick2() {
+    this.openRowMenuId = null;
+  }
+
+  toggleRowMenu(id: string, event: MouseEvent) {
+    event.stopPropagation();
+    if (this.openRowMenuId === id) { this.openRowMenuId = null; return; }
+    const btn = event.currentTarget as HTMLElement;
+    const rect = btn.getBoundingClientRect();
+    this.rowMenuPosition = { top: rect.bottom + 4, right: window.innerWidth - rect.right };
+    this.openRowMenuId = id;
+  }
+
+  completeRepairItem(id: string, event: Event) {
+    event.stopPropagation();
+    this.openRowMenuId = null;
+    this.router2.navigate(['/complete', id]);
+  }
 
   // GDPR
   showGdprMenu = false;
