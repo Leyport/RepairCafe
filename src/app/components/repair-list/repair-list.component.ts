@@ -4,7 +4,7 @@ import { FormControl, ReactiveFormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { RepairService } from '../../services/repair.service';
 import { Observable, combineLatest, startWith, map, BehaviorSubject } from 'rxjs';
-import { RepairItem } from '../../models/repair-item.model';
+import { RepairItem, toRepairPhoto } from '../../models/repair-item.model';
 
 type SortOption = 'newest' | 'oldest' | 'number';
 
@@ -64,7 +64,7 @@ interface RepairerGroup {
 
           <!-- Photo -->
           <div class="col-photo" (click)="item.photos?.length ? openCarousel(item.photos!, $event) : null">
-            <div class="thumb" [style.backgroundImage]="item.photos?.length ? 'url(' + item.photos![0] + ')' : 'none'"
+            <div class="thumb" [style.backgroundImage]="item.photos?.length ? 'url(' + getPhotoUrl(item.photos![0]) + ')' : 'none'"
                  [class.has-photos]="item.photos?.length">
               <span *ngIf="!item.photos?.length" class="thumb-placeholder">📷</span>
               <span *ngIf="(item.photos?.length || 0) > 1" class="photo-count">{{ item.photos!.length }}</span>
@@ -864,9 +864,13 @@ export class RepairListComponent {
   carouselIndex = 0;
   private touchStartX = 0;
 
-  openCarousel(photos: string[], event: Event) {
+  getPhotoUrl(photo: any): string {
+    return toRepairPhoto(photo).url;
+  }
+
+  openCarousel(photos: any[], event: Event) {
     event.stopPropagation();
-    this.carouselPhotos = photos;
+    this.carouselPhotos = photos.map(p => toRepairPhoto(p).url);
     this.carouselIndex = 0;
   }
 

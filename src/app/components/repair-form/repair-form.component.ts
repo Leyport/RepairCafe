@@ -1,24 +1,35 @@
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, OnInit, OnDestroy, inject, ViewChild, ElementRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angular/forms';
+import { FormBuilder, FormGroup, Validators, ReactiveFormsModule, FormsModule } from '@angular/forms';
 import { Router, ActivatedRoute, RouterLink } from '@angular/router';
+import { HttpClient } from '@angular/common/http';
 import { APP_VERSION } from '../../constants/version';
 import { RepairService } from '../../services/repair.service';
-import { Observable } from 'rxjs';
-import { RepairItem, Owner } from '../../models/repair-item.model';
+import { Observable, firstValueFrom } from 'rxjs';
+import { RepairItem, RepairPhoto, toRepairPhoto, Owner } from '../../models/repair-item.model';
 import { Tag } from '../../models/tag.model';
+import { environment } from '../../../environments/environment';
 
 interface PhotoFile {
   file: File;
   preview: string;
   status: 'ready' | 'uploading' | 'success' | 'error';
   errorMessage?: string;
+  type: 'before' | 'after';
+}
+
+interface VideoResult {
+  id: string;
+  title: string;
+  channel: string;
+  thumbnail: string;
+  selected: boolean;
 }
 
 @Component({
   selector: 'app-repair-form',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, RouterLink],
+  imports: [CommonModule, ReactiveFormsModule, FormsModule, RouterLink],
   template: `
     <div class="form-page">
       <div class="form-container glass">
@@ -213,25 +224,48 @@ interface PhotoFile {
           <div class="form-group">
             <label>Item Photos</label>
             <div class="photo-upload-zone">
-              <input type="file" #fileInput (change)="onFileSelected($event)" multiple accept="image/*" style="display: none">
-              <input type="file" #cameraInput (change)="onFileSelected($event)" accept="image/*" capture="environment" style="display: none">
-              
-              <div class="upload-actions">
-                <button type="button" class="btn-upload primary" (click)="cameraInput.click()" [disabled]="isUploading">
-                  <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
-                    <circle cx="12" cy="13" r="4"></circle>
-                  </svg>
-                  Take Photo
-                </button>
-                <button type="button" class="btn-upload" (click)="fileInput.click()" [disabled]="isUploading">
-                  <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                    <polyline points="17 8 12 3 7 8"></polyline>
-                    <line x1="12" y1="3" x2="12" y2="15"></line>
-                  </svg>
-                  Add Files
-                </button>
+              <!-- Hidden mobile camera input (capture="environment" works on mobile) -->
+              <input type="file" #cameraInput (change)="onFileSelected($event)" accept="image/*" capture="environment" style="display:none">
+
+              <!-- Take photo button — opens camera on mobile, webcam modal on desktop -->
+              <button type="button" class="drop-zone" [class.disabled]="isUploading" [disabled]="isUploading" (click)="onTakePhotoClick()">
+                <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.5">
+                  <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
+                  <circle cx="12" cy="13" r="4"></circle>
+                </svg>
+                <span class="drop-zone-label">Take a photo</span>
+                <span class="drop-zone-hint">Opens your camera</span>
+              </button>
+
+              <!-- Library button — file picker for selecting existing images -->
+              <input type="file" #libraryInput (change)="onFileSelected($event)" accept="image/*" multiple style="display: none">
+              <button type="button" class="btn-camera" (click)="libraryInput.click()" [disabled]="isUploading">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                  <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                  <polyline points="21 15 16 10 5 21"></polyline>
+                </svg>
+                Choose from library
+              </button>
+
+              <!-- Webcam modal (desktop only) -->
+              <div class="webcam-modal" *ngIf="showWebcamModal">
+                <div class="webcam-overlay" (click)="closeWebcam()"></div>
+                <div class="webcam-container">
+                  <p class="webcam-title">Take a photo</p>
+                  <video #webcamVideo autoplay playsinline class="webcam-video"></video>
+                  <canvas #webcamCanvas style="display:none"></canvas>
+                  <div class="webcam-controls">
+                    <button type="button" class="btn-capture" (click)="capturePhoto()">
+                      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
+                        <circle cx="12" cy="13" r="4"></circle>
+                      </svg>
+                      Capture
+                    </button>
+                    <button type="button" class="btn-cancel-webcam" (click)="closeWebcam()">Cancel</button>
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -239,13 +273,21 @@ interface PhotoFile {
             <div class="photo-preview-grid" *ngIf="existingPhotos.length > 0 || selectedFiles.length > 0">
               <!-- Existing Photos -->
               <div class="photo-card" *ngFor="let photo of existingPhotos; let i = index">
-                <img [src]="photo" alt="Repair photo">
+                <img [src]="photo.url" alt="Repair photo">
+                <div class="photo-type-toggle">
+                  <button type="button" [class.active-before]="photo.type === 'before'" (click)="photo.type = 'before'">Before</button>
+                  <button type="button" [class.active-after]="photo.type === 'after'" (click)="photo.type = 'after'">After</button>
+                </div>
                 <button type="button" class="btn-remove" (click)="removeExistingPhoto(i)" title="Remove photo" [disabled]="isUploading">×</button>
               </div>
-              
+
               <!-- Newly Selected Photos -->
               <div class="photo-card" [class.pending]="file.status === 'ready'" [class.uploading]="file.status === 'uploading'" *ngFor="let file of selectedFiles; let i = index">
                 <img [src]="file.preview" alt="Preview">
+                <div class="photo-type-toggle">
+                  <button type="button" [class.active-before]="file.type === 'before'" (click)="file.type = 'before'">Before</button>
+                  <button type="button" [class.active-after]="file.type === 'after'" (click)="file.type = 'after'">After</button>
+                </div>
                 <div class="status-overlay" [ngClass]="file.status">
                   <span *ngIf="file.status === 'ready'">Ready</span>
                   <span *ngIf="file.status === 'uploading'">Uploading...</span>
@@ -260,17 +302,134 @@ interface PhotoFile {
             </div>
           </div>
 
+          <!-- Additional Details button -->
+          <div class="form-group">
+            <button type="button" class="btn-additional-details" (click)="showAdditionalDetails = true">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"></circle>
+                <line x1="12" y1="8" x2="12" y2="12"></line>
+                <line x1="12" y1="16" x2="12.01" y2="16"></line>
+              </svg>
+              Additional Details
+              <span class="details-badge" *ngIf="hasAdditionalDetails()">&#10003;</span>
+            </button>
+          </div>
+
           <div class="form-actions-wrapper">
             <div class="validation-hint" *ngIf="repairForm.get('itemDescription')?.invalid && (repairForm.get('itemDescription')?.touched || selectedFiles.length > 0)">
               ⚠️ Please enter a description to enable saving.
             </div>
-            
+
             <div class="form-actions">
               <button type="button" class="btn-cancel" (click)="onCancel()" [disabled]="isUploading">Cancel</button>
               <button type="submit" [disabled]="repairForm.invalid || isUploading" class="btn-submit">
                 <span class="spinner" *ngIf="isUploading"></span>
                 {{ isUploading ? 'Saving Repair...' : (isEdit ? 'Save Changes' : 'Register Repair') }}
               </button>
+            </div>
+          </div>
+
+          <!-- Additional Details modal -->
+          <div class="additional-details-modal" *ngIf="showAdditionalDetails">
+            <div class="additional-details-overlay" (click)="closeAdditionalDetails()"></div>
+            <div class="additional-details-panel">
+              <div class="additional-details-header">
+                <h3>Additional Details</h3>
+                <button type="button" class="btn-close-panel" (click)="closeAdditionalDetails()">×</button>
+              </div>
+              <div class="additional-details-body">
+                <div class="form-group">
+                  <label>Make / Brand</label>
+                  <input type="text" [(ngModel)]="additionalDetails.make" [ngModelOptions]="{standalone: true}" placeholder="e.g. Bosch, Samsung, Dyson">
+                </div>
+                <div class="form-group">
+                  <label>Model</label>
+                  <input type="text" [(ngModel)]="additionalDetails.model" [ngModelOptions]="{standalone: true}" placeholder="e.g. WAS28468GB">
+                </div>
+                <div class="form-group">
+                  <label>Colour</label>
+                  <input type="text" [(ngModel)]="additionalDetails.colour" [ngModelOptions]="{standalone: true}" placeholder="e.g. Black, White, Silver">
+                </div>
+                <div class="form-group">
+                  <label>Serial Number</label>
+                  <input type="text" [(ngModel)]="additionalDetails.serialNumber" [ngModelOptions]="{standalone: true}" placeholder="e.g. SN123456789">
+                </div>
+                <div class="form-group">
+                  <label>Year of Manufacture</label>
+                  <input type="text" [(ngModel)]="additionalDetails.yearOfManufacture" [ngModelOptions]="{standalone: true}" placeholder="e.g. 2018">
+                </div>
+
+                <!-- Saved repair videos -->
+                <div class="form-group" *ngIf="additionalDetails.repairVideos && additionalDetails.repairVideos.length > 0">
+                  <label>Saved Repair Videos</label>
+                  <div class="saved-videos-list">
+                    <div class="saved-video-row" *ngFor="let v of additionalDetails.repairVideos; let i = index">
+                      <svg viewBox="0 0 24 24" width="14" height="14" fill="#ff0000"><path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-2.88 2.5 2.89 2.89 0 0 1-2.89-2.89 2.89 2.89 0 0 1 2.89-2.89c.28 0 .54.04.79.1V9.01a6.33 6.33 0 0 0-.79-.05 6.34 6.34 0 0 0-6.34 6.34 6.34 6.34 0 0 0 6.34 6.34 6.34 6.34 0 0 0 6.33-6.34V8.69a8.27 8.27 0 0 0 4.84 1.55V6.79a4.85 4.85 0 0 1-1.07-.1z"/></svg>
+                      <a [href]="v.url" target="_blank" class="saved-video-title">{{ v.title }}</a>
+                      <button type="button" class="btn-remove-video" (click)="removeRepairVideo(i)" title="Remove">×</button>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Find repair videos button -->
+                <div class="form-group">
+                  <button type="button" class="btn-find-videos" (click)="searchRepairVideos()">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="#ff0000"><path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-2.88 2.5 2.89 2.89 0 0 1-2.89-2.89 2.89 2.89 0 0 1 2.89-2.89c.28 0 .54.04.79.1V9.01a6.33 6.33 0 0 0-.79-.05 6.34 6.34 0 0 0-6.34 6.34 6.34 6.34 0 0 0 6.34 6.34 6.34 6.34 0 0 0 6.33-6.34V8.69a8.27 8.27 0 0 0 4.84 1.55V6.79a4.85 4.85 0 0 1-1.07-.1z"/></svg>
+                    Find Repair Videos on YouTube
+                  </button>
+                </div>
+              </div>
+
+              <!-- Video search results overlay -->
+              <div class="video-search-overlay" *ngIf="showVideoSearch">
+                <div class="video-search-header">
+                  <div>
+                    <p class="video-search-title">Repair Videos</p>
+                    <p class="video-search-query">{{ videoSearchQuery }}</p>
+                  </div>
+                  <button type="button" class="btn-close-panel" (click)="showVideoSearch = false">×</button>
+                </div>
+
+                <div class="video-search-loading" *ngIf="videoSearchLoading">
+                  <span class="spinner"></span> Searching YouTube...
+                </div>
+
+                <div class="video-search-error" *ngIf="videoSearchError">
+                  {{ videoSearchError }}
+                </div>
+
+                <div class="video-results-grid" *ngIf="!videoSearchLoading && !videoSearchError">
+                  <label class="video-card" *ngFor="let video of videoSearchResults">
+                    <input type="checkbox" [(ngModel)]="video.selected" [ngModelOptions]="{standalone: true}" class="video-checkbox">
+                    <div class="video-thumb-wrap">
+                      <img [src]="video.thumbnail" alt="">
+                      <div class="video-selected-overlay" *ngIf="video.selected">
+                        <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="white" stroke-width="3"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                      </div>
+                    </div>
+                    <div class="video-info">
+                      <p class="video-title">{{ video.title }}</p>
+                      <p class="video-channel">{{ video.channel }}</p>
+                    </div>
+                  </label>
+                </div>
+
+                <div class="video-search-footer" *ngIf="!videoSearchLoading && !videoSearchError">
+                  <span class="selected-count" *ngIf="selectedVideoCount > 0">{{ selectedVideoCount }} selected</span>
+                  <button type="button" class="btn-cancel" (click)="showVideoSearch = false">Cancel</button>
+                  <button type="button" class="btn-submit" (click)="addSelectedVideos()" [disabled]="selectedVideoCount === 0">
+                    Add Selected
+                  </button>
+                </div>
+              </div>
+
+              <div class="additional-details-footer">
+                <button type="button" class="btn-cancel" (click)="closeAdditionalDetails()">Cancel</button>
+                <button type="button" class="btn-submit" (click)="saveAdditionalDetails()" [disabled]="isSavingDetails">
+                  <span class="spinner" *ngIf="isSavingDetails"></span>
+                  {{ isSavingDetails ? 'Saving...' : (isEdit ? 'Save Details' : 'Apply') }}
+                </button>
+              </div>
             </div>
           </div>
         </form>
@@ -523,39 +682,120 @@ interface PhotoFile {
 
     .photo-upload-zone {
       margin-bottom: 1rem;
-    }
-    .upload-actions {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 1rem;
-    }
-    .btn-upload {
       display: flex;
+      flex-direction: column;
+      gap: 0.6rem;
+    }
+    .drop-zone {
+      display: flex;
+      flex-direction: column;
       align-items: center;
-      gap: 0.8rem;
-      padding: 1rem;
-      background: rgba(255, 255, 255, 0.05);
-      border: 1px solid rgba(255, 255, 255, 0.1);
+      justify-content: center;
+      gap: 0.5rem;
+      padding: 1.5rem 1rem;
+      background: rgba(0, 242, 255, 0.05);
+      border: 2px dashed rgba(0, 242, 255, 0.3);
       border-radius: 12px;
-      color: var(--text-color);
+      color: var(--accent-color);
       cursor: pointer;
       transition: all 0.2s;
-      justify-content: center;
-      font-weight: 500;
     }
-    .btn-upload.primary {
+    .drop-zone:hover:not(.disabled) {
       background: rgba(0, 242, 255, 0.1);
       border-color: var(--accent-color);
+    }
+    .drop-zone.disabled { opacity: 0.5; cursor: not-allowed; }
+    .drop-zone-label {
+      font-weight: 600;
+      font-size: 0.95rem;
+    }
+    .drop-zone-hint {
+      font-size: 0.78rem;
+      color: rgba(255, 255, 255, 0.4);
+    }
+    .btn-camera {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      justify-content: center;
+      padding: 0.6rem 1rem;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 8px;
+      color: rgba(255, 255, 255, 0.6);
+      cursor: pointer;
+      font-size: 0.85rem;
+      transition: all 0.2s;
+    }
+    .btn-camera:hover:not(:disabled) {
+      background: rgba(255, 255, 255, 0.1);
+      color: white;
+    }
+    .btn-camera:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .webcam-modal {
+      position: fixed;
+      inset: 0;
+      z-index: 1000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .webcam-overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.75);
+    }
+    .webcam-container {
+      position: relative;
+      background: #1a1a2e;
+      border: 1px solid rgba(0, 242, 255, 0.3);
+      border-radius: 16px;
+      padding: 1.5rem;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1rem;
+      max-width: 90vw;
+    }
+    .webcam-title {
+      margin: 0;
+      font-weight: 600;
       color: var(--accent-color);
     }
-    .btn-upload:hover:not(:disabled) {
-      background: rgba(255, 255, 255, 0.1);
-      transform: translateY(-2px);
+    .webcam-video {
+      width: min(480px, 80vw);
+      border-radius: 10px;
+      background: #000;
     }
-    .btn-upload.primary:hover:not(:disabled) {
-      background: rgba(0, 242, 255, 0.2);
+    .webcam-controls {
+      display: flex;
+      gap: 1rem;
     }
-    .btn-upload:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-capture {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.7rem 1.4rem;
+      background: var(--accent-color);
+      color: #000;
+      border: none;
+      border-radius: 8px;
+      font-weight: 700;
+      cursor: pointer;
+      font-size: 0.95rem;
+    }
+    .btn-capture:hover { filter: brightness(1.1); }
+    .btn-cancel-webcam {
+      padding: 0.7rem 1.2rem;
+      background: rgba(255,255,255,0.07);
+      color: rgba(255,255,255,0.7);
+      border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 0.95rem;
+    }
+    .btn-cancel-webcam:hover { background: rgba(255,255,255,0.12); color: white; }
 
     .photo-preview-grid {
       display: grid;
@@ -574,6 +814,36 @@ interface PhotoFile {
       width: 100%;
       height: 100%;
       object-fit: cover;
+    }
+    .photo-type-toggle {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      display: flex;
+      z-index: 2;
+    }
+    .photo-type-toggle button {
+      flex: 1;
+      border: none;
+      padding: 4px 0;
+      font-size: 0.68rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      cursor: pointer;
+      background: rgba(0,0,0,0.55);
+      color: rgba(255,255,255,0.45);
+      transition: all 0.15s;
+    }
+    .photo-type-toggle button:hover { background: rgba(0,0,0,0.75); color: white; }
+    .photo-type-toggle button.active-before {
+      background: rgba(74,144,226,0.75);
+      color: white;
+    }
+    .photo-type-toggle button.active-after {
+      background: rgba(40,180,99,0.75);
+      color: white;
     }
     .status-overlay {
       position: absolute;
@@ -646,6 +916,233 @@ interface PhotoFile {
       box-shadow: 0 10px 20px rgba(0, 242, 255, 0.3);
     }
     .btn-submit:disabled { opacity: 0.3; cursor: not-allowed; filter: grayscale(1); }
+    .btn-additional-details {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      padding: 0.75rem 1rem;
+      background: rgba(0, 242, 255, 0.06);
+      border: 1px dashed rgba(0, 242, 255, 0.35);
+      border-radius: 10px;
+      color: var(--accent-color);
+      cursor: pointer;
+      font-size: 0.9rem;
+      font-weight: 500;
+      transition: all 0.2s;
+    }
+    .btn-additional-details:hover { background: rgba(0, 242, 255, 0.12); border-color: var(--accent-color); }
+    .details-badge {
+      background: var(--accent-color);
+      color: #000;
+      border-radius: 50%;
+      width: 18px;
+      height: 18px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.7rem;
+      font-weight: 700;
+    }
+    .additional-details-modal {
+      position: fixed;
+      inset: 0;
+      z-index: 1000;
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+    }
+    @media (min-width: 600px) {
+      .additional-details-modal { align-items: center; }
+    }
+    .additional-details-overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.7);
+    }
+    .additional-details-panel {
+      position: relative;
+      background: #12122a;
+      border: 1px solid rgba(0, 242, 255, 0.25);
+      border-radius: 20px 20px 0 0;
+      width: 100%;
+      max-width: 520px;
+      max-height: 90vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    @media (min-width: 600px) {
+      .additional-details-panel { border-radius: 16px; }
+    }
+    .additional-details-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 1.2rem 1.5rem 1rem;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+    }
+    .additional-details-header h3 { margin: 0; font-size: 1.1rem; color: var(--accent-color); }
+    .btn-close-panel {
+      background: none;
+      border: none;
+      color: rgba(255,255,255,0.5);
+      font-size: 1.5rem;
+      cursor: pointer;
+      line-height: 1;
+      padding: 0 0.2rem;
+    }
+    .btn-close-panel:hover { color: white; }
+    .additional-details-body {
+      padding: 1.2rem 1.5rem;
+      overflow-y: auto;
+      flex: 1;
+    }
+    .additional-details-footer {
+      display: flex;
+      gap: 0.75rem;
+      padding: 1rem 1.5rem;
+      border-top: 1px solid rgba(255,255,255,0.08);
+    }
+    .additional-details-footer .btn-cancel,
+    .additional-details-footer .btn-submit { flex: 1; }
+
+    /* Find repair videos */
+    .btn-find-videos {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      padding: 0.7rem 1rem;
+      background: rgba(255, 0, 0, 0.08);
+      border: 1px dashed rgba(255, 0, 0, 0.35);
+      border-radius: 10px;
+      color: rgba(255, 255, 255, 0.85);
+      cursor: pointer;
+      font-size: 0.9rem;
+      font-weight: 500;
+      transition: all 0.2s;
+    }
+    .btn-find-videos:hover { background: rgba(255, 0, 0, 0.15); border-color: rgba(255, 0, 0, 0.6); }
+
+    /* Saved videos list */
+    .saved-videos-list { display: flex; flex-direction: column; gap: 0.4rem; }
+    .saved-video-row {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      background: rgba(255,255,255,0.04);
+      border-radius: 6px;
+      padding: 0.4rem 0.6rem;
+    }
+    .saved-video-title {
+      flex: 1;
+      font-size: 0.82rem;
+      color: rgba(255,255,255,0.75);
+      text-decoration: none;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .saved-video-title:hover { color: var(--accent-color); }
+    .btn-remove-video {
+      background: none; border: none; color: rgba(255,255,255,0.35);
+      cursor: pointer; font-size: 1rem; line-height: 1; padding: 0 0.2rem;
+    }
+    .btn-remove-video:hover { color: #ff4444; }
+
+    /* Video search overlay — full panel replacement */
+    .video-search-overlay {
+      position: absolute;
+      inset: 0;
+      background: #12122a;
+      border-radius: inherit;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .video-search-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      padding: 1.2rem 1.5rem 0.8rem;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+      flex-shrink: 0;
+    }
+    .video-search-title { margin: 0; font-size: 1rem; font-weight: 600; color: var(--accent-color); }
+    .video-search-query { margin: 0.2rem 0 0; font-size: 0.75rem; color: rgba(255,255,255,0.4); }
+    .video-search-loading {
+      display: flex; align-items: center; justify-content: center;
+      gap: 0.8rem; padding: 3rem; color: rgba(255,255,255,0.5);
+    }
+    .video-search-error {
+      padding: 1.5rem; text-align: center; color: #ff4444; font-size: 0.9rem;
+    }
+    .video-results-grid {
+      flex: 1;
+      overflow-y: auto;
+      padding: 0.8rem 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+    .video-card {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.75rem;
+      padding: 0.5rem;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background 0.15s;
+      border: 1px solid transparent;
+    }
+    .video-card:hover { background: rgba(255,255,255,0.04); }
+    .video-checkbox { display: none; }
+    .video-card:has(.video-checkbox:checked) {
+      background: rgba(0, 242, 255, 0.07);
+      border-color: rgba(0, 242, 255, 0.3);
+    }
+    .video-thumb-wrap {
+      position: relative;
+      flex-shrink: 0;
+      width: 120px;
+      border-radius: 6px;
+      overflow: hidden;
+    }
+    .video-thumb-wrap img { width: 100%; display: block; }
+    .video-selected-overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(0, 242, 255, 0.55);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .video-info { flex: 1; min-width: 0; }
+    .video-title {
+      margin: 0 0 0.3rem;
+      font-size: 0.82rem;
+      color: rgba(255,255,255,0.85);
+      line-height: 1.3;
+      display: -webkit-box;
+      -webkit-line-clamp: 3;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+    .video-channel { margin: 0; font-size: 0.75rem; color: rgba(255,255,255,0.4); }
+    .video-search-footer {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.9rem 1.5rem;
+      border-top: 1px solid rgba(255,255,255,0.08);
+      flex-shrink: 0;
+    }
+    .video-search-footer .btn-cancel,
+    .video-search-footer .btn-submit { flex: 1; }
+    .selected-count { font-size: 0.8rem; color: var(--accent-color); white-space: nowrap; }
     .btn-cancel {
       background: rgba(255, 255, 255, 0.1);
       color: var(--text-color);
@@ -676,9 +1173,14 @@ interface PhotoFile {
     }
   `]
 })
-export class RepairFormComponent implements OnInit {
+export class RepairFormComponent implements OnInit, OnDestroy {
   private fb = inject(FormBuilder);
   private repairService = inject(RepairService);
+  private http = inject(HttpClient);
+
+  @ViewChild('cameraInput') cameraInputRef!: ElementRef<HTMLInputElement>;
+  @ViewChild('webcamVideo') webcamVideoRef!: ElementRef<HTMLVideoElement>;
+  @ViewChild('webcamCanvas') webcamCanvasRef!: ElementRef<HTMLCanvasElement>;
   private router = inject(Router);
   private route = inject(ActivatedRoute);
   protected appVersion = APP_VERSION;
@@ -721,7 +1223,33 @@ export class RepairFormComponent implements OnInit {
   uploadError: string | null = null;
 
   selectedFiles: PhotoFile[] = [];
-  existingPhotos: string[] = [];
+  existingPhotos: RepairPhoto[] = [];
+  showWebcamModal = false;
+  private videoStream: MediaStream | null = null;
+
+  showAdditionalDetails = false;
+  isSavingDetails = false;
+  additionalDetails: {
+    make: string;
+    model: string;
+    colour: string;
+    serialNumber: string;
+    yearOfManufacture: string;
+    repairVideos: { url: string; title: string }[];
+  } = {
+    make: '',
+    model: '',
+    colour: '',
+    serialNumber: '',
+    yearOfManufacture: '',
+    repairVideos: []
+  };
+
+  showVideoSearch = false;
+  videoSearchLoading = false;
+  videoSearchError = '';
+  videoSearchQuery = '';
+  videoSearchResults: VideoResult[] = [];
   tags: string[] = [];
   allAvailableTags: Tag[] = [];
   filteredSuggestions: Tag[] = [];
@@ -859,9 +1387,17 @@ export class RepairFormComponent implements OnInit {
           }
 
           this.repairForm.patchValue(updates);
-          this.existingPhotos = item.photos || [];
+          this.existingPhotos = (item.photos || []).map(toRepairPhoto);
           this.tags = item.tags || [];
           this.secondaryRepairers = item.additionalRepairers || [];
+          this.additionalDetails = {
+            make: item.make || '',
+            model: item.model || '',
+            colour: item.colour || '',
+            serialNumber: item.serialNumber || '',
+            yearOfManufacture: item.yearOfManufacture || '',
+            repairVideos: item.repairVideos || []
+          };
         }
       });
     } else {
@@ -892,19 +1428,20 @@ export class RepairFormComponent implements OnInit {
 
   onFileSelected(event: any) {
     const files = event.target.files as FileList;
-    if (files) {
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i];
+    if (files && files.length > 0) {
+      const newFiles = Array.from(files);
+      // Reset input so the same file(s) can be re-selected later
+      event.target.value = '';
+
+      const readPromises = newFiles.map(file => new Promise<PhotoFile>(resolve => {
         const reader = new FileReader();
-        reader.onload = (e: any) => {
-          this.selectedFiles.push({
-            file: file,
-            preview: e.target.result,
-            status: 'ready'
-          });
-        };
+        reader.onload = (e: any) => resolve({ file, preview: e.target.result, status: 'ready', type: 'before' });
         reader.readAsDataURL(file);
-      }
+      }));
+
+      Promise.all(readPromises).then(loaded => {
+        this.selectedFiles = [...this.selectedFiles, ...loaded];
+      });
     }
   }
 
@@ -914,6 +1451,158 @@ export class RepairFormComponent implements OnInit {
 
   removeExistingPhoto(index: number) {
     this.existingPhotos.splice(index, 1);
+  }
+
+  onTakePhotoClick() {
+    if (this.isUploading) return;
+    const isMobile = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+    if (isMobile) {
+      this.cameraInputRef.nativeElement.click();
+    } else {
+      this.openWebcam();
+    }
+  }
+
+  async openWebcam() {
+    this.showWebcamModal = true;
+    // Wait one tick for Angular to render the video element
+    setTimeout(async () => {
+      try {
+        this.videoStream = await navigator.mediaDevices.getUserMedia({ video: true });
+        this.webcamVideoRef.nativeElement.srcObject = this.videoStream;
+      } catch {
+        this.showWebcamModal = false;
+        // Fall back to file picker if camera access is denied
+        this.cameraInputRef.nativeElement.click();
+      }
+    }, 50);
+  }
+
+  capturePhoto() {
+    const video = this.webcamVideoRef.nativeElement;
+    const canvas = this.webcamCanvasRef.nativeElement;
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    canvas.getContext('2d')!.drawImage(video, 0, 0);
+    canvas.toBlob(blob => {
+      if (blob) {
+        const file = new File([blob], `photo-${Date.now()}.jpg`, { type: 'image/jpeg' });
+        const reader = new FileReader();
+        reader.onload = (e: any) => {
+          this.selectedFiles = [...this.selectedFiles, { file, preview: e.target.result, status: 'ready', type: 'before' }];
+        };
+        reader.readAsDataURL(file);
+      }
+      this.closeWebcam();
+    }, 'image/jpeg', 0.92);
+  }
+
+  closeWebcam() {
+    if (this.videoStream) {
+      this.videoStream.getTracks().forEach(t => t.stop());
+      this.videoStream = null;
+    }
+    this.showWebcamModal = false;
+  }
+
+  ngOnDestroy() {
+    this.closeWebcam();
+  }
+
+  hasAdditionalDetails(): boolean {
+    return !!(this.additionalDetails.make || this.additionalDetails.model ||
+              this.additionalDetails.colour || this.additionalDetails.serialNumber ||
+              this.additionalDetails.yearOfManufacture ||
+              this.additionalDetails.repairVideos?.length);
+  }
+
+  get selectedVideoCount(): number {
+    return this.videoSearchResults.filter(v => v.selected).length;
+  }
+
+  async searchRepairVideos() {
+    const description = this.repairForm.get('itemDescription')?.value || '';
+    const parts = [
+      description,
+      this.additionalDetails.make,
+      this.additionalDetails.model,
+      this.additionalDetails.colour,
+      this.additionalDetails.yearOfManufacture
+    ].filter(p => p?.trim()).join(' ');
+
+    this.videoSearchQuery = `${parts} repair`;
+    this.showVideoSearch = true;
+    this.videoSearchLoading = true;
+    this.videoSearchError = '';
+    this.videoSearchResults = [];
+
+    try {
+      const response = await firstValueFrom(
+        this.http.get<any>('https://www.googleapis.com/youtube/v3/search', {
+          params: {
+            part: 'snippet',
+            q: this.videoSearchQuery,
+            type: 'video',
+            maxResults: '12',
+            key: environment.youtubeApiKey
+          }
+        })
+      );
+      this.videoSearchResults = (response.items || []).map((item: any) => ({
+        id: item.id.videoId,
+        title: item.snippet.title,
+        channel: item.snippet.channelTitle,
+        thumbnail: item.snippet.thumbnails.medium?.url || item.snippet.thumbnails.default?.url,
+        selected: false
+      }));
+    } catch (err: any) {
+      const apiMsg = err?.error?.error?.message;
+      const status = err?.status;
+      if (status === 403) {
+        this.videoSearchError = `YouTube API access denied (403)${apiMsg ? ': ' + apiMsg : ''}. Make sure the YouTube Data API v3 is enabled in Google Cloud Console and the API key has no referrer restrictions blocking this site.`;
+      } else if (status === 400) {
+        this.videoSearchError = `Bad request (400)${apiMsg ? ': ' + apiMsg : ''}. Check the API key is correct.`;
+      } else if (apiMsg) {
+        this.videoSearchError = `YouTube API error: ${apiMsg}`;
+      } else {
+        this.videoSearchError = `Search failed (${status || 'network error'}). Open browser DevTools → Network tab for details.`;
+      }
+      console.error('YouTube search error:', err);
+    } finally {
+      this.videoSearchLoading = false;
+    }
+  }
+
+  addSelectedVideos() {
+    const newVideos = this.videoSearchResults
+      .filter(v => v.selected)
+      .map(v => ({ url: `https://www.youtube.com/watch?v=${v.id}`, title: v.title }));
+
+    const existing = this.additionalDetails.repairVideos || [];
+    const existingUrls = new Set(existing.map(v => v.url));
+    const toAdd = newVideos.filter(v => !existingUrls.has(v.url));
+    this.additionalDetails.repairVideos = [...existing, ...toAdd];
+    this.showVideoSearch = false;
+  }
+
+  removeRepairVideo(index: number) {
+    this.additionalDetails.repairVideos.splice(index, 1);
+  }
+
+  closeAdditionalDetails() {
+    this.showAdditionalDetails = false;
+  }
+
+  async saveAdditionalDetails() {
+    if (this.isEdit && this.editItemId) {
+      this.isSavingDetails = true;
+      try {
+        await this.repairService.updateRepairItem(this.editItemId, { ...this.additionalDetails });
+      } finally {
+        this.isSavingDetails = false;
+      }
+    }
+    this.showAdditionalDetails = false;
   }
 
   addTag(input: HTMLInputElement) {
@@ -1051,14 +1740,12 @@ export class RepairFormComponent implements OnInit {
       this.uploadError = null;
 
       try {
-        const uploadPromises = this.selectedFiles.map(async (photoFile) => {
-          if (photoFile.status === 'success') return photoFile.preview; // Should not happen but for safety
-
+        const uploadPromises = this.selectedFiles.map(async (photoFile): Promise<RepairPhoto> => {
           try {
             photoFile.status = 'uploading';
             const url = await this.repairService.uploadPhoto(photoFile.file);
             photoFile.status = 'success';
-            return url;
+            return { url, type: photoFile.type };
           } catch (err) {
             photoFile.status = 'error';
             photoFile.errorMessage = (err as any).message || 'Upload failed';
@@ -1066,14 +1753,15 @@ export class RepairFormComponent implements OnInit {
           }
         });
 
-        const newPhotoUrls = await Promise.all(uploadPromises);
-        const allPhotos = [...this.existingPhotos, ...newPhotoUrls];
+        const newPhotos = await Promise.all(uploadPromises);
+        const allPhotos: RepairPhoto[] = [...this.existingPhotos, ...newPhotos];
 
         const itemData = {
           ...this.repairForm.value,
           photos: allPhotos,
           tags: this.tags,
-          additionalRepairers: this.secondaryRepairers
+          additionalRepairers: this.secondaryRepairers,
+          ...this.additionalDetails
         };
 
         if (this.isEdit && this.editItemId) {

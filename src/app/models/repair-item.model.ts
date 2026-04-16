@@ -1,3 +1,13 @@
+export interface RepairPhoto {
+  url: string;
+  type: 'before' | 'after';
+}
+
+/** Normalise a photo entry that may be a legacy plain URL string or the new RepairPhoto object */
+export function toRepairPhoto(p: RepairPhoto | string): RepairPhoto {
+  return typeof p === 'string' ? { url: p, type: 'before' } : p;
+}
+
 export interface RepairItem {
   id?: string;
   itemNumber: number; // Sequence number starting at 1 for each RCDay
@@ -14,7 +24,7 @@ export interface RepairItem {
   telephone?: string; // Contact telephone number
   owner?: string; // Name of the owner
   tags?: string[];
-  photos?: string[];
+  photos?: RepairPhoto[];
   make?: string;
   model?: string;
   colour?: string;

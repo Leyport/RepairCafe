@@ -212,7 +212,7 @@ import { RepairerFormComponent } from '../repairer-form/repairer-form.component'
                                      (click)="$event.stopPropagation(); openEditRecord(record.id)"
                                      (dblclick)="$event.stopPropagation()"
                                      style="cursor:pointer">
-                                    <img [src]="record.photos[0]" alt="Item" class="item-thumbnail" loading="lazy">
+                                    <img [src]="getPhotoUrl(record.photos[0])" alt="Item" class="item-thumbnail" loading="lazy">
                                 </div>
                                 <label *ngIf="!record.photos || record.photos.length === 0"
                                        class="btn-add-photo"
@@ -1947,6 +1947,10 @@ export class DatabaseExplorerComponent implements OnInit {
     this.openRowMenuId = id;
   }
 
+  getPhotoUrl(photo: any): string {
+    return typeof photo === 'string' ? photo : photo?.url ?? '';
+  }
+
   openEditRecord(id: string) {
     this.router.navigate(['/edit', id]);
   }
@@ -2071,9 +2075,10 @@ export class DatabaseExplorerComponent implements OnInit {
     this.uploadingPhotoId = record.id;
     try {
       const url = await this.repairService.uploadPhoto(file);
+      const existingPhotos = (record.photos || []).map((p: any) => typeof p === 'string' ? { url: p, type: 'before' } : p);
       await this.repairService.updateRepairItem(record.id, {
         ...record,
-        photos: [...(record.photos || []), url]
+        photos: [...existingPhotos, { url, type: 'before' }]
       });
       this.selectCollection(this.selectedCollection || 'repairItems');
     } catch (err) {

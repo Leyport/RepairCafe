@@ -411,8 +411,8 @@ export class RepairService {
         if (!snapshot.empty) {
             const item = snapshot.docs[0].data() as RepairItem;
             if (item.photos && item.photos.length > 0) {
-                // Delete all associated photos from storage
-                await Promise.all(item.photos.map(url => this.deletePhoto(url)));
+                // Delete all associated photos from storage (handle legacy string[] and new RepairPhoto[])
+                await Promise.all(item.photos.map((p: any) => this.deletePhoto(typeof p === 'string' ? p : p.url)));
             }
         }
 
@@ -467,6 +467,12 @@ export class RepairService {
     getCollectionData(collectionName: string): Observable<any[]> {
         const colRef = collection(this.firestore, collectionName);
         return collectionData(colRef, { idField: 'id' });
+    }
+
+    async getCollectionDataOnce(collectionName: string): Promise<any[]> {
+        const colRef = collection(this.firestore, collectionName);
+        const snapshot = await getDocs(colRef);
+        return snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
     }
 
     getTrackedCollections(): Observable<string[]> {
@@ -555,12 +561,13 @@ export class RepairService {
         return collectionData(q, { idField: 'id' }) as Observable<Issue[]>;
     }
 
-    async addIssue(description: string): Promise<void> {
+    async addIssue(description: string, raisedBy?: string): Promise<void> {
         const issuesCollection = collection(this.firestore, 'issues');
         await addDoc(issuesCollection, {
             description,
             dateRaised: Timestamp.now(),
-            status: 'New'
+            status: 'New',
+            ...(raisedBy ? { raisedBy } : {})
         });
     }
 

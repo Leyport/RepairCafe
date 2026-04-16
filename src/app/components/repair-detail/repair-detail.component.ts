@@ -2,7 +2,7 @@ import { Component, inject, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { RepairService } from '../../services/repair.service';
-import { RepairItem } from '../../models/repair-item.model';
+import { RepairItem, toRepairPhoto } from '../../models/repair-item.model';
 
 @Component({
   selector: 'app-repair-detail',
@@ -50,8 +50,11 @@ import { RepairItem } from '../../models/repair-item.model';
           <section class="detail-section photos-section" *ngIf="item.photos && item.photos.length > 0">
             <label>Photos ({{ item.photos.length }})</label>
             <div class="photo-gallery">
-              <div class="photo-item glass-light" *ngFor="let photo of item.photos" (click)="openLightbox(photo)">
-                <img [src]="photo" alt="Repair photo">
+              <div class="photo-item glass-light" *ngFor="let photo of item.photos" (click)="openLightbox(getPhotoUrl(photo))">
+                <img [src]="getPhotoUrl(photo)" alt="Repair photo">
+                <span class="photo-type-badge" [class.before]="getPhotoType(photo) === 'before'" [class.after]="getPhotoType(photo) === 'after'">
+                  {{ getPhotoType(photo) }}
+                </span>
               </div>
             </div>
           </section>
@@ -196,6 +199,7 @@ import { RepairItem } from '../../models/repair-item.model';
       border-radius: 12px;
       overflow: hidden;
       cursor: zoom-in;
+      position: relative;
       transition: transform 0.3s ease;
       border: 1px solid rgba(255, 255, 255, 0.1);
     }
@@ -208,6 +212,19 @@ import { RepairItem } from '../../models/repair-item.model';
       height: 100%;
       object-fit: cover;
     }
+    .photo-type-badge {
+      position: absolute;
+      bottom: 6px;
+      left: 6px;
+      font-size: 0.65rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      padding: 2px 7px;
+      border-radius: 4px;
+    }
+    .photo-type-badge.before { background: rgba(74,144,226,0.85); color: white; }
+    .photo-type-badge.after  { background: rgba(40,180,99,0.85);  color: white; }
     .detail-actions {
       display: flex;
       gap: 1rem;
@@ -311,6 +328,9 @@ export class RepairDetailComponent implements OnInit {
       this.router.navigate(['/']);
     }
   }
+
+  getPhotoUrl(photo: any): string { return toRepairPhoto(photo).url; }
+  getPhotoType(photo: any): string { return toRepairPhoto(photo).type; }
 
   openLightbox(photo: string) {
     this.selectedPhoto = photo;
