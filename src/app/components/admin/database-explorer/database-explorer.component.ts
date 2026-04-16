@@ -209,10 +209,10 @@ import { RepairerFormComponent } from '../repairer-form/repairer-form.component'
                             <ng-container *ngIf="schema === 'repairItems'">
                             <td>
                                 <div class="thumbnail-container" *ngIf="record.photos && record.photos.length > 0"
-                                     (click)="$event.stopPropagation()" (dblclick)="$event.stopPropagation()">
-                                    <a [href]="record.photos[0]" target="_blank">
-                                        <img [src]="record.photos[0]" alt="Item" class="item-thumbnail" loading="lazy">
-                                    </a>
+                                     (click)="$event.stopPropagation(); openEditRecord(record.id)"
+                                     (dblclick)="$event.stopPropagation()"
+                                     style="cursor:pointer">
+                                    <img [src]="record.photos[0]" alt="Item" class="item-thumbnail" loading="lazy">
                                 </div>
                                 <label *ngIf="!record.photos || record.photos.length === 0"
                                        class="btn-add-photo"
@@ -1945,6 +1945,10 @@ export class DatabaseExplorerComponent implements OnInit {
     const rect = btn.getBoundingClientRect();
     this.rowMenuPosition = { top: rect.bottom + 4, right: window.innerWidth - rect.right };
     this.openRowMenuId = id;
+  }
+
+  openEditRecord(id: string) {
+    this.router.navigate(['/edit', id]);
   }
 
   completeRepairItem(id: string, event: Event) {

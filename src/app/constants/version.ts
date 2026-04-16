@@ -1,4 +1,4 @@
 export const APP_VERSION = {
-    version: 'v1.26.3',
-    description: 'Photo click no longer triggers row navigation in database explorer.'
+    version: 'v1.26.4',
+    description: 'Clicking a photo in database explorer opens the edit record screen.'
 };
