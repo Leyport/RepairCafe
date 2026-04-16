@@ -127,13 +127,7 @@ interface RepairerGroup {
           <!-- Actions -->
           <div class="col-actions" (click)="$event.stopPropagation()">
             <div class="action-menu-wrapper">
-              <button class="btn-menu" (click)="toggleMenu(item.id!, $event)" title="Actions">
-                <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
-                  <circle cx="12" cy="5" r="1.5"></circle>
-                  <circle cx="12" cy="12" r="1.5"></circle>
-                  <circle cx="12" cy="19" r="1.5"></circle>
-                </svg>
-              </button>
+              <button class="btn-menu" (click)="toggleMenu(item.id!, $event)" title="Actions">&#8942;</button>
               <div class="action-dropdown"
                    *ngIf="openMenuId === item.id"
                    [style.top.px]="menuPosition.top"
@@ -306,7 +300,7 @@ interface RepairerGroup {
     .list-header,
     .list-row {
       display: grid;
-      grid-template-columns: 48px 70px 1fr 110px 120px 120px 130px 95px 90px 40px;
+      grid-template-columns: 48px 70px 1fr 110px 120px 120px 130px 95px 90px 60px;
       padding: 0.75rem 1rem;
       align-items: center;
       gap: 0.5rem;
@@ -643,19 +637,25 @@ interface RepairerGroup {
       justify-content: flex-end;
     }
     .btn-menu {
-      background: transparent;
-      border: none;
-      color: rgba(255,255,255,0.35);
+      background: rgba(255,255,255,0.08);
+      border: 1px solid rgba(255,255,255,0.15);
+      color: rgba(255,255,255,0.8);
       cursor: pointer;
-      padding: 4px 6px;
-      border-radius: 4px;
+      padding: 4px 10px;
+      border-radius: 6px;
       transition: all 0.15s;
       display: flex;
       align-items: center;
+      justify-content: center;
+      font-size: 1.1rem;
+      line-height: 1;
+      min-width: 32px;
+      height: 28px;
     }
     .btn-menu:hover {
+      background: rgba(255,255,255,0.16);
+      border-color: rgba(255,255,255,0.3);
       color: white;
-      background: rgba(255,255,255,0.08);
     }
     .action-dropdown {
       position: absolute;
