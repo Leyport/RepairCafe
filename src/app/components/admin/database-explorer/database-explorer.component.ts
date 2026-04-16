@@ -1,4 +1,4 @@
-import { Component, inject, OnInit } from '@angular/core';
+import { Component, inject, OnInit, HostListener } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
@@ -114,14 +114,43 @@ import { RepairerFormComponent } from '../repairer-form/repairer-form.component'
           <div class="data-header">
             <h3>{{ getCollectionLabel(selectedCollection) }}</h3>
             <div class="header-controls">
-                <button 
+                <button
                     *ngIf="selectedCount > 0"
-                    class="btn-delete-selected" 
+                    class="btn-delete-selected"
                     (click)="deleteSelected()"
                     title="Delete Selected Records">
                     🗑️ ({{ selectedCount }})
                 </button>
                 <span class="count" *ngIf="data$ | async as data">{{ data.length }} records</span>
+                <div class="gdpr-menu-wrapper">
+                    <button class="btn-gdpr" (click)="toggleGdprMenu($event)" title="GDPR Options">
+                        🔒 GDPR
+                    </button>
+                    <div class="gdpr-dropdown glass" *ngIf="showGdprMenu">
+                        <div class="gdpr-dropdown-title">GDPR Actions — {{ getCollectionLabel(selectedCollection) }}</div>
+                        <button class="gdpr-option" (click)="gdprMask()">
+                            <span class="gdpr-option-icon">🎭</span>
+                            <div>
+                                <div class="gdpr-option-label">Mask</div>
+                                <div class="gdpr-option-desc">Replace personal data with J***ohn format</div>
+                            </div>
+                        </button>
+                        <button class="gdpr-option" (click)="gdprAnonymize()">
+                            <span class="gdpr-option-icon">🙈</span>
+                            <div>
+                                <div class="gdpr-option-label">Anonymize</div>
+                                <div class="gdpr-option-desc">Replace personal data with [ANONYMIZED]</div>
+                            </div>
+                        </button>
+                        <button class="gdpr-option gdpr-option-danger" (click)="gdprPurge()">
+                            <span class="gdpr-option-icon">🗑️</span>
+                            <div>
+                                <div class="gdpr-option-label">Purge</div>
+                                <div class="gdpr-option-desc">Permanently delete all records in this collection</div>
+                            </div>
+                        </button>
+                    </div>
+                </div>
                 <button class="btn-toggle" (click)="toggleView()" [title]="viewMode === 'table' ? 'Switch to JSON View' : 'Switch to Table View'">
                     {{ viewMode === 'table' ? '📝' : '{}' }}
                 </button>
@@ -155,6 +184,7 @@ import { RepairerFormComponent } from '../repairer-form/repairer-form.component'
                             <th *ngIf="schema === 'repairItems'" (click)="onSort('status')" class="sortable" title="Status Indicator">Status {{ getSortIcon('status') }}</th>
                             
                             <th *ngIf="schema === 'repairers'" (click)="onSort('name')" class="sortable">Name {{ getSortIcon('name') }}</th>
+                            <th *ngIf="schema === 'repairers'" (click)="onSort('isPrimary')" class="sortable">Role {{ getSortIcon('isPrimary') }}</th>
                             <th *ngIf="schema === 'repairers'" (click)="onSort('createdAt')" class="sortable">Joined {{ getSortIcon('createdAt') }}</th>
 
                             <th *ngIf="schema === 'owners'" (click)="onSort('name')" class="sortable" title="Owner Name">👤 {{ getSortIcon('name') }}</th>
@@ -339,6 +369,11 @@ import { RepairerFormComponent } from '../repairer-form/repairer-form.component'
                                     [title]="record.name || ''"
                                     placeholder="Name">
                               </div>
+                            </td>
+                            <td>
+                              <span class="role-badge" [class.primary]="record.isPrimary" [class.secondary]="!record.isPrimary">
+                                {{ record.isPrimary ? 'Primary' : 'Secondary' }}
+                              </span>
                             </td>
                             <td [title]="record.createdAt?.toDate ? (record.createdAt?.toDate() | date:'mediumDate') : (record.createdAt | date:'mediumDate')">{{ record.createdAt?.toDate ? (record.createdAt?.toDate() | date:'mediumDate') : (record.createdAt | date:'mediumDate') }}</td>
                             </ng-container>
@@ -1087,6 +1122,7 @@ import { RepairerFormComponent } from '../repairer-form/repairer-form.component'
         text-transform: uppercase;
     }
     .role-badge.primary { background: rgba(0, 242, 255, 0.2); color: #00f2ff; }
+    .role-badge.secondary { background: rgba(99, 102, 241, 0.2); color: #818cf8; }
     .role-badge.helper { background: rgba(99, 102, 241, 0.2); color: #6366f1; }
     
     .btn-manage-repairers {
@@ -1177,6 +1213,87 @@ import { RepairerFormComponent } from '../repairer-form/repairer-form.component'
         right: 10px;
         top: 50%;
         transform: translateY(-50%);
+    }
+
+    /* GDPR Menu */
+    .gdpr-menu-wrapper {
+        position: relative;
+    }
+    .btn-gdpr {
+        background: rgba(255, 180, 0, 0.12);
+        border: 1px solid rgba(255, 180, 0, 0.35);
+        color: #ffb400;
+        padding: 0.4rem 0.8rem;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 0.85rem;
+        font-weight: 600;
+        transition: all 0.2s;
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+    }
+    .btn-gdpr:hover {
+        background: rgba(255, 180, 0, 0.2);
+        border-color: #ffb400;
+    }
+    .gdpr-dropdown {
+        position: absolute;
+        top: calc(100% + 6px);
+        right: 0;
+        width: 280px;
+        z-index: 500;
+        border-radius: 10px;
+        padding: 0.6rem;
+        border: 1px solid rgba(255, 180, 0, 0.25);
+        background: #1a2236;
+        box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+    }
+    .gdpr-dropdown-title {
+        font-size: 0.72rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: rgba(255,255,255,0.35);
+        padding: 0.3rem 0.6rem 0.5rem;
+    }
+    .gdpr-option {
+        display: flex;
+        align-items: center;
+        gap: 0.8rem;
+        width: 100%;
+        background: transparent;
+        border: 1px solid transparent;
+        color: white;
+        padding: 0.6rem 0.7rem;
+        border-radius: 7px;
+        cursor: pointer;
+        text-align: left;
+        transition: all 0.15s;
+        margin-bottom: 0.25rem;
+    }
+    .gdpr-option:last-child { margin-bottom: 0; }
+    .gdpr-option:hover {
+        background: rgba(255,255,255,0.07);
+        border-color: rgba(255,255,255,0.1);
+    }
+    .gdpr-option-danger:hover {
+        background: rgba(255, 60, 60, 0.12);
+        border-color: rgba(255, 60, 60, 0.3);
+        color: #ff6b6b;
+    }
+    .gdpr-option-icon {
+        font-size: 1.2rem;
+        flex-shrink: 0;
+    }
+    .gdpr-option-label {
+        font-size: 0.9rem;
+        font-weight: 600;
+    }
+    .gdpr-option-desc {
+        font-size: 0.75rem;
+        color: rgba(255,255,255,0.45);
+        margin-top: 0.1rem;
     }
   `]
 })
@@ -1736,6 +1853,113 @@ export class DatabaseExplorerComponent implements OnInit {
   }
 
   uploadingPhotoId: string | null = null;
+
+  // GDPR
+  showGdprMenu = false;
+
+  private gdprPiiFields: Record<string, string[]> = {
+    owners:      ['name', 'telephone', 'email'],
+    repairItems: ['owner', 'telephone'],
+    repairers:   ['name'],
+  };
+
+  @HostListener('document:click')
+  onDocumentClick() {
+    if (this.showGdprMenu) this.showGdprMenu = false;
+  }
+
+  toggleGdprMenu(event: MouseEvent) {
+    event.stopPropagation();
+    this.showGdprMenu = !this.showGdprMenu;
+  }
+
+  closeGdprMenu() {
+    this.showGdprMenu = false;
+  }
+
+  private maskValue(value: string): string {
+    if (!value || typeof value !== 'string') return value;
+    const v = value.trim();
+    if (v.length <= 1) return v;
+    if (v.length <= 4) return v[0] + '*'.repeat(v.length - 1);
+    return v[0] + '*'.repeat(v.length - 4) + v.slice(-3);
+  }
+
+  async gdprMask() {
+    this.showGdprMenu = false;
+    const col = this.selectedCollection;
+    if (!col) return;
+    const piiFields = this.gdprPiiFields[col];
+    if (!piiFields?.length) { alert('No personal data fields identified for this collection.'); return; }
+
+    const label = this.getCollectionLabel(col);
+    if (!confirm(`Mask all personal data in "${label}"?\n\nFields affected: ${piiFields.join(', ')}\n\nThis will apply first-letter/last-3-chars masking to every record. This cannot be undone.`)) return;
+
+    try {
+      const data = await this.repairService.getCollectionDataOnce(col);
+      let updated = 0;
+      for (const record of data) {
+        const updates: any = {};
+        let hasChange = false;
+        for (const field of piiFields) {
+          if (record[field]) { updates[field] = this.maskValue(record[field]); hasChange = true; }
+        }
+        if (hasChange) { await this.repairService.updateRecord(col, record.id, updates); updated++; }
+      }
+      this.selectCollection(col);
+      alert(`Masked ${updated} record(s) in "${label}".`);
+    } catch (err) {
+      console.error('GDPR mask failed:', err);
+      alert('GDPR mask operation failed.');
+    }
+  }
+
+  async gdprAnonymize() {
+    this.showGdprMenu = false;
+    const col = this.selectedCollection;
+    if (!col) return;
+    const piiFields = this.gdprPiiFields[col];
+    if (!piiFields?.length) { alert('No personal data fields identified for this collection.'); return; }
+
+    const label = this.getCollectionLabel(col);
+    if (!confirm(`Anonymize all personal data in "${label}"?\n\nFields affected: ${piiFields.join(', ')}\n\nAll values will be replaced with "[ANONYMIZED]". This cannot be undone.`)) return;
+
+    try {
+      const data = await this.repairService.getCollectionDataOnce(col);
+      let updated = 0;
+      for (const record of data) {
+        const updates: any = {};
+        let hasChange = false;
+        for (const field of piiFields) {
+          if (record[field]) { updates[field] = '[ANONYMIZED]'; hasChange = true; }
+        }
+        if (hasChange) { await this.repairService.updateRecord(col, record.id, updates); updated++; }
+      }
+      this.selectCollection(col);
+      alert(`Anonymized ${updated} record(s) in "${label}".`);
+    } catch (err) {
+      console.error('GDPR anonymize failed:', err);
+      alert('GDPR anonymize operation failed.');
+    }
+  }
+
+  async gdprPurge() {
+    this.showGdprMenu = false;
+    const col = this.selectedCollection;
+    if (!col) return;
+    const label = this.getCollectionLabel(col);
+    if (!confirm(`PERMANENTLY DELETE all records in "${label}"?\n\nThis will delete every record in this collection. This action CANNOT be undone.`)) return;
+    if (!confirm(`Are you absolutely sure? All ${label} data will be gone forever.`)) return;
+
+    try {
+      await this.repairService.deleteCollection(col);
+      this.selectCollection(col);
+      alert(`All records in "${label}" have been purged.`);
+    } catch (err) {
+      console.error('GDPR purge failed:', err);
+      alert('GDPR purge operation failed.');
+    }
+  }
 
   async uploadPhotoForRecord(record: any, event: Event) {
     const input = event.target as HTMLInputElement;
