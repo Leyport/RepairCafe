@@ -1,4 +1,4 @@
 export const APP_VERSION = {
-    version: 'v1.25.9',
-    description: 'Actions menu on repair items — Complete flow with owner satisfaction and donation amount.'
+    version: 'v1.26.0',
+    description: 'Actions menu dropdown fix, Complete button on repair detail screen.'
 };

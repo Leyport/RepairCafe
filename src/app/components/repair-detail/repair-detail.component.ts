@@ -65,6 +65,12 @@ import { RepairItem } from '../../models/repair-item.model';
             </svg>
             Edit Item
           </button>
+          <button class="btn-complete" (click)="onComplete()">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="20 6 9 17 4 12"></polyline>
+            </svg>
+            Complete
+          </button>
           <button class="btn-delete" (click)="onDelete()">
             <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
               <polyline points="3 6 5 6 21 6"></polyline>
@@ -209,7 +215,7 @@ import { RepairItem } from '../../models/repair-item.model';
       padding-top: 2rem;
       border-top: 1px solid rgba(255, 255, 255, 0.1);
     }
-    .btn-edit, .btn-delete {
+    .btn-edit, .btn-complete, .btn-delete {
       flex: 1;
       display: flex;
       align-items: center;
@@ -227,6 +233,12 @@ import { RepairItem } from '../../models/repair-item.model';
       color: white;
     }
     .btn-edit:hover { background: rgba(255, 255, 255, 0.2); transform: translateY(-2px); }
+    .btn-complete {
+      background: rgba(40, 180, 99, 0.12);
+      color: #58d68d;
+      border: 1px solid rgba(40, 180, 99, 0.3);
+    }
+    .btn-complete:hover { background: rgba(40, 180, 99, 0.25); transform: translateY(-2px); }
     .btn-delete {
       background: rgba(255, 68, 68, 0.1);
       color: #ff4444;
@@ -284,6 +296,12 @@ export class RepairDetailComponent implements OnInit {
     if (this.item) {
       this.repairService.setEditItem(this.item);
       this.router.navigate(['/edit', this.item.id]);
+    }
+  }
+
+  onComplete() {
+    if (this.item?.id) {
+      this.router.navigate(['/complete', this.item.id]);
     }
   }
 

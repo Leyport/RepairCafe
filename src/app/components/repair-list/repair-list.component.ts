@@ -134,7 +134,11 @@ interface RepairerGroup {
                   <circle cx="12" cy="19" r="1.5"></circle>
                 </svg>
               </button>
-              <div class="action-dropdown" *ngIf="openMenuId === item.id">
+              <div class="action-dropdown"
+                   *ngIf="openMenuId === item.id"
+                   [style.top.px]="menuPosition.top"
+                   [style.right.px]="menuPosition.right"
+                   style="position: fixed;">
                 <button class="dropdown-item item-complete" (click)="onComplete(item.id!, $event)">
                   <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                     <polyline points="20 6 9 17 4 12"></polyline>
@@ -831,15 +835,23 @@ export class RepairListComponent {
   sortControl = new FormControl<SortOption>('newest');
 
   openMenuId: string | null = null;
+  menuPosition = { top: 0, right: 0 };
 
   @HostListener('document:click')
   onDocumentClick() {
     this.openMenuId = null;
   }
 
-  toggleMenu(id: string, event: Event) {
+  toggleMenu(id: string, event: MouseEvent) {
     event.stopPropagation();
-    this.openMenuId = this.openMenuId === id ? null : id;
+    if (this.openMenuId === id) {
+      this.openMenuId = null;
+      return;
+    }
+    const btn = event.currentTarget as HTMLElement;
+    const rect = btn.getBoundingClientRect();
+    this.menuPosition = { top: rect.bottom + 4, right: window.innerWidth - rect.right };
+    this.openMenuId = id;
   }
 
   // Repairer panel state
