@@ -1,4 +1,4 @@
 export const APP_VERSION = {
-    version: 'v1.27.1',
-    description: 'Take a photo now always opens the webcam instead of the file picker.'
+    version: 'v1.27.2',
+    description: 'Camera on mobile now uses rear-facing camera by default.'
 };

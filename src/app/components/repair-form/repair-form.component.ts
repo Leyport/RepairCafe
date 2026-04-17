@@ -1463,7 +1463,7 @@ export class RepairFormComponent implements OnInit, OnDestroy {
     // Wait one tick for Angular to render the video element
     setTimeout(async () => {
       try {
-        this.videoStream = await navigator.mediaDevices.getUserMedia({ video: true });
+        this.videoStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
         this.webcamVideoRef.nativeElement.srcObject = this.videoStream;
       } catch {
         this.showWebcamModal = false;
