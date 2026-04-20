@@ -189,10 +189,10 @@ import { RepairerFormComponent } from '../repairer-form/repairer-form.component'
 
                             <th *ngIf="schema === 'owners'" (click)="onSort('name')" class="sortable" title="Owner Name">👤 {{ getSortIcon('name') }}</th>
                             <th *ngIf="schema === 'owners'" (click)="onSort('telephone')" class="sortable" title="Telephone">Contact Number {{ getSortIcon('telephone') }}</th>
-                            <th *ngIf="schema === 'owners'" (click)="onSort('firstSeen')" class="sortable" title="First Seen Date">📅 {{ getSortIcon('firstSeen') }}</th>
                             <th *ngIf="schema === 'owners'" title="Physical Assistance Required" class="assist-col">🦽</th>
                             <th *ngIf="schema === 'owners'" title="Visual Assistance Required" class="assist-col">👁️</th>
                             <th *ngIf="schema === 'owners'" title="Hearing Assistance Required" class="assist-col">🦻</th>
+                            <th *ngIf="schema === 'owners'" (click)="onSort('firstSeen')" class="sortable" title="First Seen Date">📅 {{ getSortIcon('firstSeen') }}</th>
 
                             <th *ngIf="schema === 'tags'" (click)="onSort('name')" class="sortable" title="Tag Name">🏷️ {{ getSortIcon('name') }}</th>
                             <th *ngIf="schema === 'tags'" (click)="onSort('emoji')" class="sortable" title="Emoji">😀 {{ getSortIcon('emoji') }}</th>
@@ -391,14 +391,13 @@ import { RepairerFormComponent } from '../repairer-form/repairer-form.component'
                                     placeholder="Name">
                             </td>
                             <td>
-                                <input 
-                                    [ngModel]="record.telephone" 
+                                <input
+                                    [ngModel]="record.telephone"
                                     (blur)="updateRecord(record, schema, 'telephone', $event)"
                                     class="inline-input"
                                     [title]="record.telephone || ''"
                                     placeholder="Telephone">
                             </td>
-                            <td [title]="record.firstSeen?.toDate ? (record.firstSeen?.toDate() | date:'mediumDate') : '-'">{{ record.firstSeen?.toDate ? (record.firstSeen?.toDate() | date:'mediumDate') : '-' }}</td>
                             <td class="assist-col">
                               <button class="assist-toggle" [class.active]="record.physicalAssistance"
                                       (click)="toggleOwnerFlag(record, 'physicalAssistance', $event)"
@@ -420,6 +419,7 @@ import { RepairerFormComponent } from '../repairer-form/repairer-form.component'
                                 🦻
                               </button>
                             </td>
+                            <td [title]="record.firstSeen?.toDate ? (record.firstSeen?.toDate() | date:'mediumDate') : '-'">{{ record.firstSeen?.toDate ? (record.firstSeen?.toDate() | date:'mediumDate') : '-' }}</td>
                             </ng-container>
 
                             <ng-container *ngIf="schema === 'tags'">
