@@ -191,6 +191,9 @@ import { RepairerFormComponent } from '../repairer-form/repairer-form.component'
                             <th *ngIf="schema === 'owners'" (click)="onSort('telephone')" class="sortable" title="Telephone">📞 {{ getSortIcon('telephone') }}</th>
                             <th *ngIf="schema === 'owners'" (click)="onSort('email')" class="sortable" title="Email">📧 {{ getSortIcon('email') }}</th>
                             <th *ngIf="schema === 'owners'" (click)="onSort('firstSeen')" class="sortable" title="First Seen Date">📅 {{ getSortIcon('firstSeen') }}</th>
+                            <th *ngIf="schema === 'owners'" title="Physical Assistance Required" class="assist-col">🦽</th>
+                            <th *ngIf="schema === 'owners'" title="Visual Assistance Required" class="assist-col">👁️</th>
+                            <th *ngIf="schema === 'owners'" title="Hearing Assistance Required" class="assist-col">🦻</th>
 
                             <th *ngIf="schema === 'tags'" (click)="onSort('name')" class="sortable" title="Tag Name">🏷️ {{ getSortIcon('name') }}</th>
                             <th *ngIf="schema === 'tags'" (click)="onSort('emoji')" class="sortable" title="Emoji">😀 {{ getSortIcon('emoji') }}</th>
@@ -405,6 +408,27 @@ import { RepairerFormComponent } from '../repairer-form/repairer-form.component'
                                     placeholder="Email">
                             </td>
                             <td [title]="record.firstSeen?.toDate ? (record.firstSeen?.toDate() | date:'mediumDate') : '-'">{{ record.firstSeen?.toDate ? (record.firstSeen?.toDate() | date:'mediumDate') : '-' }}</td>
+                            <td class="assist-col">
+                              <button class="assist-toggle" [class.active]="record.physicalAssistance"
+                                      (click)="toggleOwnerFlag(record, 'physicalAssistance', $event)"
+                                      [title]="record.physicalAssistance ? 'Physical assistance required' : 'No physical assistance'">
+                                🦽
+                              </button>
+                            </td>
+                            <td class="assist-col">
+                              <button class="assist-toggle" [class.active]="record.visualAssistance"
+                                      (click)="toggleOwnerFlag(record, 'visualAssistance', $event)"
+                                      [title]="record.visualAssistance ? 'Visual assistance required' : 'No visual assistance'">
+                                👁️
+                              </button>
+                            </td>
+                            <td class="assist-col">
+                              <button class="assist-toggle" [class.active]="record.hearingAssistance"
+                                      (click)="toggleOwnerFlag(record, 'hearingAssistance', $event)"
+                                      [title]="record.hearingAssistance ? 'Hearing assistance required' : 'No hearing assistance'">
+                                🦻
+                              </button>
+                            </td>
                             </ng-container>
 
                             <ng-container *ngIf="schema === 'tags'">
@@ -625,6 +649,25 @@ import { RepairerFormComponent } from '../repairer-form/repairer-form.component'
     .item-complete:hover { background: rgba(40,180,99,0.15) !important; color: #58d68d !important; }
     .item-delete:hover   { background: rgba(231,76,60,0.12)  !important; color: #f1948a !important; }
     .row-dropdown-divider { height: 1px; background: rgba(255,255,255,0.08); margin: 0.2rem 0.4rem; }
+
+    .assist-col { width: 44px; text-align: center; padding: 0.5rem 0.25rem !important; }
+    .assist-toggle {
+      background: none;
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 6px;
+      width: 32px;
+      height: 28px;
+      cursor: pointer;
+      font-size: 1rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto;
+      opacity: 0.25;
+      transition: all 0.15s;
+    }
+    .assist-toggle:hover { opacity: 0.7; border-color: rgba(255,255,255,0.3); }
+    .assist-toggle.active { opacity: 1; background: rgba(255,180,0,0.15); border-color: rgba(255,180,0,0.5); }
 
     .tabs-container {
       border-radius: 12px;
@@ -1949,6 +1992,18 @@ export class DatabaseExplorerComponent implements OnInit {
 
   getPhotoUrl(photo: any): string {
     return typeof photo === 'string' ? photo : photo?.url ?? '';
+  }
+
+  async toggleOwnerFlag(record: any, field: string, event: Event) {
+    event.stopPropagation();
+    const newValue = !record[field];
+    record[field] = newValue;
+    try {
+      await this.repairService.updateRecord('owners', record.id, { [field]: newValue });
+    } catch (err) {
+      console.error('Failed to update owner flag:', err);
+      record[field] = !newValue; // revert on failure
+    }
   }
 
   openEditRecord(id: string) {

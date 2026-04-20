@@ -41,6 +41,9 @@ export interface Owner {
   telephone?: string;
   email?: string;
   firstSeen: any; // Timestamp
+  physicalAssistance?: boolean;
+  visualAssistance?: boolean;
+  hearingAssistance?: boolean;
 }
 
 export interface Repairer {
