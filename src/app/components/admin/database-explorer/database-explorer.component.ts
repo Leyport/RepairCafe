@@ -187,7 +187,7 @@ import { RepairerFormComponent } from '../repairer-form/repairer-form.component'
                             <th *ngIf="schema === 'repairers'" (click)="onSort('isPrimary')" class="sortable">Role {{ getSortIcon('isPrimary') }}</th>
                             <th *ngIf="schema === 'repairers'" (click)="onSort('createdAt')" class="sortable">Joined {{ getSortIcon('createdAt') }}</th>
 
-                            <th *ngIf="schema === 'owners'" (click)="onSort('name')" class="sortable" title="Owner Name">👤 {{ getSortIcon('name') }}</th>
+                            <th *ngIf="schema === 'owners'" (click)="onSort('name')" class="sortable" title="Visitor Name">👤 {{ getSortIcon('name') }}</th>
                             <th *ngIf="schema === 'owners'" (click)="onSort('telephone')" class="sortable" title="Telephone">Contact Number {{ getSortIcon('telephone') }}<br><span class="assist-label">Today 10am–2pm</span></th>
                             <th *ngIf="schema === 'owners'" title="Physical Assistance Required" class="assist-col">🦽<br><span class="assist-label">Physical</span></th>
                             <th *ngIf="schema === 'owners'" title="Visual Assistance Required" class="assist-col">👁️<br><span class="assist-label">Visual</span></th>
@@ -197,7 +197,7 @@ import { RepairerFormComponent } from '../repairer-form/repairer-form.component'
                             <th *ngIf="schema === 'tags'" (click)="onSort('name')" class="sortable" title="Tag Name">🏷️ {{ getSortIcon('name') }}</th>
                             <th *ngIf="schema === 'tags'" (click)="onSort('emoji')" class="sortable" title="Emoji">😀 {{ getSortIcon('emoji') }}</th>
                             
-                            <th [title]="schema === 'owners' ? 'Delete Owner' : 'Actions'">{{ schema === 'owners' ? '🗑️' : 'Actions' }}</th>
+                            <th [title]="schema === 'owners' ? 'Delete Visitor' : 'Actions'">{{ schema === 'owners' ? '🗑️' : 'Actions' }}</th>
                         </tr>
                         </thead>
                         <tbody>
@@ -237,7 +237,7 @@ import { RepairerFormComponent } from '../repairer-form/repairer-form.component'
                                     [title]="record.itemDescription"
                                     placeholder="Description">
                             </td>
-                            <td class="owner-col" (dblclick)="selectCollection('owners')" title="Double-click to manage owners">
+                            <td class="owner-col" (dblclick)="selectCollection('owners')" title="Double-click to manage visitors">
                                 <div class="lov-container">
                                     <select 
                                         [ngModel]="record.owner || ''" 
@@ -245,7 +245,7 @@ import { RepairerFormComponent } from '../repairer-form/repairer-form.component'
                                         class="inline-select owner-select"
                                         [title]="record.owner || ''"
                                         (click)="$event.stopPropagation()">
-                                        <option value="" disabled>Select Owner...</option>
+                                        <option value="" disabled>Select Visitor...</option>
                                         <option *ngFor="let owner of owners" [value]="owner.name">{{ owner.name }}</option>
                                     </select>
                                     <button 
@@ -471,7 +471,7 @@ import { RepairerFormComponent } from '../repairer-form/repairer-form.component'
                                     <rect x="2" y="17" width="6" height="4" rx="1"></rect>
                                   </svg>
                                 </button>
-                                <button *ngIf="schema === 'owners'" (click)="deleteOwner(record.id, record.name, $event)" class="btn-icon" title="Delete Owner">🗑️</button>
+                                <button *ngIf="schema === 'owners'" (click)="deleteOwner(record.id, record.name, $event)" class="btn-icon" title="Delete Visitor">🗑️</button>
                             </td>
                         </tr>
                         </tbody>
@@ -1670,7 +1670,7 @@ export class DatabaseExplorerComponent implements OnInit {
     switch (col) {
       case 'repairItems': return 'Repair Items';
       case 'repairers': return 'Repairers';
-      case 'owners': return 'Owners';
+      case 'owners': return 'Visitors';
       case 'tags': return 'Tags';
       default: return col;
     }
@@ -1702,7 +1702,7 @@ export class DatabaseExplorerComponent implements OnInit {
           await this.repairService.addRepairer(name);
         }
       } else if (this.selectedCollection === 'owners') {
-        const name = prompt('Enter name for new owner:');
+        const name = prompt('Enter name for new visitor:');
         if (name) {
           await this.repairService.ensureOwnerExists(name);
         }
@@ -1935,7 +1935,7 @@ export class DatabaseExplorerComponent implements OnInit {
 
   async deleteOwner(id: string, name: string, event: Event) {
     event.stopPropagation();
-    if (confirm(`Are you sure you want to delete owner "${name}"? This will not delete their repair records, but they will be removed from the owners list.`)) {
+    if (confirm(`Are you sure you want to delete visitor "${name}"? This will not delete their repair records, but they will be removed from the visitors list.`)) {
       try {
         await this.repairService.deleteMultipleRecords('owners', [id]);
         this.selectCollection('owners');
