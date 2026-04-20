@@ -39,7 +39,6 @@ export interface Owner {
   id?: string;
   name: string;
   telephone?: string;
-  email?: string;
   firstSeen: any; // Timestamp
   physicalAssistance?: boolean;
   visualAssistance?: boolean;

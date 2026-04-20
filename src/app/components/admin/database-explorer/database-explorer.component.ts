@@ -189,7 +189,6 @@ import { RepairerFormComponent } from '../repairer-form/repairer-form.component'
 
                             <th *ngIf="schema === 'owners'" (click)="onSort('name')" class="sortable" title="Owner Name">👤 {{ getSortIcon('name') }}</th>
                             <th *ngIf="schema === 'owners'" (click)="onSort('telephone')" class="sortable" title="Telephone">📞 {{ getSortIcon('telephone') }}</th>
-                            <th *ngIf="schema === 'owners'" (click)="onSort('email')" class="sortable" title="Email">📧 {{ getSortIcon('email') }}</th>
                             <th *ngIf="schema === 'owners'" (click)="onSort('firstSeen')" class="sortable" title="First Seen Date">📅 {{ getSortIcon('firstSeen') }}</th>
                             <th *ngIf="schema === 'owners'" title="Physical Assistance Required" class="assist-col">🦽</th>
                             <th *ngIf="schema === 'owners'" title="Visual Assistance Required" class="assist-col">👁️</th>
@@ -398,14 +397,6 @@ import { RepairerFormComponent } from '../repairer-form/repairer-form.component'
                                     class="inline-input"
                                     [title]="record.telephone || ''"
                                     placeholder="Telephone">
-                            </td>
-                            <td>
-                                <input 
-                                    [ngModel]="record.email" 
-                                    (blur)="updateRecord(record, schema, 'email', $event)"
-                                    class="inline-input"
-                                    [title]="record.email || ''"
-                                    placeholder="Email">
                             </td>
                             <td [title]="record.firstSeen?.toDate ? (record.firstSeen?.toDate() | date:'mediumDate') : '-'">{{ record.firstSeen?.toDate ? (record.firstSeen?.toDate() | date:'mediumDate') : '-' }}</td>
                             <td class="assist-col">
@@ -2020,7 +2011,7 @@ export class DatabaseExplorerComponent implements OnInit {
   showGdprMenu = false;
 
   private gdprPiiFields: Record<string, string[]> = {
-    owners:      ['name', 'telephone', 'email'],
+    owners:      ['name', 'telephone'],
     repairItems: ['owner', 'telephone'],
     repairers:   ['name'],
   };
