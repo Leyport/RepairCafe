@@ -188,7 +188,7 @@ import { RepairerFormComponent } from '../repairer-form/repairer-form.component'
                             <th *ngIf="schema === 'repairers'" (click)="onSort('createdAt')" class="sortable">Joined {{ getSortIcon('createdAt') }}</th>
 
                             <th *ngIf="schema === 'owners'" (click)="onSort('name')" class="sortable" title="Owner Name">👤 {{ getSortIcon('name') }}</th>
-                            <th *ngIf="schema === 'owners'" (click)="onSort('telephone')" class="sortable" title="Telephone">Contact Number {{ getSortIcon('telephone') }}</th>
+                            <th *ngIf="schema === 'owners'" (click)="onSort('telephone')" class="sortable" title="Telephone">Contact Number {{ getSortIcon('telephone') }}<br><span class="assist-label">Today 10am–2pm</span></th>
                             <th *ngIf="schema === 'owners'" title="Physical Assistance Required" class="assist-col">🦽<br><span class="assist-label">Physical</span></th>
                             <th *ngIf="schema === 'owners'" title="Visual Assistance Required" class="assist-col">👁️<br><span class="assist-label">Visual</span></th>
                             <th *ngIf="schema === 'owners'" title="Hearing Assistance Required" class="assist-col">🦻<br><span class="assist-label">Hearing</span></th>
