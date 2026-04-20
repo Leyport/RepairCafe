@@ -189,9 +189,9 @@ import { RepairerFormComponent } from '../repairer-form/repairer-form.component'
 
                             <th *ngIf="schema === 'owners'" (click)="onSort('name')" class="sortable" title="Owner Name">👤 {{ getSortIcon('name') }}</th>
                             <th *ngIf="schema === 'owners'" (click)="onSort('telephone')" class="sortable" title="Telephone">Contact Number {{ getSortIcon('telephone') }}</th>
-                            <th *ngIf="schema === 'owners'" title="Physical Assistance Required" class="assist-col">🦽</th>
-                            <th *ngIf="schema === 'owners'" title="Visual Assistance Required" class="assist-col">👁️</th>
-                            <th *ngIf="schema === 'owners'" title="Hearing Assistance Required" class="assist-col">🦻</th>
+                            <th *ngIf="schema === 'owners'" title="Physical Assistance Required" class="assist-col">🦽<br><span class="assist-label">Physical</span></th>
+                            <th *ngIf="schema === 'owners'" title="Visual Assistance Required" class="assist-col">👁️<br><span class="assist-label">Visual</span></th>
+                            <th *ngIf="schema === 'owners'" title="Hearing Assistance Required" class="assist-col">🦻<br><span class="assist-label">Hearing</span></th>
                             <th *ngIf="schema === 'owners'" (click)="onSort('firstSeen')" class="sortable" title="First Seen Date">📅 {{ getSortIcon('firstSeen') }}</th>
 
                             <th *ngIf="schema === 'tags'" (click)="onSort('name')" class="sortable" title="Tag Name">🏷️ {{ getSortIcon('name') }}</th>
@@ -641,7 +641,8 @@ import { RepairerFormComponent } from '../repairer-form/repairer-form.component'
     .item-delete:hover   { background: rgba(231,76,60,0.12)  !important; color: #f1948a !important; }
     .row-dropdown-divider { height: 1px; background: rgba(255,255,255,0.08); margin: 0.2rem 0.4rem; }
 
-    .assist-col { width: 44px; text-align: center; padding: 0.5rem 0.25rem !important; }
+    .assist-col { width: 54px; text-align: center; padding: 0.5rem 0.25rem !important; }
+    .assist-label { display: block; font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.04em; opacity: 0.6; line-height: 1.2; margin-top: 2px; }
     .assist-toggle {
       background: none;
       border: 1px solid rgba(255,255,255,0.1);
