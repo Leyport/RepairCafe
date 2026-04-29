@@ -1,5 +1,5 @@
 import { Injectable, inject } from '@angular/core';
-import { Auth, GoogleAuthProvider, OAuthProvider, signInWithPopup, signOut, user, User, signInWithEmailAndPassword, createUserWithEmailAndPassword } from '@angular/fire/auth';
+import { Auth, GoogleAuthProvider, OAuthProvider, FacebookAuthProvider, signInWithPopup, signOut, user, User, signInWithEmailAndPassword, createUserWithEmailAndPassword } from '@angular/fire/auth';
 import { Firestore, doc, getDoc, setDoc, Timestamp } from '@angular/fire/firestore';
 import { Observable, from, map, of, switchMap, catchError } from 'rxjs';
 
@@ -60,6 +60,34 @@ export class AuthService {
             return { user: result.user, token: credential?.accessToken };
         } catch (error) {
             console.error('Apple Login error:', error);
+            throw error;
+        }
+    }
+
+    async loginWithMicrosoft(): Promise<any> {
+        const provider = new OAuthProvider('microsoft.com');
+        provider.addScope('email');
+        try {
+            const result = await signInWithPopup(this.auth, provider);
+            const credential = OAuthProvider.credentialFromResult(result);
+            await this.saveUserProfile(result.user);
+            return { user: result.user, token: credential?.accessToken };
+        } catch (error) {
+            console.error('Microsoft Login error:', error);
+            throw error;
+        }
+    }
+
+    async loginWithFacebook(): Promise<any> {
+        const provider = new FacebookAuthProvider();
+        provider.addScope('email');
+        try {
+            const result = await signInWithPopup(this.auth, provider);
+            const credential = FacebookAuthProvider.credentialFromResult(result);
+            await this.saveUserProfile(result.user);
+            return { user: result.user, token: credential?.accessToken };
+        } catch (error) {
+            console.error('Facebook Login error:', error);
             throw error;
         }
     }

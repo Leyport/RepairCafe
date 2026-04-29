@@ -1,10 +1,10 @@
-import { Component, EventEmitter, Input, Output } from '@angular/core';
+import { Component, EventEmitter, HostListener, Input, Output } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Repairer } from '../../../models/repairer.model';
 import { RepairService } from '../../../services/repair.service';
 import { AvatarService } from '../../../services/avatar.service';
-import { inject, OnChanges } from '@angular/core';
+import { inject, OnChanges, OnDestroy } from '@angular/core';
 
 @Component({
   selector: 'app-repairer-form',
@@ -21,53 +21,52 @@ import { inject, OnChanges } from '@angular/core';
         <div class="form-group">
           <!-- Avatar Section -->
           <div class="avatar-section">
-            <div class="avatar-preview" [style.backgroundImage]="'url(' + (photoPreview || photoUrl || 'assets/placeholder-avatar.png') + ')'">
-              <div class="overlay" (click)="isEmojiMode ? null : fileInput.click()">
-                <span>{{ isEmojiMode ? '😊' : '📷' }}</span>
-              </div>
+            <div class="avatar-preview"
+              [style.backgroundImage]="'url(' + (photoPreview || photoUrl || 'assets/placeholder-avatar.png') + ')'"
+              [class.emoji-draggable]="!!selectedEmoji"
+              [class.dragging]="isDraggingEmoji"
+              (mousedown)="onAvatarDragStart($event)">
+              <div class="overlay"></div>
             </div>
 
             <div class="mode-toggles">
-                <button class="btn-toggle" [class.active]="!isEmojiMode && !isSearchMode" (click)="toggleMode('photo')">Upload Image</button>
-                <button class="btn-toggle" [class.active]="isSearchMode" (click)="toggleMode('search')">Search Internet</button>
-                <button class="btn-toggle" [class.active]="isEmojiMode" (click)="toggleMode('emoji')">Choose Emoji</button>
+                <button class="btn-toggle" [class.active]="!isCameraMode" (click)="setEmojiMode()">Choose Emoji</button>
+                <button class="btn-toggle" [class.active]="isCameraMode" (click)="setCameraMode()">Take Photo</button>
             </div>
 
-            <div class="search-section" *ngIf="isSearchMode">
-                <div class="search-bar">
-                    <input type="text" [(ngModel)]="searchQuery" (keyup.enter)="onAvatarSearch()" placeholder="Search (e.g. technician)...">
-                    <button class="btn-search" (click)="onAvatarSearch()" [disabled]="isSearching">
-                        {{ isSearching ? '...' : '🔍' }}
-                    </button>
+            <div class="emoji-section" *ngIf="!isCameraMode">
+                <div class="emoji-search-bar">
+                    <input
+                        type="text"
+                        [(ngModel)]="emojiSearchQuery"
+                        placeholder="Search emojis..."
+                        class="emoji-search-input">
                 </div>
-                <div class="search-grid custom-scrollbar" *ngIf="searchResults.length > 0">
-                    <div 
-                        *ngFor="let result of searchResults" 
-                        class="search-item" 
-                        [style.backgroundImage]="'url(' + result + ')'"
-                        (click)="selectInternetAvatar(result)">
+                <button type="button" class="btn-emoji-toggle" (click)="emojiGridExpanded = !emojiGridExpanded">
+                    {{ emojiGridExpanded ? 'Hide Emojis ▲' : 'Show Emojis ▼' }}
+                </button>
+                <div class="emoji-grid custom-scrollbar" *ngIf="emojiGridExpanded">
+                    <button
+                        *ngFor="let item of filteredEmojis"
+                        class="emoji-btn"
+                        [title]="item.name"
+                        (click)="selectEmoji(item.emoji)">
+                        {{ item.emoji }}
+                    </button>
+                    <div *ngIf="filteredEmojis.length === 0" class="no-emoji-results">
+                        No emojis found
                     </div>
                 </div>
-                <div class="no-results" *ngIf="searchResults.length === 0 && !isSearching && searchQuery">
-                    No avatars found.
+            </div>
+
+            <div class="camera-section" *ngIf="isCameraMode">
+                <video class="camera-video" autoplay playsinline muted></video>
+                <div class="camera-controls">
+                    <button class="btn-capture" (click)="capturePhoto()">📸 Capture</button>
+                    <button class="btn-cancel-camera" (click)="setEmojiMode()">Cancel</button>
                 </div>
             </div>
 
-            <div class="emoji-grid custom-scrollbar" *ngIf="isEmojiMode">
-                <button 
-                    *ngFor="let emoji of availableEmojis" 
-                    class="emoji-btn" 
-                    (click)="selectEmoji(emoji)">
-                    {{ emoji }}
-                </button>
-            </div>
-
-            <input #fileInput type="file" (change)="onFileSelected($event)" accept="image/*" hidden>
-            
-            <div class="avatar-actions" *ngIf="!isEmojiMode && !isSearchMode">
-              <button class="btn-text" (click)="fileInput.click()">Upload New Photo</button>
-              <button *ngIf="photoPreview || photoUrl" class="btn-text text-danger" (click)="removePhoto()">Remove Photo</button>
-            </div>
           </div>
 
           <label for="repairerName">Name</label>
@@ -77,6 +76,13 @@ import { inject, OnChanges } from '@angular/core';
             [(ngModel)]="name"
             placeholder="Enter repairer name"
             autofocus>
+
+          <label for="repairerEmail">Email Address</label>
+          <input
+            type="email"
+            id="repairerEmail"
+            [(ngModel)]="email"
+            placeholder="Enter email address">
 
           <div class="primary-toggle" *ngIf="isAdmin">
             <label class="checkbox-label">
@@ -109,8 +115,11 @@ import { inject, OnChanges } from '@angular/core';
       backdrop-filter: blur(4px);
       z-index: 1000;
       display: flex;
-      align-items: center;
+      align-items: flex-start;
       justify-content: center;
+      overflow-y: auto;
+      padding: 2rem 1rem;
+      box-sizing: border-box;
     }
 
     .overlay-content {
@@ -123,7 +132,7 @@ import { inject, OnChanges } from '@angular/core';
       box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
       display: flex;
       flex-direction: column;
-      max-height: 90vh;
+      margin: auto 0;
     }
 
     header {
@@ -272,6 +281,16 @@ import { inject, OnChanges } from '@angular/core';
       opacity: 1;
     }
 
+    .avatar-preview.emoji-draggable {
+      cursor: grab;
+    }
+    .avatar-preview.emoji-draggable.dragging {
+      cursor: grabbing;
+    }
+    .avatar-preview.emoji-draggable.dragging .overlay {
+      opacity: 0;
+    }
+
     .avatar-actions {
       display: flex;
       gap: 1rem;
@@ -377,6 +396,48 @@ import { inject, OnChanges } from '@angular/core';
         padding: 1rem;
     }
     
+    .emoji-section {
+        width: 100%;
+    }
+
+    .emoji-search-bar {
+        margin-bottom: 0.5rem;
+    }
+
+    .emoji-search-input {
+        width: 100%;
+        padding: 0.5rem 0.75rem;
+        background: rgba(0, 0, 0, 0.2);
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        border-radius: 6px;
+        color: white;
+        font-size: 0.9rem;
+        box-sizing: border-box;
+    }
+
+    .emoji-search-input:focus {
+        outline: none;
+        border-color: var(--accent-color);
+    }
+
+    .btn-emoji-toggle {
+        width: 100%;
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 6px;
+        color: rgba(255, 255, 255, 0.6);
+        font-size: 0.82rem;
+        padding: 0.4rem 0.75rem;
+        cursor: pointer;
+        text-align: left;
+        margin-bottom: 0.4rem;
+        transition: background 0.2s, color 0.2s;
+    }
+    .btn-emoji-toggle:hover {
+        background: rgba(255, 255, 255, 0.09);
+        color: rgba(255, 255, 255, 0.85);
+    }
+
     .emoji-grid {
         display: grid;
         grid-template-columns: repeat(6, 1fr);
@@ -387,8 +448,9 @@ import { inject, OnChanges } from '@angular/core';
         background: rgba(0, 0, 0, 0.2);
         border-radius: 8px;
         width: 100%;
+        box-sizing: border-box;
     }
-    
+
     .emoji-btn {
         background: transparent;
         border: none;
@@ -402,6 +464,62 @@ import { inject, OnChanges } from '@angular/core';
         background: rgba(255, 255, 255, 0.1);
         transform: scale(1.2);
     }
+
+    .no-emoji-results {
+        grid-column: 1 / -1;
+        text-align: center;
+        color: rgba(255, 255, 255, 0.4);
+        font-size: 0.85rem;
+        padding: 1rem 0;
+    }
+
+    .camera-section {
+        width: 100%;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0.75rem;
+    }
+
+    .camera-video {
+        width: 100%;
+        max-height: 180px;
+        border-radius: 8px;
+        background: #000;
+        object-fit: cover;
+        display: block;
+    }
+
+    .camera-controls {
+        display: flex;
+        gap: 0.75rem;
+        width: 100%;
+    }
+
+    .btn-capture {
+        flex: 1;
+        background: var(--accent-color);
+        color: #000;
+        font-weight: 600;
+        border: none;
+        border-radius: 8px;
+        padding: 0.65rem;
+        cursor: pointer;
+        font-size: 1rem;
+        transition: opacity 0.2s;
+    }
+    .btn-capture:hover { opacity: 0.85; }
+
+    .btn-cancel-camera {
+        background: rgba(255, 255, 255, 0.07);
+        color: rgba(255, 255, 255, 0.65);
+        border: none;
+        border-radius: 8px;
+        padding: 0.65rem 1rem;
+        cursor: pointer;
+        transition: background 0.2s;
+    }
+    .btn-cancel-camera:hover { background: rgba(255,255,255,0.12); }
 
     .primary-toggle {
       margin-top: 1.2rem;
@@ -431,83 +549,271 @@ import { inject, OnChanges } from '@angular/core';
     }
   `]
 })
-export class RepairerFormComponent implements OnChanges {
+export class RepairerFormComponent implements OnChanges, OnDestroy {
   private repairService = inject(RepairService);
   private avatarService = inject(AvatarService);
 
   @Input() repairer: Repairer | null = null;
   @Input() isAdmin = false;
   @Output() closeEvent = new EventEmitter<void>();
-  @Output() saveEvent = new EventEmitter<{ id?: string, name: string, photoUrl?: string, isPrimary: boolean }>();
+  @Output() saveEvent = new EventEmitter<{ id?: string, name: string, photoUrl?: string, isPrimary: boolean, email: string }>();
   @Output() deleteEvent = new EventEmitter<string>();
 
   name = '';
+  email = '';
   isPrimary = false;
   photoUrl: string | null = null;
   photoPreview: string | null = null;
   selectedFile: File | null = null;
   isUploading = false;
-  isEmojiMode = false;
+  isEmojiMode = true;
   isSearchMode = false;
   isSearching = false;
   searchQuery = '';
   searchResults: string[] = [];
+  emojiSearchQuery = '';
+  emojiGridExpanded = false;
+  selectedEmoji = '';
+  emojiOffsetX = 50;
+  emojiOffsetY = 50;
+  isDraggingEmoji = false;
+  isCameraMode = false;
+  private cameraStream: MediaStream | null = null;
+  private dragLastX = 0;
+  private dragLastY = 0;
 
-  availableEmojis = [
-    '😀', '😃', '😄', '😁', '😆', '😅', '😂', '🤣', '🥲', '☺️', '😊', '😇',
-    '🙂', '🙃', '😉', '😌', '😍', '🥰', '😘', '😗', '😋', '😛', '😝', '😜',
-    '🤪', '🤨', '🧐', '🤓', '😎', '🥸', '🤩', '🥳', '😏', '😒', '😞', '😔',
-    '🦊', '🐱', '🦁', '🐶', '🐵', '🐻', '🐨', '🐼', '🐹', '🐰', '🐯', '🐮',
-    '🐷', '🐸', '🐙', '🦄', '🐝', '🐞', '🦋', '🦉', '🐢', '🦖', '🐳', '🦈',
-    '🔨', '🔧', '🪛', '🔩', '⚙️', '🧶', '🧵', '💡', '🔋', '🔌', '💻', '📷'
+  emojiData = [
+    { emoji: '😀', name: 'grinning', keywords: ['smile', 'happy', 'face', 'grin'] },
+    { emoji: '😃', name: 'big smile', keywords: ['smile', 'happy', 'face', 'joy'] },
+    { emoji: '😄', name: 'grinning eyes', keywords: ['smile', 'happy', 'laugh'] },
+    { emoji: '😁', name: 'beaming', keywords: ['smile', 'happy', 'grin'] },
+    { emoji: '😆', name: 'laughing', keywords: ['laugh', 'happy', 'haha'] },
+    { emoji: '😅', name: 'sweat smile', keywords: ['nervous', 'sweat', 'laugh'] },
+    { emoji: '😂', name: 'tears of joy', keywords: ['laugh', 'cry', 'funny', 'lol'] },
+    { emoji: '🤣', name: 'rofl', keywords: ['laugh', 'floor', 'funny', 'rolling'] },
+    { emoji: '😊', name: 'smiling', keywords: ['smile', 'happy', 'blush', 'cute'] },
+    { emoji: '😇', name: 'angel', keywords: ['angel', 'halo', 'innocent', 'good'] },
+    { emoji: '🙂', name: 'slightly smiling', keywords: ['smile', 'happy'] },
+    { emoji: '🙃', name: 'upside down', keywords: ['silly', 'sarcasm'] },
+    { emoji: '😉', name: 'winking', keywords: ['wink', 'cheeky'] },
+    { emoji: '😍', name: 'heart eyes', keywords: ['love', 'heart', 'adore'] },
+    { emoji: '🥰', name: 'smiling hearts', keywords: ['love', 'heart', 'cute'] },
+    { emoji: '😎', name: 'cool', keywords: ['cool', 'sunglasses', 'awesome'] },
+    { emoji: '🤓', name: 'nerd', keywords: ['nerd', 'glasses', 'geek', 'smart'] },
+    { emoji: '🧐', name: 'monocle', keywords: ['fancy', 'monocle', 'smart', 'inspect'] },
+    { emoji: '🤩', name: 'star struck', keywords: ['star', 'excited', 'wow', 'famous'] },
+    { emoji: '🥳', name: 'partying', keywords: ['party', 'celebrate', 'birthday'] },
+    { emoji: '😏', name: 'smirking', keywords: ['smirk', 'sly', 'cheeky'] },
+    { emoji: '🤔', name: 'thinking', keywords: ['think', 'hmm', 'wonder', 'pondering'] },
+    { emoji: '🤗', name: 'hugging', keywords: ['hug', 'warm', 'friendly'] },
+    { emoji: '😤', name: 'triumph', keywords: ['steam', 'proud', 'determined'] },
+    { emoji: '💪', name: 'flexed bicep', keywords: ['strong', 'muscle', 'flex', 'power'] },
+    { emoji: '👍', name: 'thumbs up', keywords: ['good', 'ok', 'yes', 'approve', 'like'] },
+    { emoji: '👋', name: 'waving hand', keywords: ['wave', 'hello', 'hi', 'bye'] },
+    { emoji: '🙌', name: 'raised hands', keywords: ['celebrate', 'hooray', 'praise'] },
+    { emoji: '👏', name: 'clapping', keywords: ['clap', 'applause', 'bravo', 'well done'] },
+    { emoji: '🦊', name: 'fox', keywords: ['fox', 'animal', 'cute', 'clever'] },
+    { emoji: '🐱', name: 'cat', keywords: ['cat', 'kitty', 'animal', 'pet'] },
+    { emoji: '🦁', name: 'lion', keywords: ['lion', 'animal', 'king', 'brave'] },
+    { emoji: '🐶', name: 'dog', keywords: ['dog', 'puppy', 'animal', 'pet'] },
+    { emoji: '🐵', name: 'monkey', keywords: ['monkey', 'animal', 'funny'] },
+    { emoji: '🐻', name: 'bear', keywords: ['bear', 'animal', 'teddy'] },
+    { emoji: '🐨', name: 'koala', keywords: ['koala', 'animal', 'cute'] },
+    { emoji: '🐼', name: 'panda', keywords: ['panda', 'animal', 'cute'] },
+    { emoji: '🐹', name: 'hamster', keywords: ['hamster', 'animal', 'cute'] },
+    { emoji: '🐰', name: 'rabbit', keywords: ['rabbit', 'bunny', 'animal'] },
+    { emoji: '🐯', name: 'tiger', keywords: ['tiger', 'animal', 'stripe'] },
+    { emoji: '🐮', name: 'cow', keywords: ['cow', 'animal', 'farm'] },
+    { emoji: '🐷', name: 'pig', keywords: ['pig', 'animal', 'farm', 'oink'] },
+    { emoji: '🐸', name: 'frog', keywords: ['frog', 'animal', 'green'] },
+    { emoji: '🐙', name: 'octopus', keywords: ['octopus', 'sea', 'tentacles'] },
+    { emoji: '🦄', name: 'unicorn', keywords: ['unicorn', 'magic', 'mythical'] },
+    { emoji: '🐝', name: 'bee', keywords: ['bee', 'insect', 'honey', 'buzz'] },
+    { emoji: '🐞', name: 'ladybug', keywords: ['ladybug', 'insect', 'bug', 'red'] },
+    { emoji: '🦋', name: 'butterfly', keywords: ['butterfly', 'insect', 'pretty'] },
+    { emoji: '🦉', name: 'owl', keywords: ['owl', 'bird', 'wise', 'night'] },
+    { emoji: '🐢', name: 'turtle', keywords: ['turtle', 'slow', 'animal', 'shell'] },
+    { emoji: '🦖', name: 'dinosaur', keywords: ['dinosaur', 'dino', 'rex', 'ancient'] },
+    { emoji: '🐳', name: 'whale', keywords: ['whale', 'sea', 'ocean', 'big'] },
+    { emoji: '🦈', name: 'shark', keywords: ['shark', 'sea', 'ocean', 'fish'] },
+    { emoji: '🔨', name: 'hammer', keywords: ['hammer', 'tool', 'hit', 'build', 'repair', 'fix'] },
+    { emoji: '🔧', name: 'wrench', keywords: ['wrench', 'tool', 'fix', 'repair', 'spanner'] },
+    { emoji: '🪛', name: 'screwdriver', keywords: ['screwdriver', 'tool', 'fix', 'repair', 'screw'] },
+    { emoji: '🔩', name: 'nut and bolt', keywords: ['nut', 'bolt', 'screw', 'tool', 'fix'] },
+    { emoji: '⚙️', name: 'gear', keywords: ['gear', 'cog', 'settings', 'mechanical', 'engine'] },
+    { emoji: '🪚', name: 'saw', keywords: ['saw', 'tool', 'cut', 'wood', 'carpentry'] },
+    { emoji: '🔑', name: 'key', keywords: ['key', 'lock', 'open', 'access'] },
+    { emoji: '🪝', name: 'hook', keywords: ['hook', 'hang', 'catch'] },
+    { emoji: '🧰', name: 'toolbox', keywords: ['toolbox', 'tools', 'kit', 'repair', 'fix'] },
+    { emoji: '🧲', name: 'magnet', keywords: ['magnet', 'attract', 'metal'] },
+    { emoji: '🔬', name: 'microscope', keywords: ['microscope', 'science', 'lab', 'examine'] },
+    { emoji: '🔭', name: 'telescope', keywords: ['telescope', 'space', 'stars', 'look'] },
+    { emoji: '💡', name: 'light bulb', keywords: ['bulb', 'idea', 'light', 'electric'] },
+    { emoji: '🔋', name: 'battery', keywords: ['battery', 'power', 'electric', 'charge'] },
+    { emoji: '🔌', name: 'plug', keywords: ['plug', 'electric', 'power', 'socket'] },
+    { emoji: '💻', name: 'laptop', keywords: ['laptop', 'computer', 'tech', 'pc'] },
+    { emoji: '🖥️', name: 'desktop', keywords: ['desktop', 'computer', 'monitor', 'screen'] },
+    { emoji: '📱', name: 'phone', keywords: ['phone', 'mobile', 'smartphone', 'call'] },
+    { emoji: '⌨️', name: 'keyboard', keywords: ['keyboard', 'type', 'computer'] },
+    { emoji: '🖨️', name: 'printer', keywords: ['printer', 'print', 'office'] },
+    { emoji: '📷', name: 'camera', keywords: ['camera', 'photo', 'picture', 'photograph'] },
+    { emoji: '📻', name: 'radio', keywords: ['radio', 'music', 'broadcast', 'retro'] },
+    { emoji: '📺', name: 'tv', keywords: ['tv', 'television', 'screen', 'watch'] },
+    { emoji: '🎵', name: 'music note', keywords: ['music', 'note', 'song', 'sound'] },
+    { emoji: '🎸', name: 'guitar', keywords: ['guitar', 'music', 'instrument', 'rock'] },
+    { emoji: '🎹', name: 'piano', keywords: ['piano', 'music', 'instrument', 'keyboard'] },
+    { emoji: '🧶', name: 'yarn', keywords: ['yarn', 'knit', 'sewing', 'craft', 'wool'] },
+    { emoji: '🧵', name: 'thread', keywords: ['thread', 'sew', 'stitch', 'needle', 'craft'] },
+    { emoji: '✂️', name: 'scissors', keywords: ['scissors', 'cut', 'craft', 'sew'] },
+    { emoji: '📐', name: 'ruler', keywords: ['ruler', 'measure', 'angle', 'geometry'] },
+    { emoji: '📏', name: 'straight ruler', keywords: ['ruler', 'measure', 'length'] },
+    { emoji: '🪣', name: 'bucket', keywords: ['bucket', 'pail', 'water'] },
+    { emoji: '🧹', name: 'broom', keywords: ['broom', 'sweep', 'clean'] },
+    { emoji: '🪴', name: 'plant', keywords: ['plant', 'green', 'nature', 'pot'] },
+    { emoji: '⭐', name: 'star', keywords: ['star', 'gold', 'favourite', 'best'] },
+    { emoji: '🌟', name: 'glowing star', keywords: ['star', 'shine', 'glow', 'bright'] },
+    { emoji: '🏆', name: 'trophy', keywords: ['trophy', 'win', 'champion', 'award'] },
+    { emoji: '🎯', name: 'target', keywords: ['target', 'aim', 'goal', 'bullseye'] },
+    { emoji: '♻️', name: 'recycle', keywords: ['recycle', 'green', 'eco', 'environment', 'repair', 'reuse'] },
+    { emoji: '🌱', name: 'seedling', keywords: ['green', 'plant', 'grow', 'eco', 'nature'] },
+    { emoji: '🌍', name: 'earth', keywords: ['earth', 'world', 'planet', 'global', 'green'] },
   ];
+
+  get filteredEmojis() {
+    const q = this.emojiSearchQuery.trim().toLowerCase();
+    if (!q) return this.emojiData;
+    return this.emojiData.filter(item =>
+      item.name.includes(q) || item.keywords.some(k => k.includes(q))
+    );
+  }
 
   ngOnChanges() {
     if (this.repairer) {
       this.name = this.repairer.name;
+      this.email = this.repairer.email || '';
       this.photoUrl = this.repairer.photoUrl || null;
       this.photoPreview = null;
       this.isPrimary = this.repairer.isPrimary || false;
     } else {
       this.name = '';
+      this.email = '';
       this.photoUrl = null;
       this.photoPreview = null;
       this.isPrimary = false;
     }
     this.selectedFile = null;
-    this.isEmojiMode = false;
+    this.isEmojiMode = true;
     this.isSearchMode = false;
     this.searchResults = [];
     this.searchQuery = this.name || '';
+    this.emojiSearchQuery = '';
+    this.emojiGridExpanded = false;
+    this.selectedEmoji = '';
+    this.emojiOffsetX = 50;
+    this.emojiOffsetY = 50;
+    this.stopCamera();
+    this.isCameraMode = false;
+  }
+
+  ngOnDestroy() {
+    this.stopCamera();
   }
 
   close() {
+    this.stopCamera();
     this.closeEvent.emit();
   }
 
-  toggleMode(mode: 'photo' | 'emoji' | 'search') {
-    this.isEmojiMode = mode === 'emoji';
-    this.isSearchMode = mode === 'search';
-    if (mode === 'photo' && !this.photoPreview) {
-      // Clear preview if switching back to upload
+  setCameraMode() {
+    this.isCameraMode = true;
+    setTimeout(async () => {
+      const videoEl = document.querySelector('.camera-video') as HTMLVideoElement;
+      if (!videoEl) return;
+      try {
+        this.cameraStream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'user', width: { ideal: 400 }, height: { ideal: 400 } }
+        });
+        videoEl.srcObject = this.cameraStream;
+      } catch {
+        this.isCameraMode = false;
+        alert('Could not access camera. Please check browser permissions.');
+      }
+    }, 50);
+  }
+
+  setEmojiMode() {
+    this.stopCamera();
+    this.isCameraMode = false;
+  }
+
+  capturePhoto() {
+    const videoEl = document.querySelector('.camera-video') as HTMLVideoElement;
+    if (!videoEl || !videoEl.videoWidth) return;
+
+    const size = 200;
+    const canvas = document.createElement('canvas');
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext('2d')!;
+
+    const vw = videoEl.videoWidth;
+    const vh = videoEl.videoHeight;
+    const crop = Math.min(vw, vh);
+    ctx.drawImage(videoEl, (vw - crop) / 2, (vh - crop) / 2, crop, crop, 0, 0, size, size);
+
+    const imageDataUrl = canvas.toDataURL('image/jpeg', 0.85);
+    const svg = `<svg xmlns='http://www.w3.org/2000/svg' xmlns:xlink='http://www.w3.org/1999/xlink' viewBox='0 0 200 200'><image width='200' height='200' href='${imageDataUrl}' preserveAspectRatio='xMidYMid slice'/></svg>`;
+    this.photoPreview = `data:image/svg+xml;base64,${btoa(svg)}`;
+    this.selectedEmoji = '';
+    this.selectedFile = null;
+    this.stopCamera();
+    this.isCameraMode = false;
+  }
+
+  stopCamera() {
+    if (this.cameraStream) {
+      this.cameraStream.getTracks().forEach(t => t.stop());
+      this.cameraStream = null;
     }
   }
 
   selectEmoji(emoji: string) {
-    const svg = `
-      <svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'>
-        <style>text { font-family: "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", sans-serif; }</style>
-        <text y='.9em' font-size='90'>${emoji}</text>
-      </svg>`;
+    this.selectedEmoji = emoji;
+    this.emojiOffsetX = 50;
+    this.emojiOffsetY = 50;
+    this.renderEmojiPreview();
+  }
 
-    // We encode URI component to handle special characters, then unescape to get bytes, then btoa
+  private renderEmojiPreview() {
+    const svg = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text x='${this.emojiOffsetX}' y='${this.emojiOffsetY}' text-anchor='middle' dominant-baseline='central' font-family="Segoe UI Emoji, Apple Color Emoji, Noto Color Emoji, sans-serif" font-size='80'>${this.selectedEmoji}</text></svg>`;
     const base64 = btoa(unescape(encodeURIComponent(svg)));
-    const dataUri = `data:image/svg+xml;base64,${base64}`;
+    this.photoPreview = `data:image/svg+xml;base64,${base64}`;
+    this.selectedFile = null;
+  }
 
-    this.photoPreview = dataUri;
-    this.selectedFile = null; // Clear any file
-    // We don't clear photoUrl immediately because we want to fallback to it if preview is cleared,
-    // but preview overrides in the template display.
+  onAvatarDragStart(event: MouseEvent) {
+    if (!this.selectedEmoji) return;
+    this.isDraggingEmoji = true;
+    this.dragLastX = event.clientX;
+    this.dragLastY = event.clientY;
+    event.preventDefault();
+  }
+
+  @HostListener('document:mousemove', ['$event'])
+  onDocumentMouseMove(event: MouseEvent) {
+    if (!this.isDraggingEmoji || !this.selectedEmoji) return;
+    const dx = event.clientX - this.dragLastX;
+    const dy = event.clientY - this.dragLastY;
+    this.dragLastX = event.clientX;
+    this.dragLastY = event.clientY;
+    this.emojiOffsetX = Math.max(5, Math.min(95, this.emojiOffsetX + dx));
+    this.emojiOffsetY = Math.max(5, Math.min(95, this.emojiOffsetY + dy));
+    this.renderEmojiPreview();
+  }
+
+  @HostListener('document:mouseup')
+  onDocumentMouseUp() {
+    this.isDraggingEmoji = false;
   }
 
   onAvatarSearch() {
@@ -550,6 +856,7 @@ export class RepairerFormComponent implements OnChanges {
     }
 
     this.selectedFile = file;
+    this.selectedEmoji = '';
     this.isEmojiMode = false; // Switch tab
 
     const reader = new FileReader();
@@ -563,6 +870,7 @@ export class RepairerFormComponent implements OnChanges {
     this.photoUrl = null;
     this.photoPreview = null;
     this.selectedFile = null;
+    this.selectedEmoji = '';
   }
 
   delete() {
@@ -597,6 +905,7 @@ export class RepairerFormComponent implements OnChanges {
       this.saveEvent.emit({
         id: this.repairer?.id,
         name: this.name,
+        email: this.email,
         photoUrl: finalPhotoUrl,
         isPrimary: this.isPrimary
       });

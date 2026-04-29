@@ -1,4 +1,4 @@
 export const APP_VERSION = {
-    version: 'v1.27.9',
-    description: 'Owners renamed to Visitors throughout the UI.'
+    version: 'v1.34.3',
+    description: 'Microsoft and Facebook auth wired up in code.'
 };

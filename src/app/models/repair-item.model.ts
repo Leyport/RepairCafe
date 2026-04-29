@@ -12,6 +12,8 @@ export interface RepairItem {
   id?: string;
   itemNumber: number; // Sequence number starting at 1 for each RCDay
   itemDescription: string;
+  fault?: string;
+  ageOfItem?: string;
   repairItem?: string; // The type/name of item (e.g. Toaster)
   repairer?: string; // Name of the repairer assigned (Primary)
   additionalRepairers?: string[]; // Names of additional repairers
@@ -23,6 +25,7 @@ export interface RepairItem {
   status?: string; // Status: "New", "Assigned", "Completed"
   telephone?: string; // Contact telephone number
   owner?: string; // Name of the owner
+  category?: string;
   tags?: string[];
   photos?: RepairPhoto[];
   make?: string;

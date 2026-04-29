@@ -35,7 +35,7 @@ import { ExportService } from '../../../services/export.service';
         <a routerLink="database" routerLinkActive="active" class="nav-card">
           <div class="card-icon">🗄️</div>
           <div class="card-content">
-            <h3>Database Explorer</h3>
+            <h3>Admin Explorer</h3>
             <p>Browse Firestore collections and view raw records.</p>
           </div>
         </a>

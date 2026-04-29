@@ -275,13 +275,14 @@ export class RepairerManagerComponent {
     this.selectedRepairer = null;
   }
 
-  async onSave(event: { id?: string, name: string, photoUrl?: string, isPrimary: boolean }) {
+  async onSave(event: { id?: string, name: string, photoUrl?: string, isPrimary: boolean, email: string }) {
     try {
       if (event.id) {
         await this.repairService.updateRepairer(event.id, {
           name: event.name,
           photoUrl: event.photoUrl,
-          isPrimary: event.isPrimary
+          isPrimary: event.isPrimary,
+          email: event.email
         });
       } else {
         await this.repairService.addRepairer(event.name, event.photoUrl, event.isPrimary);

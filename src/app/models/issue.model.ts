@@ -4,4 +4,5 @@ export interface Issue {
     fix?: string;
     dateRaised: any; // Timestamp
     status: 'New' | 'Assigned' | 'Fixed';
+    raisedBy?: string;
 }

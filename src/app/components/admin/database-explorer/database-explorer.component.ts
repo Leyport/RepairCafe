@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { RepairService } from '../../../services/repair.service';
+import { AuthService } from '../../../services/auth.service';
 import { Observable, of, BehaviorSubject, combineLatest } from 'rxjs';
 import { map, catchError } from 'rxjs/operators';
 import { RepairItem } from '../../../models/repair-item.model';
@@ -15,9 +16,10 @@ import { RepairerFormComponent } from '../repairer-form/repairer-form.component'
   imports: [CommonModule, FormsModule, RepairerFormComponent],
   template: `
     <div class="explorer-container">
-      <app-repairer-form 
-        *ngIf="editingRepairer" 
+      <app-repairer-form
+        *ngIf="editingRepairer"
         [repairer]="editingRepairer"
+        [isAdmin]="true"
         (closeEvent)="closeEdit()"
         (saveEvent)="saveRepairer($event)"
         (deleteEvent)="deleteRepairer($event)">
@@ -85,7 +87,7 @@ import { RepairerFormComponent } from '../repairer-form/repairer-form.component'
       </div>
 
       <div class="header-section">
-        <h2>Database Explorer</h2>
+        <h2>Admin Explorer</h2>
         <p class="subtitle">View and manage system collections</p>
             <button class="btn-action" (click)="addRecord()" title="Add New Record">
               ➕
@@ -188,7 +190,7 @@ import { RepairerFormComponent } from '../repairer-form/repairer-form.component'
                             <th *ngIf="schema === 'repairers'" (click)="onSort('createdAt')" class="sortable">Joined {{ getSortIcon('createdAt') }}</th>
 
                             <th *ngIf="schema === 'owners'" (click)="onSort('name')" class="sortable" title="Visitor Name">👤 {{ getSortIcon('name') }}</th>
-                            <th *ngIf="schema === 'owners'" (click)="onSort('telephone')" class="sortable" title="Telephone">Contact Number {{ getSortIcon('telephone') }}<br><span class="assist-label">Today 10am–2pm</span></th>
+                            <th *ngIf="schema === 'owners'" (click)="onSort('telephone')" class="sortable" title="Telephone">Contact Number {{ getSortIcon('telephone') }}<br><span class="assist-label">(Today 10am–2pm)</span></th>
                             <th *ngIf="schema === 'owners'" title="Physical Assistance Required" class="assist-col">🦽<br><span class="assist-label">Physical</span></th>
                             <th *ngIf="schema === 'owners'" title="Visual Assistance Required" class="assist-col">👁️<br><span class="assist-label">Visual</span></th>
                             <th *ngIf="schema === 'owners'" title="Hearing Assistance Required" class="assist-col">🦻<br><span class="assist-label">Hearing</span></th>
@@ -373,10 +375,18 @@ import { RepairerFormComponent } from '../repairer-form/repairer-form.component'
                                     placeholder="Name">
                               </div>
                             </td>
-                            <td>
-                              <span class="role-badge" [class.primary]="record.isPrimary" [class.secondary]="!record.isPrimary">
+                            <td (click)="$event.stopPropagation()">
+                              <button
+                                type="button"
+                                tabindex="-1"
+                                class="role-badge role-toggle"
+                                [class.primary]="record.isPrimary"
+                                [class.secondary]="!record.isPrimary"
+                                (mousedown)="$event.preventDefault()"
+                                (click)="toggleRepairerPrimary(record, $event)"
+                                [title]="record.isPrimary ? 'Click to make Secondary' : 'Click to make Primary'">
                                 {{ record.isPrimary ? 'Primary' : 'Secondary' }}
-                              </span>
+                              </button>
                             </td>
                             <td [title]="record.createdAt?.toDate ? (record.createdAt?.toDate() | date:'mediumDate') : (record.createdAt | date:'mediumDate')">{{ record.createdAt?.toDate ? (record.createdAt?.toDate() | date:'mediumDate') : (record.createdAt | date:'mediumDate') }}</td>
                             </ng-container>
@@ -443,26 +453,20 @@ import { RepairerFormComponent } from '../repairer-form/repairer-form.component'
 
                             <td>
                                 <ng-container *ngIf="schema === 'repairItems'">
-                                  <div class="row-action-wrapper">
-                                    <button class="btn-row-menu" (click)="toggleRowMenu(record.id, $event)" title="Actions">&#8942;</button>
-                                    <div class="row-action-dropdown"
-                                         *ngIf="openRowMenuId === record.id"
-                                         [style.top.px]="rowMenuPosition.top"
-                                         [style.right.px]="rowMenuPosition.right"
-                                         style="position:fixed;">
-                                      <button class="row-dropdown-item item-complete" (click)="completeRepairItem(record.id, $event)">
-                                        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                                        Complete
-                                      </button>
-                                      <div class="row-dropdown-divider"></div>
-                                      <button class="row-dropdown-item item-delete" (click)="deleteRepairItem(record.id, record.displayNumber || record.itemNumber, $event)">
-                                        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
-                                        Delete
-                                      </button>
-                                    </div>
-                                  </div>
+                                  <select class="row-action-select"
+                                          (change)="onRepairItemAction(record, $event)"
+                                          (click)="$event.stopPropagation()"
+                                          (dblclick)="$event.stopPropagation()"
+                                          [value]="''">
+                                    <option value="" disabled>Actions</option>
+                                    <option value="additional">Additional Details</option>
+                                    <option value="complete">Complete</option>
+                                    <option value="delete">Delete</option>
+                                  </select>
                                 </ng-container>
-                                <button *ngIf="schema === 'repairers'" (click)="editRepairer(record)" class="btn-icon" title="Edit Repairer">✏️</button>
+                                <button *ngIf="schema === 'repairers'" (click)="editRepairer(record)" class="btn-icon"
+                                  [class.btn-icon-self]="record.email && record.email === (currentUserEmail$ | async)"
+                                  title="Edit Repairer">✏️</button>
                                 <button *ngIf="schema === 'repairers'" (click)="openRepairerDashboard(record, $event)" class="btn-icon btn-icon-dashboard" title="View Dashboard">
                                   <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                     <rect x="2" y="3" width="6" height="10" rx="1"></rect>
@@ -588,8 +592,23 @@ import { RepairerFormComponent } from '../repairer-form/repairer-form.component'
     }
     .btn-icon-dashboard { color: rgba(255,255,255,0.4); }
     .btn-icon-dashboard:hover { background: rgba(0,242,255,0.08) !important; border-color: rgba(0,242,255,0.4) !important; color: var(--accent-color); }
+    .btn-icon-self { background: rgba(0, 242, 255, 0.12) !important; border-color: rgba(0, 242, 255, 0.5) !important; }
+    .btn-icon-self:hover { background: rgba(0, 242, 255, 0.25) !important; }
 
     .row-action-wrapper { position: relative; display: flex; justify-content: center; }
+    .row-action-select {
+      background: rgba(255,255,255,0.07);
+      border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 6px;
+      color: rgba(255,255,255,0.8);
+      font-size: 0.8rem;
+      padding: 0.3rem 0.4rem;
+      cursor: pointer;
+      width: 100%;
+      min-width: 110px;
+    }
+    .row-action-select:focus { outline: none; border-color: var(--accent-color); }
+    .row-action-select option { background: #1a2236; color: white; }
     .btn-row-menu {
       background: rgba(255,255,255,0.08);
       border: 1px solid rgba(255,255,255,0.18);
@@ -1231,6 +1250,16 @@ import { RepairerFormComponent } from '../repairer-form/repairer-form.component'
     .role-badge.primary { background: rgba(0, 242, 255, 0.2); color: #00f2ff; }
     .role-badge.secondary { background: rgba(99, 102, 241, 0.2); color: #818cf8; }
     .role-badge.helper { background: rgba(99, 102, 241, 0.2); color: #6366f1; }
+    .role-toggle {
+        border: none;
+        cursor: pointer;
+        transition: opacity 0.15s;
+        white-space: nowrap;
+        min-width: 5.5rem;
+        text-align: center;
+        display: inline-block;
+    }
+    .role-toggle:hover { opacity: 0.7; }
     
     .btn-manage-repairers {
         background: none;
@@ -1406,7 +1435,10 @@ import { RepairerFormComponent } from '../repairer-form/repairer-form.component'
 })
 export class DatabaseExplorerComponent implements OnInit {
   private repairService = inject(RepairService);
+  private authService = inject(AuthService);
   private router = inject(Router);
+
+  currentUserEmail$ = this.authService.user$.pipe(map(u => u?.email ?? null));
 
   collections$: Observable<string[]> = of([]);
   selectedCollection: string | null = null;
@@ -1903,15 +1935,29 @@ export class DatabaseExplorerComponent implements OnInit {
     this.editingRepairer = null;
   }
 
-  async saveRepairer(event: { id?: string, name: string, photoUrl?: string }) {
+  async toggleRepairerPrimary(record: any, event: MouseEvent) {
+    event.stopPropagation();
+    const newValue = !record.isPrimary;
+    record.isPrimary = newValue; // optimistic
+    try {
+      await this.repairService.updateRepairer(record.id, { isPrimary: newValue });
+    } catch (err) {
+      record.isPrimary = !newValue; // revert
+      console.error('Failed to update repairer role:', err);
+    }
+  }
+
+  async saveRepairer(event: { id?: string, name: string, photoUrl?: string, isPrimary: boolean, email: string }) {
     try {
       if (event.id) {
         await this.repairService.updateRepairer(event.id, {
           name: event.name,
-          photoUrl: event.photoUrl
+          photoUrl: event.photoUrl,
+          isPrimary: event.isPrimary,
+          email: event.email
         });
       } else {
-        await this.repairService.addRepairer(event.name, event.photoUrl);
+        await this.repairService.addRepairer(event.name, event.photoUrl, event.isPrimary);
       }
       this.closeEdit();
       // Refresh list
@@ -2000,6 +2046,16 @@ export class DatabaseExplorerComponent implements OnInit {
 
   openEditRecord(id: string) {
     this.router.navigate(['/edit', id]);
+  }
+
+  onRepairItemAction(record: any, event: Event) {
+    const select = event.target as HTMLSelectElement;
+    const action = select.value;
+    select.value = '';
+    if (!record.id) return;
+    if (action === 'additional') this.router.navigate(['/edit', record.id], { queryParams: { additional: '1' } });
+    else if (action === 'complete') this.completeRepairItem(record.id, event);
+    else if (action === 'delete') this.deleteRepairItem(record.id, record.displayNumber || record.itemNumber, event);
   }
 
   completeRepairItem(id: string, event: Event) {

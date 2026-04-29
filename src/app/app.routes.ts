@@ -1,14 +1,15 @@
 import { Routes } from '@angular/router';
 import { RepairListComponent } from './components/repair-list/repair-list.component';
 import { RepairFormComponent } from './components/repair-form/repair-form.component';
+import { RepairCompleteComponent } from './components/repair-complete/repair-complete.component';
 
 export const routes: Routes = [
-  { path: '', loadComponent: () => import('./components/admin/database-explorer/database-explorer.component').then(m => m.DatabaseExplorerComponent) },
+  { path: '', loadComponent: () => import('./components/landing/landing.component').then(m => m.LandingComponent) },
   { path: 'repairs', component: RepairListComponent },
   { path: 'new', component: RepairFormComponent },
   { path: 'edit/:id', component: RepairFormComponent },
   { path: 'item/:id', loadComponent: () => import('./components/repair-detail/repair-detail.component').then(m => m.RepairDetailComponent) },
-  { path: 'complete/:id', loadComponent: () => import('./components/repair-complete/repair-complete.component').then(m => m.RepairCompleteComponent) },
+  { path: 'complete/:id', component: RepairCompleteComponent },
   {
     path: 'admin',
     loadComponent: () => import('./components/admin/admin-panel/admin-panel.component').then(m => m.AdminPanelComponent),

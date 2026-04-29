@@ -1,12 +1,15 @@
-import { Component, inject, HostListener } from '@angular/core';
+import { Component, inject, OnInit, HostListener } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormControl, ReactiveFormsModule } from '@angular/forms';
+import { FormControl, ReactiveFormsModule, FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { RepairService } from '../../services/repair.service';
-import { Observable, combineLatest, startWith, map, BehaviorSubject } from 'rxjs';
-import { RepairItem, toRepairPhoto } from '../../models/repair-item.model';
+import { Observable, combineLatest, startWith, map } from 'rxjs';
+import { RepairItem, Owner, toRepairPhoto } from '../../models/repair-item.model';
 
 type SortOption = 'newest' | 'oldest' | 'number';
+type CompletionFilter = 'all' | 'active' | 'completed';
+
+const COMPLETED_STATUSES = new Set(['Repaired', 'Advice Given', 'Partially Repaired', 'Not Repaired']);
 
 interface RepairerGroup {
   label: string;
@@ -17,12 +20,23 @@ interface RepairerGroup {
 @Component({
   selector: 'app-repair-list',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, RouterLink],
+  imports: [CommonModule, ReactiveFormsModule, FormsModule, RouterLink],
   template: `
     <div class="list-container">
       <div class="header-section">
         <h2>Repair Items</h2>
         <div class="header-controls">
+          <div class="completion-toggle">
+            <button class="toggle-btn"
+                    [class.active]="completionControl.value === 'active'"
+                    (click)="completionControl.setValue('active')">Active</button>
+            <button class="toggle-btn"
+                    [class.active]="completionControl.value === 'all'"
+                    (click)="completionControl.setValue('all')">All</button>
+            <button class="toggle-btn"
+                    [class.active]="completionControl.value === 'completed'"
+                    (click)="completionControl.setValue('completed')">Completed</button>
+          </div>
           <div class="sort-container glass">
              <select [formControl]="sortControl" class="sort-select">
                <option value="newest">Newest First</option>
@@ -35,9 +49,9 @@ interface RepairerGroup {
               <circle cx="11" cy="11" r="8"></circle>
               <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
             </svg>
-            <input 
-              type="text" 
-              [formControl]="searchControl" 
+            <input
+              type="text"
+              [formControl]="searchControl"
               placeholder="Filter items..."
               class="search-input"
             >
@@ -45,7 +59,7 @@ interface RepairerGroup {
         </div>
       </div>
       
-      <div class="compact-list glass">
+      <div class="compact-list glass" #compactList (mousedown)="onListMouseDown($event, compactList)">
         <div class="list-header">
           <span class="col-photo"></span>
           <span class="col-code pointer" (click)="setSort('number')"># {{ getSortIcon('number') }}</span>
@@ -60,7 +74,8 @@ interface RepairerGroup {
         </div>
         <div *ngFor="let item of filteredItems$ | async"
              class="list-row"
-             [routerLink]="['/item', item.id]">
+             (click)="onRowClick(item)"
+             (dblclick)="onRowDblClick(item)">
 
           <!-- Photo -->
           <div class="col-photo" (click)="item.photos?.length ? openCarousel(item.photos!, $event) : null">
@@ -85,14 +100,30 @@ interface RepairerGroup {
           <span class="col-desc truncate">{{ item.itemDescription }}</span>
 
           <!-- Owner -->
-          <span class="col-owner truncate">{{ item.owner || '—' }}</span>
+          <div class="col-owner" (click)="$event.stopPropagation()" (dblclick)="$event.stopPropagation()">
+            <div class="lov-container">
+              <select class="inline-select owner-select"
+                      [ngModel]="item.owner || ''"
+                      (ngModelChange)="updateItem(item, 'owner', $event)">
+                <option value="">— Visitor —</option>
+                <option *ngFor="let o of owners" [value]="o.name">{{ o.name }}</option>
+              </select>
+              <button *ngIf="item.owner" class="inline-clear"
+                      (click)="$event.stopPropagation(); updateItem(item, 'owner', '')">×</button>
+            </div>
+          </div>
 
           <!-- Category -->
-          <div class="col-category">
+          <div class="col-category" (click)="$event.stopPropagation()" (dblclick)="$event.stopPropagation()">
+            <select class="inline-select cat-select"
+                    [ngModel]="item.category || ''"
+                    (ngModelChange)="updateItem(item, 'category', $event)">
+              <option value="">—</option>
+              <option *ngFor="let c of categories" [value]="c.value">{{ c.emoji }} {{ c.label }}</option>
+            </select>
             <div class="tag-trigger-wrapper" *ngIf="item.tags && item.tags.length > 0">
-              <span class="tag-pill">
-                <span *ngIf="getFirstTagEmoji(item.tags)">{{ getFirstTagEmoji(item.tags) }}</span>
-                {{ item.tags[0] }}<span *ngIf="item.tags.length > 1"> +{{ item.tags.length - 1 }}</span>
+              <span class="tag-pill small-pill">
+                {{ getFirstTagEmoji(item.tags) || '🏷️' }}<span *ngIf="item.tags.length > 1"> +{{ item.tags.length - 1 }}</span>
               </span>
               <div class="tags-popup glass">
                 <div class="popup-title">Tags</div>
@@ -101,60 +132,72 @@ interface RepairerGroup {
                 </div>
               </div>
             </div>
-            <span *ngIf="!item.tags || item.tags.length === 0" class="muted">—</span>
           </div>
 
           <!-- Repairer -->
-          <span class="col-repairer truncate repairer-link"
-                *ngIf="item.repairer; else noRepairer"
-                (click)="openRepairerPanel(item.repairer, $event)"
-                title="View all items for {{ item.repairer }}">{{ item.repairer }}</span>
-          <ng-template #noRepairer><span class="col-repairer muted">—</span></ng-template>
+          <div class="col-repairer" (click)="$event.stopPropagation()" (dblclick)="$event.stopPropagation()">
+            <div class="lov-container">
+              <select class="inline-select"
+                      [ngModel]="item.repairer || ''"
+                      (ngModelChange)="updateItem(item, 'repairer', $event)">
+                <option value="">— Repairer —</option>
+                <option *ngFor="let r of primaryRepairers" [value]="r.name">{{ r.name }}</option>
+              </select>
+              <button *ngIf="item.repairer" class="inline-clear repairer-info-btn"
+                      (click)="openRepairerPanel(item.repairer, $event)"
+                      title="View {{ item.repairer }}'s items">👤</button>
+            </div>
+          </div>
 
           <!-- RC Session -->
-          <span class="col-session truncate">{{ formatRCDay(item.RCDay) }}</span>
+          <div class="col-session" (click)="$event.stopPropagation()" (dblclick)="$event.stopPropagation()">
+            <select class="inline-select rcsession-select"
+                    [ngModel]="item.RCDay || ''"
+                    (ngModelChange)="updateItem(item, 'RCDay', $event)">
+              <option value="" disabled>— Date —</option>
+              <option *ngFor="let d of availableRCDates" [value]="d.value">{{ d.label }}</option>
+            </select>
+          </div>
 
           <!-- Created -->
           <span class="col-created">{{ item.creationDate?.toDate() | date:'dd MMM yy' }}</span>
 
           <!-- Status -->
-          <div class="col-status">
-            <span class="status-badge" [ngClass]="getStatusClass(item.status)">
-              {{ item.status || 'New' }}
-            </span>
+          <div class="col-status" (click)="$event.stopPropagation()" (dblclick)="$event.stopPropagation()">
+            <select class="inline-select status-select"
+                    [ngModel]="item.status || 'New'"
+                    (ngModelChange)="updateItem(item, 'status', $event)"
+                    [ngClass]="getStatusClass(item.status)">
+              <option value="New">New</option>
+              <option value="Assigned">Assigned</option>
+              <optgroup label="Completed">
+                <option value="Repaired">Repaired</option>
+                <option value="Advice Given">Advice Given</option>
+                <option value="Partially Repaired">Partially Repaired</option>
+                <option value="Not Repaired">Not Repaired</option>
+              </optgroup>
+            </select>
           </div>
 
           <!-- Actions -->
-          <div class="col-actions" (click)="$event.stopPropagation()">
-            <div class="action-menu-wrapper">
-              <button class="btn-menu" (click)="toggleMenu(item.id!, $event)" title="Actions">&#8942;</button>
-              <div class="action-dropdown"
-                   *ngIf="openMenuId === item.id"
-                   [style.top.px]="menuPosition.top"
-                   [style.right.px]="menuPosition.right"
-                   style="position: fixed;">
-                <button class="dropdown-item item-complete" (click)="onComplete(item.id!, $event)">
-                  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                    <polyline points="20 6 9 17 4 12"></polyline>
-                  </svg>
-                  Complete
-                </button>
-                <div class="dropdown-divider"></div>
-                <button class="dropdown-item item-delete" (click)="onDelete(item.id!, $event)">
-                  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <polyline points="3 6 5 6 21 6"></polyline>
-                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                  </svg>
-                  Delete
-                </button>
-              </div>
-            </div>
+          <div class="col-actions" (click)="$event.stopPropagation()" (dblclick)="$event.stopPropagation()">
+            <select class="action-select"
+                    (change)="onActionSelect(item, $event)"
+                    (click)="$event.stopPropagation()"
+                    [value]="''">
+              <option value="" disabled>⋯</option>
+              <option value="additional">Additional Details</option>
+              <option value="complete">Complete</option>
+              <option value="delete">Delete</option>
+            </select>
           </div>
         </div>
       </div>
       
       <div *ngIf="(filteredItems$ | async)?.length === 0" class="empty-state">
-        <p>No matching repair items found.</p>
+        <p *ngIf="completionControl.value === 'active'">No active repair items.</p>
+        <p *ngIf="completionControl.value === 'completed'">No completed repair items.</p>
+        <p *ngIf="completionControl.value === 'all'">No repair items found.</p>
       </div>
     </div>
 
@@ -246,6 +289,35 @@ interface RepairerGroup {
       flex-wrap: wrap;
       align-items: center;
     }
+    .completion-toggle {
+      display: flex;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    .toggle-btn {
+      background: transparent;
+      border: none;
+      color: rgba(255, 255, 255, 0.5);
+      padding: 0.4rem 0.9rem;
+      font-size: 0.82rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s;
+      white-space: nowrap;
+    }
+    .toggle-btn:not(:last-child) {
+      border-right: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    .toggle-btn:hover:not(.active) {
+      background: rgba(255, 255, 255, 0.07);
+      color: rgba(255, 255, 255, 0.8);
+    }
+    .toggle-btn.active {
+      background: rgba(99, 102, 241, 0.25);
+      color: var(--accent-color);
+    }
     .search-container, .sort-container {
       display: flex;
       align-items: center;
@@ -295,6 +367,23 @@ interface RepairerGroup {
       border-radius: 12px;
       overflow-x: auto;
       overflow-y: hidden;
+      cursor: grab;
+    }
+    .compact-list.is-dragging {
+      cursor: grabbing;
+      user-select: none;
+    }
+    .compact-list select,
+    .compact-list a,
+    .compact-list button,
+    .compact-list input {
+      cursor: auto;
+    }
+    .compact-list.is-dragging select,
+    .compact-list.is-dragging a,
+    .compact-list.is-dragging button,
+    .compact-list.is-dragging input {
+      pointer-events: none;
     }
 
     .list-header,
@@ -304,7 +393,7 @@ interface RepairerGroup {
       padding: 0.75rem 1rem;
       align-items: center;
       gap: 0.5rem;
-      min-width: 900px;
+      min-width: 1100px;
     }
     .list-header {
       background: rgba(255, 255, 255, 0.08);
@@ -364,6 +453,7 @@ interface RepairerGroup {
       overflow: hidden;
       text-overflow: ellipsis;
       color: rgba(255, 255, 255, 0.9);
+      min-width: 0;
     }
     .muted {
       color: rgba(255, 255, 255, 0.3);
@@ -631,6 +721,50 @@ interface RepairerGroup {
       border: 1px solid rgba(241, 196, 15, 0.3);
     }
     .rp-item-status { flex-shrink: 0; }
+    .action-select {
+      background: rgba(255,255,255,0.07);
+      border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 6px;
+      color: rgba(255,255,255,0.8);
+      font-size: 0.8rem;
+      padding: 0.3rem 0.4rem;
+      cursor: pointer;
+      width: 100%;
+    }
+    .action-select:focus { outline: none; border-color: var(--accent-color); }
+    .action-select option { background: #1a2236; color: white; }
+    .inline-select {
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.1);
+      color: rgba(255,255,255,0.9);
+      padding: 0.25rem 0.3rem;
+      border-radius: 4px;
+      font-size: 0.8rem;
+      width: 100%;
+      cursor: pointer;
+    }
+    .inline-select:focus { outline: none; border-color: var(--accent-color); background: rgba(0,0,0,0.3); }
+    .inline-select option, .inline-select optgroup { background: #1a2236; color: white; }
+    .owner-select { padding-right: 22px; }
+    .rcsession-select { font-size: 0.75rem; }
+    .status-select { font-weight: 600; font-size: 0.75rem; }
+    .col-category { display: flex; flex-direction: column; gap: 0.2rem; align-items: flex-start; }
+    .cat-select { font-size: 0.82rem; width: 100%; }
+    .small-pill { font-size: 0.7rem; padding: 0.1rem 0.35rem; max-width: 100%; cursor: default; }
+    .lov-container { position: relative; display: flex; align-items: center; width: 100%; }
+    .inline-clear {
+      position: absolute; right: 20px; top: 50%; transform: translateY(-50%);
+      background: none; border: none; color: rgba(255,255,255,0.4);
+      cursor: pointer; font-size: 0.9rem; padding: 0; line-height: 1; z-index: 2;
+    }
+    .inline-clear:hover { color: white; }
+    .repairer-info-btn { font-size: 0.75rem; right: 20px; }
+    .status-new      { background: rgba(74,144,226,0.15)!important; color:#7ab1f7!important; border-color:rgba(74,144,226,0.4)!important; }
+    .status-assigned { background: rgba(241,196,15,0.15)!important; color:#fce170!important; border-color:rgba(241,196,15,0.4)!important; }
+    .status-repaired { background: rgba(40,180,99,0.15)!important;  color:#58d68d!important; border-color:rgba(40,180,99,0.4)!important; }
+    .status-advice   { background: rgba(230,126,34,0.15)!important; color:#f0a055!important; border-color:rgba(230,126,34,0.4)!important; }
+    .status-partial  { background: rgba(230,126,34,0.15)!important; color:#f0a055!important; border-color:rgba(230,126,34,0.4)!important; }
+    .status-not      { background: rgba(231,76,60,0.15)!important;  color:#f1948a!important; border-color:rgba(231,76,60,0.4)!important; }
     .action-menu-wrapper {
       position: relative;
       display: flex;
@@ -665,10 +799,11 @@ interface RepairerGroup {
       border: 1px solid rgba(255,255,255,0.12);
       border-radius: 8px;
       padding: 0.3rem;
-      min-width: 140px;
+      min-width: 175px;
       z-index: 500;
       box-shadow: 0 8px 24px rgba(0,0,0,0.5);
       animation: menuFadeIn 0.1s ease-out;
+      overflow: visible;
     }
     @keyframes menuFadeIn {
       from { opacity: 0; transform: translateY(-4px); }
@@ -827,31 +962,110 @@ interface RepairerGroup {
     }
   `]
 })
-export class RepairListComponent {
+export class RepairListComponent implements OnInit {
   private repairService = inject(RepairService);
   private router = inject(Router);
 
   searchControl = new FormControl('');
   sortControl = new FormControl<SortOption>('newest');
+  completionControl = new FormControl<CompletionFilter>('active');
 
-  openMenuId: string | null = null;
-  menuPosition = { top: 0, right: 0 };
+  owners: Owner[] = [];
+  primaryRepairers: any[] = [];
+  availableRCDates: { label: string, value: string, date: Date }[] = [];
 
-  @HostListener('document:click')
-  onDocumentClick() {
-    this.openMenuId = null;
+  readonly categories = [
+    { value: 'electrical', emoji: '⚡', label: 'Electrical' },
+    { value: 'textile',    emoji: '🧵', label: 'Textile' },
+    { value: 'ornament',   emoji: '🪆', label: 'Ornament' },
+    { value: 'mechanical', emoji: '⚙️', label: 'Mechanical' },
+    { value: 'furniture',  emoji: '🪑', label: 'Furniture' },
+    { value: 'toy',        emoji: '🧸', label: 'Toy' },
+    { value: 'clock',      emoji: '🕐', label: 'Clock' },
+    { value: 'jewelry',    emoji: '💍', label: 'Jewelry' },
+    { value: 'other',      emoji: '❓', label: 'Other' },
+  ];
+
+  ngOnInit() {
+    this.availableRCDates = this.repairService.getAvailableRCDates();
+    this.repairService.getOwners().subscribe(o => this.owners = o);
+    this.repairService.getPrimaryRepairers().subscribe(r => this.primaryRepairers = r);
   }
 
-  toggleMenu(id: string, event: MouseEvent) {
-    event.stopPropagation();
-    if (this.openMenuId === id) {
-      this.openMenuId = null;
+  async updateItem(item: RepairItem, field: string, value: any) {
+    if (!item.id) return;
+    if (field === 'RCDay' && (!value || value.trim() === '')) return;
+    const updates: Partial<RepairItem> = {};
+    updates[field as keyof RepairItem] = value;
+    if (field === 'RCDay') {
+      const newSeq = await this.repairService.getSuggestedDisplayNumber(value);
+      updates.displayNumber = newSeq;
+      (item as any).displayNumber = newSeq;
+    }
+    if (field === 'repairer') {
+      const currentStatus = item.status || 'New';
+      if (value && currentStatus === 'New') { updates.status = 'Assigned'; (item as any).status = 'Assigned'; }
+      else if (!value && currentStatus === 'Assigned') { updates.status = 'New'; (item as any).status = 'New'; }
+    }
+    (item as any)[field] = value;
+    await this.repairService.updateRepairItem(item.id, updates);
+  }
+
+  onActionSelect(item: RepairItem, event: Event) {
+    const select = event.target as HTMLSelectElement;
+    const action = select.value;
+    select.value = '';
+    if (!item.id) return;
+    if (action === 'additional') this.onAdditionalDetails(item.id, event);
+    else if (action === 'complete') this.onComplete(item.id, event);
+    else if (action === 'delete') this.onDelete(item.id, event);
+  }
+
+  // Drag-to-scroll
+  private isDragging = false;
+  private dragMoved = false;
+  private dragStartX = 0;
+  private dragScrollLeft = 0;
+  private dragListEl: HTMLElement | null = null;
+
+  onListMouseDown(event: MouseEvent, listEl: HTMLElement) {
+    const target = event.target as HTMLElement;
+    if (target.closest('select, input, button, a, label')) return;
+    this.isDragging = true;
+    this.dragMoved = false;
+    this.dragListEl = listEl;
+    this.dragStartX = event.clientX;
+    this.dragScrollLeft = listEl.scrollLeft;
+    listEl.classList.add('is-dragging');
+    event.preventDefault();
+  }
+
+  @HostListener('document:mousemove', ['$event'])
+  onDocMouseMove(event: MouseEvent) {
+    if (!this.isDragging || !this.dragListEl) return;
+    const dx = event.clientX - this.dragStartX;
+    if (Math.abs(dx) > 5) this.dragMoved = true;
+    this.dragListEl.scrollLeft = this.dragScrollLeft - dx;
+  }
+
+  @HostListener('document:mouseup')
+  onDocMouseUp() {
+    if (this.dragListEl) this.dragListEl.classList.remove('is-dragging');
+    this.isDragging = false;
+    this.dragListEl = null;
+    // dragMoved is intentionally left set here — click fires after mouseup
+  }
+
+  onRowClick(item: RepairItem) {
+    if (this.dragMoved) {
+      this.dragMoved = false;
       return;
     }
-    const btn = event.currentTarget as HTMLElement;
-    const rect = btn.getBoundingClientRect();
-    this.menuPosition = { top: rect.bottom + 4, right: window.innerWidth - rect.right };
-    this.openMenuId = id;
+    this.router.navigate(['/edit', item.id]);
+  }
+
+  onRowDblClick(item: RepairItem) {
+    this.router.navigate(['/edit', item.id]);
   }
 
   // Repairer panel state
@@ -944,14 +1158,22 @@ export class RepairListComponent {
   filteredItems$: Observable<RepairItem[]> = combineLatest([
     this.repairService.getRepairItems(),
     this.searchControl.valueChanges.pipe(startWith('')),
-    this.sortControl.valueChanges.pipe(startWith('newest' as SortOption))
+    this.sortControl.valueChanges.pipe(startWith('newest' as SortOption)),
+    this.completionControl.valueChanges.pipe(startWith('active' as CompletionFilter))
   ]).pipe(
-    map(([items, searchTerm, sortOrder]) => {
-      // First filter
+    map(([items, searchTerm, sortOrder, completionFilter]) => {
+      // Completion filter
+      let filtered = items.filter(item => {
+        const isDone = COMPLETED_STATUSES.has(item.status || '');
+        if (completionFilter === 'active') return !isDone;
+        if (completionFilter === 'completed') return isDone;
+        return true;
+      });
+
+      // Text search filter
       const term = (searchTerm || '').toLowerCase();
-      let filtered = items;
       if (term) {
-        filtered = items.filter(item => {
+        filtered = filtered.filter(item => {
           const description = (item.itemDescription || '').toLowerCase();
           const number = (item.displayNumber || '').toLowerCase();
           const day = (item.RCDay || '').toLowerCase();
@@ -964,7 +1186,7 @@ export class RepairListComponent {
         });
       }
 
-      // Then sort
+      // Sort
       return [...filtered].sort((a, b) => {
         switch (sortOrder) {
           case 'newest':
@@ -1028,13 +1250,16 @@ export class RepairListComponent {
 
   onComplete(id: string, event: Event) {
     event.stopPropagation();
-    this.openMenuId = null;
-    this.router.navigate(['/complete', id]);
+    setTimeout(() => this.router.navigate(['/complete', id]), 0);
+  }
+
+  onAdditionalDetails(id: string, event: Event) {
+    event.stopPropagation();
+    this.router.navigate(['/edit', id], { queryParams: { additional: '1' } });
   }
 
   async onDelete(id: string, event: Event) {
     event.stopPropagation();
-    this.openMenuId = null;
     if (confirm('Are you sure you want to delete this repair item?')) {
       try {
         await this.repairService.deleteRepairItem(id);

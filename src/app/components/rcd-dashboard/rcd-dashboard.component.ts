@@ -5,7 +5,7 @@ import { RepairService } from '../../services/repair.service';
 import { ExportService } from '../../services/export.service';
 import { ImportService } from '../../services/import.service';
 import { AuthService } from '../../services/auth.service';
-import { RepairItem } from '../../models/repair-item.model';
+import { RepairItem, toRepairPhoto } from '../../models/repair-item.model';
 import { Repairer } from '../../models/repairer.model';
 import { map, switchMap } from 'rxjs/operators';
 import { Observable, take, firstValueFrom } from 'rxjs';
@@ -20,9 +20,14 @@ import { FormsModule } from '@angular/forms';
       <header class="dashboard-header">
         <div class="header-top">
           <a routerLink="/schedule" class="back-link">← Back to Schedule</a>
-          <button class="btn-export-trigger" (click)="togglePicker()" [class.active]="showPicker">
-            {{ showPicker ? 'Cancel Export' : '📤 Export to Google Sheets' }}
-          </button>
+          <div class="header-buttons">
+            <button class="btn-report" (click)="downloadReport(items)" *ngIf="items$ | async as items">
+              📄 Download Report
+            </button>
+            <button class="btn-export-trigger" (click)="togglePicker()" [class.active]="showPicker">
+              {{ showPicker ? 'Cancel Export' : '📤 Export to Google Sheets' }}
+            </button>
+          </div>
         </div>
         <h1>Session Dashboard</h1>
         <div class="session-date">{{ rcdDate }}</div>
@@ -224,6 +229,27 @@ import { FormsModule } from '@angular/forms';
       justify-content: space-between;
       align-items: center;
       margin-bottom: 1rem;
+    }
+
+    .header-buttons {
+      display: flex;
+      gap: 0.75rem;
+      align-items: center;
+    }
+
+    .btn-report {
+      background: rgba(0, 242, 255, 0.07);
+      border: 1px solid rgba(0, 242, 255, 0.25);
+      color: var(--accent-color, #00f2ff);
+      padding: 0.5rem 1rem;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 0.9rem;
+      transition: all 0.2s;
+    }
+    .btn-report:hover {
+      background: rgba(0, 242, 255, 0.15);
+      border-color: rgba(0, 242, 255, 0.5);
     }
 
     .back-link {
@@ -826,6 +852,112 @@ export class RcdDashboardComponent implements OnInit {
       this.isExporting = false;
     }
   }
+
+  // ── Markdown Report ──────────────────────────────────────────────────────
+
+  downloadReport(items: RepairItem[]) {
+    const md = this.generateMarkdown(items);
+    const filename = this.getReportFilename();
+    const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  private getReportFilename(): string {
+    // RCDay format: "Saturday, 15, 03, 2025"
+    const parts = this.rcdDate.split(',').map(p => p.trim());
+    if (parts.length >= 4) {
+      const day = parts[1].padStart(2, '0');
+      const month = parts[2].padStart(2, '0');
+      const year = parts[3];
+      return `repair-cafe-${year}-${month}-${day}.md`;
+    }
+    return `repair-cafe-session.md`;
+  }
+
+  private formatRCDateLong(): string {
+    const parts = this.rcdDate.split(',').map(p => p.trim());
+    if (parts.length >= 4) {
+      const months = ['', 'January', 'February', 'March', 'April', 'May', 'June',
+                      'July', 'August', 'September', 'October', 'November', 'December'];
+      const dayName = parts[0];
+      const day = parseInt(parts[1], 10);
+      const month = months[parseInt(parts[2], 10)] || parts[2];
+      const year = parts[3];
+      return `${dayName} ${day} ${month} ${year}`;
+    }
+    return this.rcdDate;
+  }
+
+  private generateMarkdown(items: RepairItem[]): string {
+    const dateStr = this.formatRCDateLong();
+    const total = items.length;
+    const completed = this.countCompleted(items);
+    const inProgress = this.countByStatus(items, 'Assigned');
+    const awaiting = this.countByStatus(items, 'New');
+    const generated = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+
+    let md = `# Repair Cafe Session Report\n\n`;
+    md += `**Date:** ${dateStr}\n\n`;
+    md += `| | Count |\n|---|---|\n`;
+    md += `| Total Items | ${total} |\n`;
+    md += `| Completed | ${completed} |\n`;
+    md += `| In Progress | ${inProgress} |\n`;
+    md += `| Awaiting | ${awaiting} |\n\n`;
+    md += `---\n\n`;
+    md += `## Items\n\n`;
+
+    const sorted = [...items].sort((a, b) => {
+      if (a.rcDayNumber !== b.rcDayNumber) return a.rcDayNumber - b.rcDayNumber;
+      return a.itemNumber - b.itemNumber;
+    });
+
+    for (const item of sorted) {
+      md += `### ${item.displayNumber} — ${item.itemDescription || '(no description)'}\n\n`;
+      md += `**Status:** ${item.status || 'New'}  \n`;
+      if (item.owner)               md += `**Owner:** ${item.owner}  \n`;
+      if (item.telephone)           md += `**Telephone:** ${item.telephone}  \n`;
+      if (item.category)            md += `**Category:** ${item.category}  \n`;
+      if (item.repairer)            md += `**Primary Repairer:** ${item.repairer}  \n`;
+      if (item.additionalRepairers?.length)
+                                    md += `**Secondary Repairers:** ${item.additionalRepairers.join(', ')}  \n`;
+      if (item.make || item.model)  md += `**Make / Model:** ${[item.make, item.model].filter(Boolean).join(' — ')}  \n`;
+      if (item.colour)              md += `**Colour:** ${item.colour}  \n`;
+      if (item.yearOfManufacture)   md += `**Year of Manufacture:** ${item.yearOfManufacture}  \n`;
+      if (item.serialNumber)        md += `**Serial Number:** ${item.serialNumber}  \n`;
+      if (item.tags?.length)        md += `**Tags:** ${item.tags.join(', ')}  \n`;
+      md += `\n`;
+
+      if (item.photos?.length) {
+        md += `**Photos:**\n\n`;
+        const thumbs = item.photos
+          .map(p => `<img src="${toRepairPhoto(p).url}" width="160" style="border-radius:6px;margin:4px;object-fit:cover;" />`)
+          .join('');
+        md += `<p>${thumbs}</p>\n\n`;
+      }
+
+      if (item.repairVideos?.length) {
+        md += `**Repair Videos:**\n\n`;
+        for (const v of item.repairVideos) {
+          md += `- [${v.title}](${v.url})\n`;
+        }
+        md += `\n`;
+      }
+
+      md += `---\n\n`;
+    }
+
+    md += `*Generated by RepairCafe · ${generated}*\n`;
+    return md;
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
 
   getAvailableRepairers(item: RepairItem): Repairer[] {
     const assigned = new Set([item.repairer, ...(item.additionalRepairers || [])]);

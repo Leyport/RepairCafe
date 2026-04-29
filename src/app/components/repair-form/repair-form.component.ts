@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy, inject, ViewChild, ElementRef } from '@angular/core';
+import { Component, OnInit, OnDestroy, inject, ViewChild, ElementRef, HostListener } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule, FormsModule } from '@angular/forms';
 import { Router, ActivatedRoute, RouterLink } from '@angular/router';
@@ -26,6 +26,15 @@ interface VideoResult {
   selected: boolean;
 }
 
+interface ImageResult {
+  url: string;
+  thumbnail: string;
+  title: string;
+  width: number;
+  height: number;
+  selected: boolean;
+}
+
 @Component({
   selector: 'app-repair-form',
   standalone: true,
@@ -37,307 +46,89 @@ interface VideoResult {
           <h2>{{ isEdit ? 'Edit Repair Item' : 'Register New Repair' }} <small class="version">{{ appVersion.version }}</small></h2>
           <button class="btn-close" [routerLink]="['/']" [disabled]="isUploading">×</button>
         </div>
-        
+
         <form [formGroup]="repairForm" (ngSubmit)="onSubmit()">
-          <!-- Repair Cafe Date -->
-          <div class="form-group">
-            <label for="rcday">Repair Cafe Date <span class="required">*</span></label>
-            <div class="select-wrapper glass">
-                <select id="rcday_select_v158" name="rcday_select_v158" formControlName="RCDay">
+
+          <!-- ── SESSION ── -->
+          <div class="form-section">
+            <button type="button" class="section-hdr" (click)="toggleSection('session')">
+              <span class="section-hdr-left"><span class="section-ico">📅</span><span class="section-lbl">Session</span></span>
+              <span class="section-chevron" [class.open]="sectionsOpen.session">▼</span>
+            </button>
+            <div class="section-body" *ngIf="sectionsOpen.session">
+
+              <div class="form-group">
+                <label for="rcday">Repair Cafe Date <span class="required">*</span></label>
+                <div class="select-wrapper glass">
+                  <select id="rcday_select_v158" name="rcday_select_v158" formControlName="RCDay">
                     <option value="" disabled>Select Date</option>
                     <option *ngFor="let d of availableDates" [value]="d.value">{{ d.label }}</option>
-                </select>
-                <div class="select-arrow">▼</div>
-            </div>
-            <div *ngIf="repairForm.get('RCDay')?.touched && repairForm.get('RCDay')?.invalid" class="error">
-              Please select a date.
-            </div>
-          </div>
-
-          <!-- Sequence Number -->
-          <div class="form-group">
-            <label for="itemNumber">Sequence Number (Suggested)</label>
-            <input id="itemNumber" type="text" formControlName="displayNumber" placeholder="e.g., 1">
-            <small class="hint">Leave as is or override. The system will auto-assign if left blank.</small>
-          </div>
-
-          <!-- Description -->
-          <div class="form-group">
-            <label for="itemDescription">Description <span class="required">*</span></label>
-            <textarea id="itemDescription" formControlName="itemDescription" placeholder="What needs fixing? (e.g. Lamp with frayed cord)"></textarea>
-            <div *ngIf="repairForm.get('itemDescription')?.touched && repairForm.get('itemDescription')?.invalid" class="error">
-              Please enter a description of the item.
-            </div>
-          </div>
-
-          <!-- Telephone Number -->
-          <div class="form-group">
-            <label for="telephone">Telephone Number</label>
-            <input id="telephone" type="tel" formControlName="telephone" placeholder="e.g. 07700 900000">
-          </div>
-
-          <!-- Owner Name -->
-          <div class="form-group">
-            <label for="owner">Owner Name</label>
-            <div class="autocomplete-container">
-                <input 
-                    id="owner" 
-                    type="text" 
-                    formControlName="owner" 
-                    placeholder="Who brought this item?" 
-                    (input)="onOwnerSearch($any($event.target).value)"
-                    (focus)="onOwnerSearch($any($event.target).value)"
-                    (blur)="hideOwnerSuggestions()"
-                    autocomplete="off">
-                <button 
-                  type="button" 
-                  class="clear-btn" 
-                  *ngIf="repairForm.get('owner')?.value" 
-                  (click)="clearOwner()"
-                  title="Clear owner">×</button>
-                
-                <div class="suggestions-list glass" *ngIf="filteredOwners.length > 0 && showOwnerSuggestions">
-                  <div 
-                    class="suggestion-item" 
-                    *ngFor="let owner of filteredOwners"
-                    (mousedown)="selectOwner(owner)">
-                    <span class="suggestion-name">{{ owner.name }}</span>
-                    <span class="version" style="margin-left: auto">{{ owner.firstSeen?.toDate() | date:'shortDate' }}</span>
-                  </div>
+                  </select>
+                  <div class="select-arrow">▼</div>
                 </div>
-            </div>
-          </div>
-
-          <div class="form-group">
-            <label for="repairer">Primary Repairer</label>
-            <div class="autocomplete-container">
-                <input
-                    id="repairer"
-                    type="text"
-                    formControlName="repairer"
-                    placeholder="Who is the lead repairer?"
-                    (input)="onRepairerSearch($any($event.target).value)"
-                    (focus)="onRepairerSearch($any($event.target).value)"
-                    (blur)="hideRepairerSuggestions()"
-                    autocomplete="off">
-                <button
-                  type="button"
-                  class="clear-btn"
-                  *ngIf="repairForm.get('repairer')?.value"
-                  (click)="clearRepairer()"
-                  title="Clear repairer">×</button>
-
-                <div class="suggestions-list glass" *ngIf="filteredRepairers.length > 0 && showRepairerSuggestions">
-                  <div
-                    class="suggestion-item"
-                    *ngFor="let repairer of filteredRepairers"
-                    (mousedown)="selectRepairer(repairer)">
-                    <img [src]="repairer.photoUrl || '/assets/default-avatar.png'"
-                         style="width: 24px; height: 24px; border-radius: 50%; object-fit: cover;">
-                    <span class="suggestion-name">{{ repairer.name }}</span>
-                  </div>
-                </div>
-            </div>
-            <small class="hint" *ngIf="allPrimaryRepairers.length === 0">No primary repairers available. An admin must mark repairers as primary.</small>
-          </div>
-
-          <div class="form-group">
-            <label>Secondary Repairers</label>
-            <div class="autocomplete-container">
-                <input
-                    type="text"
-                    #secondaryInput
-                    (input)="onSecondaryRepairerSearch(secondaryInput.value)"
-                    (focus)="onSecondaryRepairerSearch(secondaryInput.value)"
-                    (blur)="hideSecondaryRepairerSuggestions()"
-                    placeholder="Add supporting repairers..."
-                    autocomplete="off">
-
-                <div class="suggestions-list glass" *ngIf="filteredSecondaryRepairers.length > 0 && showSecondaryRepairerSuggestions">
-                  <div
-                    class="suggestion-item"
-                    *ngFor="let repairer of filteredSecondaryRepairers"
-                    (mousedown)="addSecondaryRepairer(repairer, secondaryInput)">
-                    <img [src]="repairer.photoUrl || '/assets/default-avatar.png'"
-                         style="width: 24px; height: 24px; border-radius: 50%; object-fit: cover;">
-                    <span class="suggestion-name">{{ repairer.name }}</span>
-                  </div>
-                </div>
-            </div>
-            <div class="tag-chips" *ngIf="secondaryRepairers.length > 0">
-              <span class="tag-chip" *ngFor="let name of secondaryRepairers; let i = index">
-                {{ name }}
-                <button type="button" class="btn-remove-tag" (click)="removeSecondaryRepairer(i)">×</button>
-              </span>
-            </div>
-          </div>
-
-          <!-- Status -->
-          <div class="form-group">
-            <label for="status">Status</label>
-            <div class="select-wrapper glass">
-                <select id="status" formControlName="status">
-                    <option value="New">New</option>
-                    <option value="Assigned">Assigned</option>
-                    <optgroup label="Completed">
-                        <option value="Repaired">Repaired</option>
-                        <option value="Advice Given">Advice Given</option>
-                        <option value="Partially Repaired">Partially Repaired</option>
-                        <option value="Not Repaired">Not Repaired</option>
-                    </optgroup>
-                </select>
-                <div class="select-arrow">▼</div>
-            </div>
-          </div>
-
-          <div class="form-group">
-            <label>Tags (Optional)</label>
-            <div class="tag-input-wrapper">
-              <div class="autocomplete-container">
-                <input 
-                  type="text" 
-                  #tagInput 
-                  (input)="onTagSearch(tagInput.value)"
-                  (keyup.enter)="addTag(tagInput)" 
-                  (blur)="hideSuggestions()"
-                  placeholder="Enter a tag (e.g. Electrical) and press Enter">
-                
-                <div class="suggestions-list glass" *ngIf="filteredSuggestions.length > 0 && showSuggestions">
-                  <div 
-                    class="suggestion-item" 
-                    *ngFor="let tag of filteredSuggestions"
-                    (mousedown)="selectSuggestion(tag, tagInput)">
-                    <span class="suggestion-emoji">{{ tag.emoji }}</span>
-                    <span class="suggestion-name">{{ tag.name }}</span>
-                  </div>
+                <div *ngIf="repairForm.get('RCDay')?.touched && repairForm.get('RCDay')?.invalid" class="error">
+                  Please select a date.
                 </div>
               </div>
-              <button type="button" class="btn-add-tag" (click)="addTag(tagInput)">Add</button>
-            </div>
-            <div class="tag-chips" *ngIf="tags.length > 0">
-              <span class="tag-chip" *ngFor="let tag of tags; let i = index">
-                {{ tag }}
-                <button type="button" class="btn-remove-tag" (click)="removeTag(i)">×</button>
-              </span>
-            </div>
-          </div>
-          <div class="form-group">
-            <label>Item Photos</label>
-            <div class="photo-upload-zone">
-              <!-- Hidden mobile camera input (capture="environment" works on mobile) -->
-              <input type="file" #cameraInput (change)="onFileSelected($event)" accept="image/*" capture="environment" style="display:none">
 
-              <!-- Take photo button — opens camera on mobile, webcam modal on desktop -->
-              <button type="button" class="drop-zone" [class.disabled]="isUploading" [disabled]="isUploading" (click)="onTakePhotoClick()">
-                <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.5">
-                  <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
-                  <circle cx="12" cy="13" r="4"></circle>
-                </svg>
-                <span class="drop-zone-label">Take a photo</span>
-                <span class="drop-zone-hint">Opens your camera</span>
-              </button>
-
-              <!-- Library button — file picker for selecting existing images -->
-              <input type="file" #libraryInput (change)="onFileSelected($event)" accept="image/*" multiple style="display: none">
-              <button type="button" class="btn-camera" (click)="libraryInput.click()" [disabled]="isUploading">
-                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
-                  <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-                  <circle cx="8.5" cy="8.5" r="1.5"></circle>
-                  <polyline points="21 15 16 10 5 21"></polyline>
-                </svg>
-                Choose from library
-              </button>
-
-              <!-- Webcam modal (desktop only) -->
-              <div class="webcam-modal" *ngIf="showWebcamModal">
-                <div class="webcam-overlay" (click)="closeWebcam()"></div>
-                <div class="webcam-container">
-                  <p class="webcam-title">Take a photo</p>
-                  <video #webcamVideo autoplay playsinline class="webcam-video"></video>
-                  <canvas #webcamCanvas style="display:none"></canvas>
-                  <div class="webcam-controls">
-                    <button type="button" class="btn-capture" (click)="capturePhoto()">
-                      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
-                        <circle cx="12" cy="13" r="4"></circle>
-                      </svg>
-                      Capture
-                    </button>
-                    <button type="button" class="btn-cancel-webcam" (click)="closeWebcam()">Cancel</button>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <!-- Preview Grid -->
-            <div class="photo-preview-grid" *ngIf="existingPhotos.length > 0 || selectedFiles.length > 0">
-              <!-- Existing Photos -->
-              <div class="photo-card" *ngFor="let photo of existingPhotos; let i = index">
-                <img [src]="photo.url" alt="Repair photo">
-                <div class="photo-type-toggle">
-                  <button type="button" [class.active-before]="photo.type === 'before'" (click)="photo.type = 'before'">Before</button>
-                  <button type="button" [class.active-after]="photo.type === 'after'" (click)="photo.type = 'after'">After</button>
-                </div>
-                <button type="button" class="btn-remove" (click)="removeExistingPhoto(i)" title="Remove photo" [disabled]="isUploading">×</button>
+              <div class="form-group">
+                <label for="itemNumber">Sequence Number (Suggested)</label>
+                <input id="itemNumber" type="text" formControlName="displayNumber" placeholder="e.g., 1">
+                <small class="hint">Leave as is or override. The system will auto-assign if left blank.</small>
               </div>
 
-              <!-- Newly Selected Photos -->
-              <div class="photo-card" [class.pending]="file.status === 'ready'" [class.uploading]="file.status === 'uploading'" *ngFor="let file of selectedFiles; let i = index">
-                <img [src]="file.preview" alt="Preview">
-                <div class="photo-type-toggle">
-                  <button type="button" [class.active-before]="file.type === 'before'" (click)="file.type = 'before'">Before</button>
-                  <button type="button" [class.active-after]="file.type === 'after'" (click)="file.type = 'after'">After</button>
-                </div>
-                <div class="status-overlay" [ngClass]="file.status">
-                  <span *ngIf="file.status === 'ready'">Ready</span>
-                  <span *ngIf="file.status === 'uploading'">Uploading...</span>
-                  <span *ngIf="file.status === 'error'">Error!</span>
-                </div>
-                <button type="button" class="btn-remove" (click)="removeSelectedFile(i)" title="Remove photo" *ngIf="file.status !== 'uploading'">×</button>
-              </div>
-            </div>
-            
-            <div *ngIf="uploadError" class="error-banner">
-              {{ uploadError }}
             </div>
           </div>
 
-          <!-- Additional Details button -->
-          <div class="form-group">
-            <button type="button" class="btn-additional-details" (click)="showAdditionalDetails = true">
-              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
-                <circle cx="12" cy="12" r="10"></circle>
-                <line x1="12" y1="8" x2="12" y2="12"></line>
-                <line x1="12" y1="16" x2="12.01" y2="16"></line>
-              </svg>
-              Additional Details
-              <span class="details-badge" *ngIf="hasAdditionalDetails()">&#10003;</span>
+          <!-- ── ITEM ── -->
+          <div class="form-section">
+            <button type="button" class="section-hdr" (click)="toggleSection('item')">
+              <span class="section-hdr-left"><span class="section-ico">🔧</span><span class="section-lbl">Item</span></span>
+              <span class="section-chevron" [class.open]="sectionsOpen.item">▼</span>
             </button>
-          </div>
+            <div class="section-body" *ngIf="sectionsOpen.item">
 
-          <div class="form-actions-wrapper">
-            <div class="validation-hint" *ngIf="repairForm.get('itemDescription')?.invalid && (repairForm.get('itemDescription')?.touched || selectedFiles.length > 0)">
-              ⚠️ Please enter a description to enable saving.
-            </div>
-
-            <div class="form-actions">
-              <button type="button" class="btn-cancel" (click)="onCancel()" [disabled]="isUploading">Cancel</button>
-              <button type="submit" [disabled]="repairForm.invalid || isUploading" class="btn-submit">
-                <span class="spinner" *ngIf="isUploading"></span>
-                {{ isUploading ? 'Saving Repair...' : (isEdit ? 'Save Changes' : 'Register Repair') }}
-              </button>
-            </div>
-          </div>
-
-          <!-- Additional Details modal -->
-          <div class="additional-details-modal" *ngIf="showAdditionalDetails">
-            <div class="additional-details-overlay" (click)="closeAdditionalDetails()"></div>
-            <div class="additional-details-panel">
-              <div class="additional-details-header">
-                <h3>Additional Details</h3>
-                <button type="button" class="btn-close-panel" (click)="closeAdditionalDetails()">×</button>
+              <div class="form-group">
+                <label>Category</label>
+                <div class="category-picker">
+                  <button *ngFor="let cat of categories" type="button"
+                    class="cat-btn"
+                    [class.selected]="repairForm.get('category')?.value === cat.value"
+                    (click)="selectCategory(cat.value)"
+                    [title]="cat.label">
+                    <span class="cat-emoji">{{ cat.emoji }}</span>
+                    <span class="cat-label">{{ cat.label }}</span>
+                  </button>
+                </div>
               </div>
-              <div class="additional-details-body">
+
+              <div class="form-group">
+                <label for="itemDescription">Description <span class="required">*</span></label>
+                <textarea id="itemDescription" formControlName="itemDescription" placeholder="What needs fixing? (e.g. Lamp with frayed cord)"></textarea>
+                <div *ngIf="repairForm.get('itemDescription')?.touched && repairForm.get('itemDescription')?.invalid" class="error">
+                  Please enter a description of the item.
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label for="fault">Fault</label>
+                <textarea id="fault" formControlName="fault" placeholder="Describe the fault (e.g. Does not power on)"></textarea>
+              </div>
+
+              <div class="form-group">
+                <label for="ageOfItem">Age of Item</label>
+                <select id="ageOfItem" formControlName="ageOfItem">
+                  <option value="">-- Select age --</option>
+                  <option value="<1">&lt;1 year</option>
+                  <option value="1-2">1–2 years</option>
+                  <option value="3-5">3–5 years</option>
+                  <option value="6-10">6–10 years</option>
+                  <option value="11+">11+ years</option>
+                </select>
+              </div>
+
+              <!-- Item Details Grid -->
+              <div class="item-details-grid">
                 <div class="form-group">
                   <label>Make / Brand</label>
                   <input type="text" [(ngModel)]="additionalDetails.make" [ngModelOptions]="{standalone: true}" placeholder="e.g. Bosch, Samsung, Dyson">
@@ -351,88 +142,327 @@ interface VideoResult {
                   <input type="text" [(ngModel)]="additionalDetails.colour" [ngModelOptions]="{standalone: true}" placeholder="e.g. Black, White, Silver">
                 </div>
                 <div class="form-group">
-                  <label>Serial Number</label>
-                  <input type="text" [(ngModel)]="additionalDetails.serialNumber" [ngModelOptions]="{standalone: true}" placeholder="e.g. SN123456789">
-                </div>
-                <div class="form-group">
                   <label>Year of Manufacture</label>
                   <input type="text" [(ngModel)]="additionalDetails.yearOfManufacture" [ngModelOptions]="{standalone: true}" placeholder="e.g. 2018">
                 </div>
-
-                <!-- Saved repair videos -->
-                <div class="form-group" *ngIf="additionalDetails.repairVideos && additionalDetails.repairVideos.length > 0">
-                  <label>Saved Repair Videos</label>
-                  <div class="saved-videos-list">
-                    <div class="saved-video-row" *ngFor="let v of additionalDetails.repairVideos; let i = index">
-                      <svg viewBox="0 0 24 24" width="14" height="14" fill="#ff0000"><path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-2.88 2.5 2.89 2.89 0 0 1-2.89-2.89 2.89 2.89 0 0 1 2.89-2.89c.28 0 .54.04.79.1V9.01a6.33 6.33 0 0 0-.79-.05 6.34 6.34 0 0 0-6.34 6.34 6.34 6.34 0 0 0 6.34 6.34 6.34 6.34 0 0 0 6.33-6.34V8.69a8.27 8.27 0 0 0 4.84 1.55V6.79a4.85 4.85 0 0 1-1.07-.1z"/></svg>
-                      <a [href]="v.url" target="_blank" class="saved-video-title">{{ v.title }}</a>
-                      <button type="button" class="btn-remove-video" (click)="removeRepairVideo(i)" title="Remove">×</button>
-                    </div>
-                  </div>
-                </div>
-
-                <!-- Find repair videos button -->
-                <div class="form-group">
-                  <button type="button" class="btn-find-videos" (click)="searchRepairVideos()">
-                    <svg viewBox="0 0 24 24" width="16" height="16" fill="#ff0000"><path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-2.88 2.5 2.89 2.89 0 0 1-2.89-2.89 2.89 2.89 0 0 1 2.89-2.89c.28 0 .54.04.79.1V9.01a6.33 6.33 0 0 0-.79-.05 6.34 6.34 0 0 0-6.34 6.34 6.34 6.34 0 0 0 6.34 6.34 6.34 6.34 0 0 0 6.33-6.34V8.69a8.27 8.27 0 0 0 4.84 1.55V6.79a4.85 4.85 0 0 1-1.07-.1z"/></svg>
-                    Find Repair Videos on YouTube
-                  </button>
+                <div class="form-group item-details-full">
+                  <label>Serial Number</label>
+                  <input type="text" [(ngModel)]="additionalDetails.serialNumber" [ngModelOptions]="{standalone: true}" placeholder="e.g. SN123456789">
                 </div>
               </div>
 
-              <!-- Video search results overlay -->
-              <div class="video-search-overlay" *ngIf="showVideoSearch">
-                <div class="video-search-header">
-                  <div>
-                    <p class="video-search-title">Repair Videos</p>
-                    <p class="video-search-query">{{ videoSearchQuery }}</p>
-                  </div>
-                  <button type="button" class="btn-close-panel" (click)="showVideoSearch = false">×</button>
-                </div>
+              <!-- Photos -->
+              <div class="form-group">
+                <label>Photos</label>
+                <div class="photo-upload-zone">
+                  <input type="file" #cameraInput (change)="onFileSelected($event)" accept="image/*" capture="environment" style="display:none">
+                  <button type="button" class="drop-zone" [class.disabled]="isUploading" [disabled]="isUploading" (click)="onTakePhotoClick()">
+                    <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.5">
+                      <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
+                      <circle cx="12" cy="13" r="4"></circle>
+                    </svg>
+                    <span class="drop-zone-label">Take a photo</span>
+                    <span class="drop-zone-hint">Opens your camera</span>
+                  </button>
+                  <input type="file" #libraryInput (change)="onFileSelected($event)" accept="image/*" multiple style="display: none">
+                  <button type="button" class="btn-camera" (click)="libraryInput.click()" [disabled]="isUploading">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                      <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                      <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                      <polyline points="21 15 16 10 5 21"></polyline>
+                    </svg>
+                    Choose from library
+                  </button>
+                  <button type="button" class="btn-camera btn-web-search" (click)="showImageSearch = !showImageSearch" [disabled]="isUploading">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                      <circle cx="11" cy="11" r="8"></circle>
+                      <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                    </svg>
+                    Search internet for photos
+                  </button>
 
-                <div class="video-search-loading" *ngIf="videoSearchLoading">
-                  <span class="spinner"></span> Searching YouTube...
-                </div>
-
-                <div class="video-search-error" *ngIf="videoSearchError">
-                  {{ videoSearchError }}
-                </div>
-
-                <div class="video-results-grid" *ngIf="!videoSearchLoading && !videoSearchError">
-                  <label class="video-card" *ngFor="let video of videoSearchResults">
-                    <input type="checkbox" [(ngModel)]="video.selected" [ngModelOptions]="{standalone: true}" class="video-checkbox">
-                    <div class="video-thumb-wrap">
-                      <img [src]="video.thumbnail" alt="">
-                      <div class="video-selected-overlay" *ngIf="video.selected">
-                        <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="white" stroke-width="3"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                  <div class="img-search-panel" *ngIf="showImageSearch">
+                    <div class="yt-search-row">
+                      <input type="text" [(ngModel)]="imageSearchQuery" [ngModelOptions]="{standalone: true}"
+                             placeholder="e.g. broken lamp cord" class="yt-query-input"
+                             (ngModelChange)="onImageQueryEdit()" (keyup.enter)="searchImages()">
+                      <button type="button" class="btn-yt-search" (click)="searchImages()"
+                              [disabled]="!imageSearchQuery.trim() || imageSearchLoading">
+                        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2">
+                          <circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                        </svg>
+                        {{ imageSearchLoading ? 'Searching...' : 'Search' }}
+                      </button>
+                    </div>
+                    <div class="yt-loading" *ngIf="imageSearchLoading"><span class="yt-spinner"></span> Searching for images...</div>
+                    <div class="yt-error" *ngIf="imageSearchError && !imageSearchLoading">{{ imageSearchError }}</div>
+                    <div class="img-results-grid" *ngIf="!imageSearchLoading && imageSearchResults.length > 0">
+                      <div class="img-card" *ngFor="let img of imageSearchResults" (click)="addSingleImage(img)" title="Click to add">
+                        <div class="img-thumb">
+                          <img [src]="img.thumbnail" [alt]="img.title" (error)="img.thumbnail = img.url">
+                          <div class="yt-add-hint">+ Add</div>
+                        </div>
+                        <p class="yt-card-title">{{ img.title }}</p>
                       </div>
                     </div>
-                    <div class="video-info">
-                      <p class="video-title">{{ video.title }}</p>
-                      <p class="video-channel">{{ video.channel }}</p>
+                  </div>
+
+                  <!-- Webcam modal -->
+                  <div class="webcam-modal" *ngIf="showWebcamModal">
+                    <div class="webcam-overlay" (click)="closeWebcam()"></div>
+                    <div class="webcam-container">
+                      <p class="webcam-title">Take a photo</p>
+                      <video #webcamVideo autoplay playsinline class="webcam-video"></video>
+                      <canvas #webcamCanvas style="display:none"></canvas>
+                      <div class="webcam-controls">
+                        <button type="button" class="btn-capture" (click)="capturePhoto()">
+                          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
+                            <circle cx="12" cy="13" r="4"></circle>
+                          </svg>
+                          Capture
+                        </button>
+                        <button type="button" class="btn-cancel-webcam" (click)="closeWebcam()">Cancel</button>
+                      </div>
                     </div>
-                  </label>
+                  </div>
                 </div>
 
-                <div class="video-search-footer" *ngIf="!videoSearchLoading && !videoSearchError">
-                  <span class="selected-count" *ngIf="selectedVideoCount > 0">{{ selectedVideoCount }} selected</span>
-                  <button type="button" class="btn-cancel" (click)="showVideoSearch = false">Cancel</button>
-                  <button type="button" class="btn-submit" (click)="addSelectedVideos()" [disabled]="selectedVideoCount === 0">
-                    Add Selected
+                <div class="photo-preview-grid" *ngIf="existingPhotos.length > 0 || selectedFiles.length > 0">
+                  <div class="photo-card" *ngFor="let photo of existingPhotos; let i = index" (dblclick)="openLightbox(photo.url)">
+                    <img [src]="photo.url" alt="Repair photo">
+                    <button type="button" class="btn-remove" (click)="removeExistingPhoto(i)" title="Remove photo" [disabled]="isUploading">×</button>
+                  </div>
+                  <div class="photo-card" [class.pending]="file.status === 'ready'" [class.uploading]="file.status === 'uploading'"
+                       *ngFor="let file of selectedFiles; let i = index" (dblclick)="openLightbox(file.preview)">
+                    <img [src]="file.preview" alt="Preview">
+                    <div class="status-overlay" [ngClass]="file.status">
+                      <span *ngIf="file.status === 'ready'">Ready</span>
+                      <span *ngIf="file.status === 'uploading'">Uploading...</span>
+                      <span *ngIf="file.status === 'error'">Error!</span>
+                    </div>
+                    <button type="button" class="btn-remove" (click)="removeSelectedFile(i)" title="Remove photo" *ngIf="file.status !== 'uploading'">×</button>
+                  </div>
+                </div>
+                <div *ngIf="uploadError" class="error-banner">{{ uploadError }}</div>
+              </div>
+
+              <!-- Repair Videos -->
+              <div class="form-group yt-section">
+                <label>Find Repair Videos</label>
+                <div class="yt-search-row">
+                  <input type="text" [(ngModel)]="youtubeSearchQuery" [ngModelOptions]="{standalone: true}"
+                         placeholder="e.g. lamp wiring repair" class="yt-query-input" (ngModelChange)="onYoutubeQueryEdit()">
+                  <button type="button" class="btn-yt-search" (click)="searchRepairVideos()"
+                          [disabled]="!youtubeSearchQuery.trim() || videoSearchLoading">
+                    <svg viewBox="0 0 24 24" width="13" height="13" fill="#ff0000"><path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-2.88 2.5 2.89 2.89 0 0 1-2.89-2.89 2.89 2.89 0 0 1 2.89-2.89c.28 0 .54.04.79.1V9.01a6.33 6.33 0 0 0-.79-.05 6.34 6.34 0 0 0-6.34 6.34 6.34 6.34 0 0 0 6.34 6.34 6.34 6.34 0 0 0 6.33-6.34V8.69a8.27 8.27 0 0 0 4.84 1.55V6.79a4.85 4.85 0 0 1-1.07-.1z"/></svg>
+                    {{ videoSearchLoading ? 'Searching...' : 'Search YouTube' }}
                   </button>
                 </div>
+                <div class="yt-loading" *ngIf="videoSearchLoading"><span class="yt-spinner"></span> Searching YouTube...</div>
+                <div class="yt-error" *ngIf="videoSearchError && !videoSearchLoading">{{ videoSearchError }}</div>
+                <div class="yt-results-grid" *ngIf="!videoSearchLoading && videoSearchResults.length > 0">
+                  <div class="yt-card" *ngFor="let video of videoSearchResults" (click)="addSingleVideo(video)" title="Click to add">
+                    <div class="yt-thumb"><img [src]="video.thumbnail" alt=""><div class="yt-add-hint">+ Add</div></div>
+                    <p class="yt-card-title">{{ video.title }}</p>
+                  </div>
+                </div>
+                <div class="yt-saved-list" *ngIf="additionalDetails.repairVideos && additionalDetails.repairVideos.length > 0">
+                  <p class="yt-saved-label">Saved videos</p>
+                  <div class="saved-video-row" *ngFor="let v of additionalDetails.repairVideos; let i = index">
+                    <svg viewBox="0 0 24 24" width="12" height="12" fill="#ff0000"><path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-2.88 2.5 2.89 2.89 0 0 1-2.89-2.89 2.89 2.89 0 0 1 2.89-2.89c.28 0 .54.04.79.1V9.01a6.33 6.33 0 0 0-.79-.05 6.34 6.34 0 0 0-6.34 6.34 6.34 6.34 0 0 0 6.34 6.34 6.34 6.34 0 0 0 6.33-6.34V8.69a8.27 8.27 0 0 0 4.84 1.55V6.79a4.85 4.85 0 0 1-1.07-.1z"/></svg>
+                    <a [href]="v.url" target="_blank" class="saved-video-title">{{ v.title }}</a>
+                    <button type="button" class="btn-remove-video" (click)="removeRepairVideo(i)" title="Remove">×</button>
+                  </div>
+                </div>
               </div>
 
-              <div class="additional-details-footer">
-                <button type="button" class="btn-cancel" (click)="closeAdditionalDetails()">Cancel</button>
-                <button type="button" class="btn-submit" (click)="saveAdditionalDetails()" [disabled]="isSavingDetails">
-                  <span class="spinner" *ngIf="isSavingDetails"></span>
-                  {{ isSavingDetails ? 'Saving...' : (isEdit ? 'Save Details' : 'Apply') }}
-                </button>
+              <!-- Tags -->
+              <div class="form-group">
+                <label>Tags (Optional)</label>
+                <div class="tag-input-wrapper">
+                  <div class="autocomplete-container">
+                    <input type="text" #tagInput (input)="onTagSearch(tagInput.value)"
+                           (keyup.enter)="addTag(tagInput)" (blur)="hideSuggestions()"
+                           placeholder="Enter a tag (e.g. Electrical) and press Enter">
+                    <div class="suggestions-list glass" *ngIf="filteredSuggestions.length > 0 && showSuggestions">
+                      <div class="suggestion-item" *ngFor="let tag of filteredSuggestions"
+                           (mousedown)="selectSuggestion(tag, tagInput)">
+                        <span class="suggestion-emoji">{{ tag.emoji }}</span>
+                        <span class="suggestion-name">{{ tag.name }}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <button type="button" class="btn-add-tag" (click)="addTag(tagInput)">Add</button>
+                </div>
+                <div class="tag-chips" *ngIf="tags.length > 0">
+                  <span class="tag-chip" *ngFor="let tag of tags; let i = index">
+                    {{ tag }}
+                    <button type="button" class="btn-remove-tag" (click)="removeTag(i)">×</button>
+                  </span>
+                </div>
               </div>
+
+            </div>
+          </div>
+
+          <!-- ── VISITOR ── -->
+          <div class="form-section">
+            <button type="button" class="section-hdr" (click)="toggleSection('visitor')">
+              <span class="section-hdr-left"><span class="section-ico">👤</span><span class="section-lbl">Visitor</span></span>
+              <span class="section-chevron" [class.open]="sectionsOpen.visitor">▼</span>
+            </button>
+            <div class="section-body" *ngIf="sectionsOpen.visitor">
+
+              <div class="form-group">
+                <label for="owner">Visitor Name</label>
+                <div class="autocomplete-container">
+                  <input id="owner" type="text" formControlName="owner"
+                         placeholder="Who brought this item?"
+                         (input)="onOwnerSearch($any($event.target).value)"
+                         (focus)="onOwnerSearch($any($event.target).value)"
+                         (blur)="hideOwnerSuggestions()" autocomplete="off">
+                  <button type="button" class="clear-btn" *ngIf="repairForm.get('owner')?.value"
+                          (click)="clearOwner()" title="Clear visitor">×</button>
+                  <div class="suggestions-list glass" *ngIf="filteredOwners.length > 0 && showOwnerSuggestions">
+                    <div class="suggestion-item" *ngFor="let owner of filteredOwners" (mousedown)="selectOwner(owner)">
+                      <span class="suggestion-name">{{ owner.name }}</span>
+                      <span class="version" style="margin-left: auto">{{ owner.firstSeen?.toDate() | date:'shortDate' }}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label for="telephone">Telephone Number</label>
+                <input id="telephone" type="tel" formControlName="telephone" placeholder="e.g. 07700 900000">
+              </div>
+
+            </div>
+          </div>
+
+          <!-- ── REPAIRER ── -->
+          <div class="form-section">
+            <button type="button" class="section-hdr" (click)="toggleSection('repairer')">
+              <span class="section-hdr-left"><span class="section-ico">🛠️</span><span class="section-lbl">Repairer</span></span>
+              <span class="section-chevron" [class.open]="sectionsOpen.repairer">▼</span>
+            </button>
+            <div class="section-body" *ngIf="sectionsOpen.repairer">
+
+              <div class="form-group">
+                <label for="repairer">Primary Repairer</label>
+                <div class="autocomplete-container">
+                  <input id="repairer" type="text" formControlName="repairer"
+                         placeholder="Who is the lead repairer?"
+                         (input)="onRepairerSearch($any($event.target).value)"
+                         (focus)="onRepairerSearch($any($event.target).value)"
+                         (blur)="hideRepairerSuggestions()" autocomplete="off">
+                  <button type="button" class="clear-btn" *ngIf="repairForm.get('repairer')?.value"
+                          (click)="clearRepairer()" title="Clear repairer">×</button>
+                  <div class="suggestions-list glass" *ngIf="filteredRepairers.length > 0 && showRepairerSuggestions">
+                    <div class="suggestion-item" *ngFor="let repairer of filteredRepairers"
+                         (mousedown)="selectRepairer(repairer)">
+                      <img [src]="repairer.photoUrl || '/assets/default-avatar.png'"
+                           style="width: 24px; height: 24px; border-radius: 50%; object-fit: cover;">
+                      <span class="suggestion-name">{{ repairer.name }}</span>
+                    </div>
+                  </div>
+                </div>
+                <small class="hint" *ngIf="allPrimaryRepairers.length === 0">No primary repairers available. An admin must mark repairers as primary.</small>
+              </div>
+
+              <div class="form-group">
+                <label>Supporting Repairers</label>
+                <div class="autocomplete-container">
+                  <input type="text" #secondaryInput
+                         (input)="onSecondaryRepairerSearch(secondaryInput.value)"
+                         (focus)="onSecondaryRepairerSearch(secondaryInput.value)"
+                         (blur)="hideSecondaryRepairerSuggestions()"
+                         placeholder="Add supporting repairers..." autocomplete="off">
+                  <div class="suggestions-list glass" *ngIf="filteredSecondaryRepairers.length > 0 && showSecondaryRepairerSuggestions">
+                    <div class="suggestion-item" *ngFor="let repairer of filteredSecondaryRepairers"
+                         (mousedown)="addSecondaryRepairer(repairer, secondaryInput)">
+                      <img [src]="repairer.photoUrl || '/assets/default-avatar.png'"
+                           style="width: 24px; height: 24px; border-radius: 50%; object-fit: cover;">
+                      <span class="suggestion-name">{{ repairer.name }}</span>
+                    </div>
+                  </div>
+                </div>
+                <div class="tag-chips" *ngIf="secondaryRepairers.length > 0">
+                  <span class="tag-chip" *ngFor="let name of secondaryRepairers; let i = index">
+                    {{ name }}
+                    <button type="button" class="btn-remove-tag" (click)="removeSecondaryRepairer(i)">×</button>
+                  </span>
+                </div>
+              </div>
+
+            </div>
+          </div>
+
+          <!-- ── OUTCOME ── -->
+          <div class="form-section">
+            <button type="button" class="section-hdr" (click)="toggleSection('outcome')">
+              <span class="section-hdr-left"><span class="section-ico">✅</span><span class="section-lbl">Outcome</span></span>
+              <span class="section-chevron" [class.open]="sectionsOpen.outcome">▼</span>
+            </button>
+            <div class="section-body" *ngIf="sectionsOpen.outcome">
+
+              <div class="form-group">
+                <label for="status">Status</label>
+                <div class="select-wrapper glass">
+                  <select id="status" formControlName="status">
+                    <option value="New">New</option>
+                    <option value="Assigned">Assigned</option>
+                    <optgroup label="Completed">
+                      <option value="Repaired">Repaired</option>
+                      <option value="Advice Given">Advice Given</option>
+                      <option value="Partially Repaired">Partially Repaired</option>
+                      <option value="Not Repaired">Not Repaired</option>
+                    </optgroup>
+                  </select>
+                  <div class="select-arrow">▼</div>
+                </div>
+              </div>
+
+              <p class="outcome-hint" *ngIf="isEdit && editItemId">
+                Use the <strong>Complete</strong> button below to record satisfaction and donation details.
+              </p>
+
+            </div>
+          </div>
+
+          <!-- Actions -->
+          <div class="form-actions-wrapper">
+            <div class="validation-hint" *ngIf="repairForm.get('itemDescription')?.invalid && (repairForm.get('itemDescription')?.touched || selectedFiles.length > 0)">
+              ⚠️ Please enter a description to enable saving.
+            </div>
+            <div class="form-actions">
+              <button type="button" class="btn-cancel" (click)="onCancel()" [disabled]="isUploading">Cancel</button>
+              <button *ngIf="isEdit && editItemId" type="button" class="btn-complete-item" (click)="goToComplete()" [disabled]="isUploading">
+                ✓ Complete
+              </button>
+              <button type="submit" *ngIf="!isEdit || hasChanges" [disabled]="repairForm.invalid || isUploading" class="btn-submit">
+                <span class="spinner" *ngIf="isUploading"></span>
+                {{ isUploading ? 'Saving Repair...' : (isEdit ? 'Save Changes' : 'Register Repair') }}
+              </button>
             </div>
           </div>
         </form>
+      </div>
+
+      <!-- Photo lightbox -->
+      <div class="lightbox-overlay" *ngIf="lightboxPhotos.length" (click)="closeLightbox()">
+        <button class="lightbox-close" (click)="closeLightbox()">✕</button>
+        <button class="lightbox-nav lightbox-prev" *ngIf="lightboxPhotos.length > 1"
+                [disabled]="lightboxIndex === 0"
+                (click)="$event.stopPropagation(); lightboxPrev()">&#8249;</button>
+        <img [src]="lightboxUrl" class="lightbox-img" (click)="$event.stopPropagation()">
+        <button class="lightbox-nav lightbox-next" *ngIf="lightboxPhotos.length > 1"
+                [disabled]="lightboxIndex === lightboxPhotos.length - 1"
+                (click)="$event.stopPropagation(); lightboxNext()">&#8250;</button>
+        <div class="lightbox-counter" *ngIf="lightboxPhotos.length > 1">
+          {{ lightboxIndex + 1 }} / {{ lightboxPhotos.length }}
+        </div>
       </div>
     </div>
   `,
@@ -451,726 +481,327 @@ interface VideoResult {
       border-radius: 20px;
       animation: slideUp 0.5s ease-out;
     }
-    
     @media (max-width: 600px) {
-      .form-page {
-        padding: 0.5rem;
-      }
-      .form-container {
-        padding: 1.5rem;
-        border-radius: 12px;
-      }
-      h2 {
-        font-size: 1.4rem;
-      }
+      .form-page { padding: 0.5rem; }
+      .form-container { padding: 1.5rem; border-radius: 12px; }
+      h2 { font-size: 1.4rem; }
     }
     @keyframes slideUp {
       from { transform: translateY(20px); opacity: 0; }
       to { transform: translateY(0); opacity: 1; }
     }
-    .form-actions {
-      display: flex;
-      justify-content: flex-end;
-      gap: 1rem;
-      margin-top: 1.5rem;
-    }
-    
-    @media (max-width: 600px) {
-      .form-actions {
-        flex-direction: column-reverse;
-      }
-      .btn-cancel, .btn-submit {
-        width: 100%;
-        padding: 1rem;
-        justify-content: center;
-      }
-    }
     h2 { margin: 0; font-size: 1.8rem; color: var(--accent-color); display: flex; align-items: baseline; gap: 0.8rem; }
     .version { font-size: 0.6rem; opacity: 0.3; font-weight: 300; }
     .btn-close {
-      background: none;
-      border: none;
-      color: var(--text-color);
-      font-size: 2rem;
-      cursor: pointer;
-      opacity: 0.5;
-      transition: opacity 0.2s;
+      background: none; border: none; color: var(--text-color);
+      font-size: 2rem; cursor: pointer; opacity: 0.5; transition: opacity 0.2s;
     }
     .btn-close:hover:not(:disabled) { opacity: 1; }
+
+    /* ── Section accordion ── */
+    .form-section {
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 12px;
+      margin-bottom: 0.75rem;
+      overflow: visible;
+    }
+    .section-hdr {
+      width: 100%; display: flex; justify-content: space-between; align-items: center;
+      padding: 0.85rem 1.2rem;
+      background: rgba(255,255,255,0.04);
+      border: none; cursor: pointer; color: white; text-align: left;
+      transition: background 0.2s; border-radius: 12px;
+    }
+    .section-hdr:hover { background: rgba(255,255,255,0.08); }
+    .section-hdr-left { display: flex; align-items: center; gap: 0.65rem; }
+    .section-ico { font-size: 1.1rem; line-height: 1; }
+    .section-lbl { font-weight: 600; font-size: 1rem; color: rgba(255,255,255,0.9); letter-spacing: 0.01em; }
+    .section-chevron {
+      font-size: 0.65rem; color: rgba(255,255,255,0.35);
+      transition: transform 0.25s ease; display: inline-block;
+      transform: rotate(-90deg);
+    }
+    .section-chevron.open { transform: rotate(0deg); }
+    .section-body {
+      padding: 1.25rem 1.25rem 0.75rem;
+      border-top: 1px solid rgba(255,255,255,0.06);
+    }
+    .section-body .form-group:last-child { margin-bottom: 0; }
+
     .form-group { margin-bottom: 1.5rem; }
     label { display: block; margin-bottom: 0.5rem; font-weight: 500; color: rgba(255, 255, 255, 0.8); }
     .required { color: #ff4444; margin-left: 2px; }
     .hint { display: block; font-size: 0.8rem; color: rgba(255, 255, 255, 0.4); margin-top: 0.3rem; }
-    
+    .outcome-hint {
+      font-size: 0.82rem; color: rgba(255,255,255,0.4);
+      margin: 0; padding: 0.6rem 0.8rem;
+      background: rgba(255,255,255,0.03); border-radius: 8px;
+      border: 1px solid rgba(255,255,255,0.07);
+    }
+    .outcome-hint strong { color: rgba(255,255,255,0.65); }
+
+    .category-picker { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+    .cat-btn {
+      display: flex; flex-direction: column; align-items: center; gap: 3px;
+      background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 10px; padding: 0.5rem 0.6rem; cursor: pointer;
+      transition: all 0.15s; color: white; min-width: 58px;
+    }
+    .cat-btn:hover { background: rgba(255,255,255,0.12); border-color: rgba(255,255,255,0.3); transform: translateY(-1px); }
+    .cat-btn.selected { background: rgba(0,242,255,0.15); border-color: var(--accent-color); box-shadow: 0 0 8px rgba(0,242,255,0.2); }
+    .cat-emoji { font-size: 1.5rem; line-height: 1; }
+    .cat-label { font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.04em; opacity: 0.75; white-space: nowrap; }
+
     input, textarea {
-      width: 100%;
-      padding: 0.8rem 1rem;
-      background: rgba(255, 255, 255, 0.05);
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      border-radius: 10px;
-      color: white;
-      font-size: 1rem;
-      transition: all 0.2s;
+      width: 100%; padding: 0.8rem 1rem;
+      background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 10px; color: white; font-size: 1rem; transition: all 0.2s;
     }
-    textarea { height: 120px; resize: vertical; }
+    textarea { height: 100px; resize: vertical; }
     input:focus, textarea:focus {
-      outline: none;
-      border-color: var(--primary-color);
-      background: rgba(255, 255, 255, 0.08);
-      box-shadow: 0 0 15px rgba(99, 102, 241, 0.2);
+      outline: none; border-color: var(--primary-color);
+      background: rgba(255,255,255,0.08); box-shadow: 0 0 15px rgba(99,102,241,0.2);
     }
 
-    .select-wrapper {
-        position: relative;
-        border-radius: 10px;
-        overflow: hidden;
-    }
+    .select-wrapper { position: relative; border-radius: 10px; overflow: hidden; }
     select {
-        width: 100%;
-        padding: 0.8rem 1rem;
-        background: rgba(255, 255, 255, 0.05);
-        border: 1px solid rgba(255, 255, 255, 0.1);
-        border-radius: 10px;
-        color: white;
-        font-size: 1rem;
-        appearance: none;
-        cursor: pointer;
-        transition: all 0.2s;
+      width: 100%; padding: 0.8rem 1rem;
+      background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 10px; color: white; font-size: 1rem;
+      appearance: none; cursor: pointer; transition: all 0.2s;
     }
-    select:focus {
-        outline: none;
-        border-color: var(--primary-color);
-        background: rgba(255, 255, 255, 0.08);
-    }
-    select option {
-        background: #1a1a2e;
-        color: white;
-        padding: 1rem;
-    }
+    select:focus { outline: none; border-color: var(--primary-color); background: rgba(255,255,255,0.08); }
+    select option { background: #1a1a2e; color: white; padding: 1rem; }
     .select-arrow {
-        position: absolute;
-        right: 1rem;
-        top: 50%;
-        transform: translateY(-50%);
-        pointer-events: none;
-        color: rgba(255, 255, 255, 0.5);
-        font-size: 0.8rem;
+      position: absolute; right: 1rem; top: 50%; transform: translateY(-50%);
+      pointer-events: none; color: rgba(255,255,255,0.5); font-size: 0.8rem;
     }
 
-    .tag-input-wrapper {
-      display: flex;
-      gap: 0.5rem;
-      margin-bottom: 0.8rem;
-    }
-    .autocomplete-container {
-      position: relative;
-      flex: 1;
-    }
+    .autocomplete-container { position: relative; flex: 1; }
     .suggestions-list {
-      position: absolute;
-      top: 100%;
-      left: 0;
-      right: 0;
-      z-index: 1000;
-      margin-top: 0.5rem;
-      max-height: 300px;
-      overflow-y: auto;
-      border-radius: 12px;
-      background: rgba(20, 20, 35, 0.95);
-      backdrop-filter: blur(20px);
-      border: 2px solid rgba(0, 242, 255, 0.3);
-      box-shadow: 0 15px 40px rgba(0, 0, 0, 0.8), 0 0 20px rgba(0, 242, 255, 0.1);
+      position: absolute; top: 100%; left: 0; right: 0; z-index: 1000;
+      margin-top: 0.5rem; max-height: 300px; overflow-y: auto;
+      border-radius: 12px; background: rgba(20,20,35,0.95);
+      backdrop-filter: blur(20px); border: 2px solid rgba(0,242,255,0.3);
+      box-shadow: 0 15px 40px rgba(0,0,0,0.8), 0 0 20px rgba(0,242,255,0.1);
     }
-
     .clear-btn {
-      position: absolute;
-      right: 15px;
-      top: 50%;
-      transform: translateY(-50%);
-      background: none;
-      border: none;
-      color: rgba(255,255,255,0.5);
-      font-size: 1.2rem;
-      cursor: pointer;
-      padding: 5px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      line-height: 1;
-      transition: color 0.2s;
-      z-index: 5;
+      position: absolute; right: 15px; top: 50%; transform: translateY(-50%);
+      background: none; border: none; color: rgba(255,255,255,0.5);
+      font-size: 1.2rem; cursor: pointer; padding: 5px;
+      display: flex; align-items: center; justify-content: center;
+      line-height: 1; transition: color 0.2s; z-index: 5;
     }
-
-    .clear-btn:hover {
-      color: var(--accent-color);
-    }
-    .suggestions-list::-webkit-scrollbar {
-      width: 6px;
-    }
-    .suggestions-list::-webkit-scrollbar-track {
-      background: rgba(255, 255, 255, 0.05);
-      border-radius: 0 12px 12px 0;
-    }
-    .suggestions-list::-webkit-scrollbar-thumb {
-      background: var(--primary-color);
-      border-radius: 10px;
-    }
+    .clear-btn:hover { color: var(--accent-color); }
     .suggestion-item {
-      padding: 1rem 1.2rem;
-      cursor: pointer;
-      font-size: 0.95rem;
-      color: rgba(255, 255, 255, 0.9);
-      transition: all 0.2s;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-      display: flex;
-      align-items: center;
-      gap: 0.8rem;
+      padding: 1rem 1.2rem; cursor: pointer; font-size: 0.95rem;
+      color: rgba(255,255,255,0.9); transition: all 0.2s;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+      display: flex; align-items: center; gap: 0.8rem;
     }
-    .suggestion-emoji {
-      font-size: 1.2rem;
-    }
-    .suggestion-item:last-child {
-      border-bottom: none;
-    }
-    .suggestion-item:hover {
-      background: rgba(0, 242, 255, 0.15);
-      color: var(--accent-color);
-      padding-left: 1.5rem;
-    }
+    .suggestion-emoji { font-size: 1.2rem; }
+    .suggestion-item:last-child { border-bottom: none; }
+    .suggestion-item:hover { background: rgba(0,242,255,0.15); color: var(--accent-color); padding-left: 1.5rem; }
+
+    .tag-input-wrapper { display: flex; gap: 0.5rem; margin-bottom: 0.8rem; }
     .btn-add-tag {
-      padding: 0 1.5rem;
-      background: var(--primary-color);
-      border: none;
-      border-radius: 10px;
-      color: white;
-      font-weight: 600;
-      cursor: pointer;
-      transition: all 0.2s;
+      padding: 0 1.5rem; background: var(--primary-color);
+      border: none; border-radius: 10px; color: white;
+      font-weight: 600; cursor: pointer; transition: all 0.2s;
     }
-    .btn-add-tag:hover {
-      background: var(--accent-color);
-      transform: translateY(-1px);
-    }
-    .tag-chips {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 0.8rem;
-    }
+    .btn-add-tag:hover { background: var(--accent-color); transform: translateY(-1px); }
+    .tag-chips { display: flex; flex-wrap: wrap; gap: 0.8rem; margin-top: 0.5rem; }
     .tag-chip {
-      background: rgba(0, 242, 255, 0.1);
-      border: 1px solid var(--accent-color);
-      color: var(--accent-color);
-      padding: 0.4rem 0.8rem;
-      border-radius: 20px;
-      font-size: 0.85rem;
-      font-weight: 600;
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
+      background: rgba(0,242,255,0.1); border: 1px solid var(--accent-color);
+      color: var(--accent-color); padding: 0.4rem 0.8rem;
+      border-radius: 20px; font-size: 0.85rem; font-weight: 600;
+      display: flex; align-items: center; gap: 0.5rem;
     }
-    .btn-remove-tag {
-      background: none;
-      border: none;
-      color: var(--accent-color);
-      font-size: 1.2rem;
-      line-height: 1;
-      cursor: pointer;
-      padding: 0;
-      opacity: 0.6;
-    }
+    .btn-remove-tag { background: none; border: none; color: var(--accent-color); font-size: 1.2rem; line-height: 1; cursor: pointer; padding: 0; opacity: 0.6; }
     .btn-remove-tag:hover { opacity: 1; }
 
-    .photo-upload-zone {
-      margin-bottom: 1rem;
-      display: flex;
-      flex-direction: column;
-      gap: 0.6rem;
-    }
+    .photo-upload-zone { margin-bottom: 1rem; display: flex; flex-direction: column; gap: 0.6rem; }
     .drop-zone {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: 0.5rem;
-      padding: 1.5rem 1rem;
-      background: rgba(0, 242, 255, 0.05);
-      border: 2px dashed rgba(0, 242, 255, 0.3);
-      border-radius: 12px;
-      color: var(--accent-color);
-      cursor: pointer;
-      transition: all 0.2s;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: 0.5rem; padding: 1.5rem 1rem;
+      background: rgba(0,242,255,0.05); border: 2px dashed rgba(0,242,255,0.3);
+      border-radius: 12px; color: var(--accent-color); cursor: pointer; transition: all 0.2s;
     }
-    .drop-zone:hover:not(.disabled) {
-      background: rgba(0, 242, 255, 0.1);
-      border-color: var(--accent-color);
-    }
+    .drop-zone:hover:not(.disabled) { background: rgba(0,242,255,0.1); border-color: var(--accent-color); }
     .drop-zone.disabled { opacity: 0.5; cursor: not-allowed; }
-    .drop-zone-label {
-      font-weight: 600;
-      font-size: 0.95rem;
-    }
-    .drop-zone-hint {
-      font-size: 0.78rem;
-      color: rgba(255, 255, 255, 0.4);
-    }
+    .drop-zone-label { font-weight: 600; font-size: 0.95rem; }
+    .drop-zone-hint { font-size: 0.78rem; color: rgba(255,255,255,0.4); }
     .btn-camera {
-      display: flex;
-      align-items: center;
-      gap: 0.6rem;
-      justify-content: center;
-      padding: 0.6rem 1rem;
-      background: rgba(255, 255, 255, 0.05);
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      border-radius: 8px;
-      color: rgba(255, 255, 255, 0.6);
-      cursor: pointer;
-      font-size: 0.85rem;
-      transition: all 0.2s;
+      display: flex; align-items: center; gap: 0.6rem; justify-content: center;
+      padding: 0.6rem 1rem; background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.1); border-radius: 8px;
+      color: rgba(255,255,255,0.6); cursor: pointer; font-size: 0.85rem; transition: all 0.2s;
     }
-    .btn-camera:hover:not(:disabled) {
-      background: rgba(255, 255, 255, 0.1);
-      color: white;
-    }
+    .btn-camera:hover:not(:disabled) { background: rgba(255,255,255,0.1); color: white; }
     .btn-camera:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-web-search { border-color: rgba(0,242,255,0.2); color: rgba(0,242,255,0.7); }
+    .btn-web-search:hover:not(:disabled) { background: rgba(0,242,255,0.08); border-color: rgba(0,242,255,0.4); color: var(--accent-color); }
 
-    .webcam-modal {
-      position: fixed;
-      inset: 0;
-      z-index: 1000;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-    .webcam-overlay {
-      position: absolute;
-      inset: 0;
-      background: rgba(0, 0, 0, 0.75);
-    }
+    .webcam-modal { position: fixed; inset: 0; z-index: 1000; display: flex; align-items: center; justify-content: center; }
+    .webcam-overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.75); }
     .webcam-container {
-      position: relative;
-      background: #1a1a2e;
-      border: 1px solid rgba(0, 242, 255, 0.3);
-      border-radius: 16px;
-      padding: 1.5rem;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 1rem;
-      max-width: 90vw;
+      position: relative; background: #1a1a2e; border: 1px solid rgba(0,242,255,0.3);
+      border-radius: 16px; padding: 1.5rem; display: flex; flex-direction: column;
+      align-items: center; gap: 1rem; max-width: 90vw;
     }
-    .webcam-title {
-      margin: 0;
-      font-weight: 600;
-      color: var(--accent-color);
-    }
-    .webcam-video {
-      width: min(480px, 80vw);
-      border-radius: 10px;
-      background: #000;
-    }
-    .webcam-controls {
-      display: flex;
-      gap: 1rem;
-    }
+    .webcam-title { margin: 0; font-weight: 600; color: var(--accent-color); }
+    .webcam-video { width: min(480px, 80vw); border-radius: 10px; background: #000; }
+    .webcam-controls { display: flex; gap: 1rem; }
     .btn-capture {
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-      padding: 0.7rem 1.4rem;
-      background: var(--accent-color);
-      color: #000;
-      border: none;
-      border-radius: 8px;
-      font-weight: 700;
-      cursor: pointer;
-      font-size: 0.95rem;
+      display: flex; align-items: center; gap: 0.5rem; padding: 0.7rem 1.4rem;
+      background: var(--accent-color); color: #000; border: none;
+      border-radius: 8px; font-weight: 700; cursor: pointer; font-size: 0.95rem;
     }
     .btn-capture:hover { filter: brightness(1.1); }
     .btn-cancel-webcam {
-      padding: 0.7rem 1.2rem;
-      background: rgba(255,255,255,0.07);
-      color: rgba(255,255,255,0.7);
-      border: 1px solid rgba(255,255,255,0.15);
-      border-radius: 8px;
-      cursor: pointer;
-      font-size: 0.95rem;
+      padding: 0.7rem 1.2rem; background: rgba(255,255,255,0.07);
+      color: rgba(255,255,255,0.7); border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 8px; cursor: pointer; font-size: 0.95rem;
     }
     .btn-cancel-webcam:hover { background: rgba(255,255,255,0.12); color: white; }
 
     .photo-preview-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
-      gap: 1rem;
-      margin-top: 1rem;
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+      gap: 1rem; margin-top: 1rem;
     }
-    .photo-card {
-      position: relative;
-      aspect-ratio: 1;
-      border-radius: 8px;
-      overflow: hidden;
-      border: 1px solid rgba(255, 255, 255, 0.1);
-    }
-    .photo-card img {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-    }
-    .photo-type-toggle {
-      position: absolute;
-      bottom: 0;
-      left: 0;
-      right: 0;
-      display: flex;
-      z-index: 2;
-    }
-    .photo-type-toggle button {
-      flex: 1;
-      border: none;
-      padding: 4px 0;
-      font-size: 0.68rem;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.04em;
-      cursor: pointer;
-      background: rgba(0,0,0,0.55);
-      color: rgba(255,255,255,0.45);
-      transition: all 0.15s;
-    }
-    .photo-type-toggle button:hover { background: rgba(0,0,0,0.75); color: white; }
-    .photo-type-toggle button.active-before {
-      background: rgba(74,144,226,0.75);
-      color: white;
-    }
-    .photo-type-toggle button.active-after {
-      background: rgba(40,180,99,0.75);
-      color: white;
-    }
+    .photo-card { position: relative; aspect-ratio: 1; border-radius: 8px; overflow: hidden; border: 1px solid rgba(255,255,255,0.1); cursor: zoom-in; }
+    .photo-card img { width: 100%; height: 100%; object-fit: cover; }
     .status-overlay {
-      position: absolute;
-      inset: 0;
-      background: rgba(0, 0, 0, 0.6);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 0.75rem;
-      color: white;
-      font-weight: 600;
-      backdrop-filter: blur(2px);
+      position: absolute; inset: 0; background: rgba(0,0,0,0.6);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.75rem; color: white; font-weight: 600; backdrop-filter: blur(2px);
     }
-    .status-overlay.ready { background: rgba(0, 0, 0, 0.3); }
-    .status-overlay.uploading { background: rgba(0, 242, 255, 0.4); }
-    .status-overlay.error { background: rgba(255, 68, 68, 0.6); }
-    
+    .status-overlay.ready { background: rgba(0,0,0,0.3); }
+    .status-overlay.uploading { background: rgba(0,242,255,0.4); }
+    .status-overlay.error { background: rgba(255,68,68,0.6); }
     .btn-remove {
-      position: absolute;
-      top: 4px;
-      right: 4px;
-      width: 20px;
-      height: 20px;
-      border-radius: 50%;
-      background: rgba(255, 68, 68, 0.8);
-      border: none;
-      color: white;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
-      font-size: 14px;
-      transition: transform 0.2s;
-      z-index: 10;
+      position: absolute; top: 4px; right: 4px; width: 20px; height: 20px;
+      border-radius: 50%; background: rgba(255,68,68,0.8); border: none;
+      color: white; display: flex; align-items: center; justify-content: center;
+      cursor: pointer; font-size: 14px; transition: transform 0.2s; z-index: 10;
     }
     .btn-remove:hover:not(:disabled) { transform: scale(1.1); background: #ff4444; }
     .btn-remove:disabled { opacity: 0.5; cursor: not-allowed; }
-    
-    .form-actions-wrapper { margin-top: 2.5rem; }
-    .validation-hint {
-      text-align: center;
-      margin-bottom: 1rem;
-      color: #ffaa00;
-      font-size: 0.9rem;
-      font-weight: 600;
-      animation: fadeIn 0.3s ease;
+    .error-banner {
+      margin-top: 1rem; padding: 0.8rem;
+      background: rgba(255,68,68,0.1); border: 1px solid rgba(255,68,68,0.2);
+      border-radius: 8px; color: #ff4444; font-size: 0.9rem;
     }
-    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-    
-    .form-actions { display: flex; gap: 1rem; }
-    .btn-submit, .btn-cancel {
-      flex: 1;
-      padding: 1rem;
-      border-radius: 12px;
-      font-weight: 600;
-      cursor: pointer;
-      transition: all 0.2s;
-      border: none;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 0.8rem;
-    }
-    .btn-submit {
-      background: linear-gradient(135deg, var(--primary-color), var(--accent-color));
-      color: white;
-    }
-    .btn-submit:hover:not(:disabled) {
-      transform: translateY(-2px);
-      box-shadow: 0 10px 20px rgba(0, 242, 255, 0.3);
-    }
-    .btn-submit:disabled { opacity: 0.3; cursor: not-allowed; filter: grayscale(1); }
-    .btn-additional-details {
-      width: 100%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 0.5rem;
-      padding: 0.75rem 1rem;
-      background: rgba(0, 242, 255, 0.06);
-      border: 1px dashed rgba(0, 242, 255, 0.35);
-      border-radius: 10px;
-      color: var(--accent-color);
-      cursor: pointer;
-      font-size: 0.9rem;
-      font-weight: 500;
-      transition: all 0.2s;
-    }
-    .btn-additional-details:hover { background: rgba(0, 242, 255, 0.12); border-color: var(--accent-color); }
-    .details-badge {
-      background: var(--accent-color);
-      color: #000;
-      border-radius: 50%;
-      width: 18px;
-      height: 18px;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 0.7rem;
-      font-weight: 700;
-    }
-    .additional-details-modal {
-      position: fixed;
-      inset: 0;
-      z-index: 1000;
-      display: flex;
-      align-items: flex-end;
-      justify-content: center;
-    }
-    @media (min-width: 600px) {
-      .additional-details-modal { align-items: center; }
-    }
-    .additional-details-overlay {
-      position: absolute;
-      inset: 0;
-      background: rgba(0, 0, 0, 0.7);
-    }
-    .additional-details-panel {
-      position: relative;
-      background: #12122a;
-      border: 1px solid rgba(0, 242, 255, 0.25);
-      border-radius: 20px 20px 0 0;
-      width: 100%;
-      max-width: 520px;
-      max-height: 90vh;
-      display: flex;
-      flex-direction: column;
-      overflow: hidden;
-    }
-    @media (min-width: 600px) {
-      .additional-details-panel { border-radius: 16px; }
-    }
-    .additional-details-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 1.2rem 1.5rem 1rem;
-      border-bottom: 1px solid rgba(255,255,255,0.08);
-    }
-    .additional-details-header h3 { margin: 0; font-size: 1.1rem; color: var(--accent-color); }
-    .btn-close-panel {
-      background: none;
-      border: none;
-      color: rgba(255,255,255,0.5);
-      font-size: 1.5rem;
-      cursor: pointer;
-      line-height: 1;
-      padding: 0 0.2rem;
-    }
-    .btn-close-panel:hover { color: white; }
-    .additional-details-body {
-      padding: 1.2rem 1.5rem;
-      overflow-y: auto;
-      flex: 1;
-    }
-    .additional-details-footer {
-      display: flex;
-      gap: 0.75rem;
-      padding: 1rem 1.5rem;
-      border-top: 1px solid rgba(255,255,255,0.08);
-    }
-    .additional-details-footer .btn-cancel,
-    .additional-details-footer .btn-submit { flex: 1; }
 
-    /* Find repair videos */
-    .btn-find-videos {
-      width: 100%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 0.5rem;
-      padding: 0.7rem 1rem;
-      background: rgba(255, 0, 0, 0.08);
-      border: 1px dashed rgba(255, 0, 0, 0.35);
-      border-radius: 10px;
-      color: rgba(255, 255, 255, 0.85);
-      cursor: pointer;
-      font-size: 0.9rem;
-      font-weight: 500;
-      transition: all 0.2s;
+    /* YouTube */
+    .yt-section label { display: block; margin-bottom: 0.5rem; }
+    .yt-search-row { display: flex; gap: 0.5rem; align-items: stretch; }
+    .yt-query-input {
+      flex: 1; background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 8px; color: white; padding: 0.6rem 0.8rem; font-size: 0.9rem; outline: none;
     }
-    .btn-find-videos:hover { background: rgba(255, 0, 0, 0.15); border-color: rgba(255, 0, 0, 0.6); }
-
-    /* Saved videos list */
-    .saved-videos-list { display: flex; flex-direction: column; gap: 0.4rem; }
+    .yt-query-input:focus { border-color: rgba(255,60,60,0.5); }
+    .btn-yt-search {
+      display: flex; align-items: center; gap: 0.4rem;
+      background: rgba(255,0,0,0.1); border: 1px solid rgba(255,0,0,0.35);
+      border-radius: 8px; color: white; padding: 0.6rem 1rem;
+      font-size: 0.85rem; cursor: pointer; white-space: nowrap; transition: all 0.2s;
+    }
+    .btn-yt-search:hover:not(:disabled) { background: rgba(255,0,0,0.25); border-color: rgba(255,0,0,0.6); }
+    .btn-yt-search:disabled { opacity: 0.4; cursor: not-allowed; }
+    .yt-loading { display: flex; align-items: center; gap: 0.5rem; color: rgba(255,255,255,0.5); font-size: 0.85rem; margin-top: 0.75rem; }
+    .yt-spinner {
+      width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.1); border-top-color: #ff3333;
+      border-radius: 50%; animation: spin 0.8s linear infinite; display: inline-block; flex-shrink: 0;
+    }
+    .yt-error {
+      margin-top: 0.75rem; padding: 0.6rem 0.8rem;
+      background: rgba(255,60,60,0.1); border: 1px solid rgba(255,60,60,0.3);
+      border-radius: 8px; color: #ff9090; font-size: 0.8rem; line-height: 1.4;
+    }
+    .yt-results-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem; margin-top: 0.75rem; }
+    @media (max-width: 520px) { .yt-results-grid { grid-template-columns: repeat(2, 1fr); } }
+    .yt-card {
+      cursor: pointer; border-radius: 8px; overflow: hidden;
+      background: rgba(255,255,255,0.04); border: 2px solid transparent;
+      transition: border-color 0.15s, transform 0.15s; display: block;
+    }
+    .yt-card:hover { border-color: rgba(255,60,60,0.5); transform: translateY(-2px); }
+    .yt-thumb { position: relative; aspect-ratio: 16/9; overflow: hidden; }
+    .yt-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .yt-add-hint {
+      position: absolute; inset: 0; background: rgba(0,0,0,0.55);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.85rem; font-weight: 700; color: white; letter-spacing: 0.05em;
+      opacity: 0; transition: opacity 0.15s;
+    }
+    .yt-card:hover .yt-add-hint { opacity: 1; }
+    .yt-card-title {
+      margin: 0; padding: 0.35rem 0.4rem; font-size: 0.72rem; line-height: 1.3;
+      color: rgba(255,255,255,0.8);
+      display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+    }
+    .yt-saved-list { margin-top: 0.75rem; }
+    .yt-saved-label { margin: 0 0 0.4rem; font-size: 0.75rem; color: rgba(255,255,255,0.4); }
     .saved-video-row {
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-      background: rgba(255,255,255,0.04);
-      border-radius: 6px;
-      padding: 0.4rem 0.6rem;
+      display: flex; align-items: center; gap: 0.5rem;
+      background: rgba(255,255,255,0.04); border-radius: 6px; padding: 0.4rem 0.6rem; margin-bottom: 0.25rem;
     }
-    .saved-video-title {
-      flex: 1;
-      font-size: 0.82rem;
-      color: rgba(255,255,255,0.75);
-      text-decoration: none;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
+    .saved-video-title { flex: 1; font-size: 0.82rem; color: rgba(255,255,255,0.75); text-decoration: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .saved-video-title:hover { color: var(--accent-color); }
-    .btn-remove-video {
-      background: none; border: none; color: rgba(255,255,255,0.35);
-      cursor: pointer; font-size: 1rem; line-height: 1; padding: 0 0.2rem;
-    }
+    .btn-remove-video { background: none; border: none; color: rgba(255,255,255,0.35); cursor: pointer; font-size: 1rem; line-height: 1; padding: 0 0.2rem; }
     .btn-remove-video:hover { color: #ff4444; }
 
-    /* Video search overlay — full panel replacement */
-    .video-search-overlay {
-      position: absolute;
-      inset: 0;
-      background: #12122a;
-      border-radius: inherit;
-      display: flex;
-      flex-direction: column;
-      overflow: hidden;
+    /* Image search */
+    .img-search-panel { margin-top: 0.5rem; padding: 0.75rem; background: rgba(0,242,255,0.03); border: 1px solid rgba(0,242,255,0.12); border-radius: 10px; }
+    .img-results-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem; margin-top: 0.75rem; }
+    @media (max-width: 520px) { .img-results-grid { grid-template-columns: repeat(2, 1fr); } }
+    .img-card { cursor: pointer; border-radius: 8px; overflow: hidden; background: rgba(255,255,255,0.04); border: 2px solid transparent; transition: border-color 0.15s, transform 0.15s; display: block; }
+    .img-card:hover { border-color: rgba(0,242,255,0.5); transform: translateY(-2px); }
+    .img-card:hover .yt-add-hint { opacity: 1; }
+    .img-thumb { position: relative; aspect-ratio: 4/3; overflow: hidden; background: rgba(255,255,255,0.05); }
+    .img-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+    /* Item details grid */
+    .item-details-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 1rem; }
+    .item-details-full { grid-column: 1 / -1; }
+    @media (max-width: 480px) { .item-details-grid { grid-template-columns: 1fr; } .item-details-full { grid-column: 1; } }
+
+    /* Actions */
+    .form-actions-wrapper { margin-top: 1.5rem; }
+    .validation-hint { text-align: center; margin-bottom: 1rem; color: #ffaa00; font-size: 0.9rem; font-weight: 600; animation: fadeIn 0.3s ease; }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    .form-actions { display: flex; gap: 1rem; }
+    @media (max-width: 600px) { .form-actions { flex-direction: column-reverse; } .btn-cancel, .btn-submit { width: 100%; padding: 1rem; justify-content: center; } }
+    .btn-submit, .btn-cancel {
+      flex: 1; padding: 1rem; border-radius: 12px; font-weight: 600; cursor: pointer;
+      transition: all 0.2s; border: none; display: flex; align-items: center; justify-content: center; gap: 0.8rem;
     }
-    .video-search-header {
-      display: flex;
-      align-items: flex-start;
-      justify-content: space-between;
-      padding: 1.2rem 1.5rem 0.8rem;
-      border-bottom: 1px solid rgba(255,255,255,0.08);
-      flex-shrink: 0;
+    .btn-submit { background: linear-gradient(135deg, var(--primary-color), var(--accent-color)); color: white; }
+    .btn-submit:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 10px 20px rgba(0,242,255,0.3); }
+    .btn-submit:disabled { opacity: 0.3; cursor: not-allowed; filter: grayscale(1); }
+    .btn-complete-item {
+      flex: 1; padding: 1rem; border-radius: 12px; font-weight: 600; cursor: pointer;
+      transition: all 0.2s; border: 1px solid rgba(40,180,99,0.5); background: rgba(40,180,99,0.12); color: #58d68d;
+      display: flex; align-items: center; justify-content: center; gap: 0.5rem;
     }
-    .video-search-title { margin: 0; font-size: 1rem; font-weight: 600; color: var(--accent-color); }
-    .video-search-query { margin: 0.2rem 0 0; font-size: 0.75rem; color: rgba(255,255,255,0.4); }
-    .video-search-loading {
-      display: flex; align-items: center; justify-content: center;
-      gap: 0.8rem; padding: 3rem; color: rgba(255,255,255,0.5);
-    }
-    .video-search-error {
-      padding: 1.5rem; text-align: center; color: #ff4444; font-size: 0.9rem;
-    }
-    .video-results-grid {
-      flex: 1;
-      overflow-y: auto;
-      padding: 0.8rem 1rem;
-      display: flex;
-      flex-direction: column;
-      gap: 0.5rem;
-    }
-    .video-card {
-      display: flex;
-      align-items: flex-start;
-      gap: 0.75rem;
-      padding: 0.5rem;
-      border-radius: 8px;
-      cursor: pointer;
-      transition: background 0.15s;
-      border: 1px solid transparent;
-    }
-    .video-card:hover { background: rgba(255,255,255,0.04); }
-    .video-checkbox { display: none; }
-    .video-card:has(.video-checkbox:checked) {
-      background: rgba(0, 242, 255, 0.07);
-      border-color: rgba(0, 242, 255, 0.3);
-    }
-    .video-thumb-wrap {
-      position: relative;
-      flex-shrink: 0;
-      width: 120px;
-      border-radius: 6px;
-      overflow: hidden;
-    }
-    .video-thumb-wrap img { width: 100%; display: block; }
-    .video-selected-overlay {
-      position: absolute;
-      inset: 0;
-      background: rgba(0, 242, 255, 0.55);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-    .video-info { flex: 1; min-width: 0; }
-    .video-title {
-      margin: 0 0 0.3rem;
-      font-size: 0.82rem;
-      color: rgba(255,255,255,0.85);
-      line-height: 1.3;
-      display: -webkit-box;
-      -webkit-line-clamp: 3;
-      -webkit-box-orient: vertical;
-      overflow: hidden;
-    }
-    .video-channel { margin: 0; font-size: 0.75rem; color: rgba(255,255,255,0.4); }
-    .video-search-footer {
-      display: flex;
-      align-items: center;
-      gap: 0.75rem;
-      padding: 0.9rem 1.5rem;
-      border-top: 1px solid rgba(255,255,255,0.08);
-      flex-shrink: 0;
-    }
-    .video-search-footer .btn-cancel,
-    .video-search-footer .btn-submit { flex: 1; }
-    .selected-count { font-size: 0.8rem; color: var(--accent-color); white-space: nowrap; }
-    .btn-cancel {
-      background: rgba(255, 255, 255, 0.1);
-      color: var(--text-color);
-    }
-    .btn-cancel:hover:not(:disabled) { background: rgba(255, 255, 255, 0.15); }
-    
+    .btn-complete-item:hover:not(:disabled) { background: rgba(40,180,99,0.25); border-color: #58d68d; transform: translateY(-2px); box-shadow: 0 6px 16px rgba(40,180,99,0.25); }
+    .btn-complete-item:disabled { opacity: 0.4; cursor: not-allowed; }
+    .btn-cancel { background: rgba(255,255,255,0.1); color: var(--text-color); }
+    .btn-cancel:hover:not(:disabled) { background: rgba(255,255,255,0.15); }
     .error { color: #ff4444; font-size: 0.85rem; margin-top: 0.4rem; }
-    .error-banner {
-      margin-top: 1rem;
-      padding: 0.8rem;
-      background: rgba(255, 68, 68, 0.1);
-      border: 1px solid rgba(255, 68, 68, 0.2);
-      border-radius: 8px;
-      color: #ff4444;
-      font-size: 0.9rem;
-    }
-    
-    .spinner {
-      width: 18px;
-      height: 18px;
-      border: 2px solid rgba(255, 255, 255, 0.3);
-      border-top-color: white;
-      border-radius: 50%;
-      animation: spin 0.8s linear infinite;
-    }
-    @keyframes spin {
-      to { transform: rotate(360deg); }
-    }
+    .spinner { width: 18px; height: 18px; border: 2px solid rgba(255,255,255,0.3); border-top-color: white; border-radius: 50%; animation: spin 0.8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Lightbox */
+    .lightbox-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.92); z-index: 9999; display: flex; align-items: center; justify-content: center; cursor: zoom-out; }
+    .lightbox-img { max-width: 90vw; max-height: 90vh; object-fit: contain; border-radius: 8px; box-shadow: 0 8px 40px rgba(0,0,0,0.8); cursor: default; }
+    .lightbox-close { position: fixed; top: 1.5rem; right: 1.5rem; background: transparent; border: none; color: rgba(255,255,255,0.7); font-size: 1.5rem; cursor: pointer; padding: 4px 8px; transition: color 0.2s; z-index: 10000; }
+    .lightbox-close:hover { color: white; }
+    .lightbox-nav { background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: white; font-size: 2.5rem; line-height: 1; width: 48px; height: 48px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; padding: 0; transition: background 0.2s; z-index: 10000; }
+    .lightbox-nav:hover:not(:disabled) { background: rgba(0,242,255,0.2); border-color: var(--accent-color); }
+    .lightbox-nav:disabled { opacity: 0.2; cursor: default; }
+    .lightbox-counter { position: fixed; bottom: 1.5rem; left: 50%; transform: translateX(-50%); font-size: 0.85rem; color: rgba(255,255,255,0.5); }
   `]
 })
 export class RepairFormComponent implements OnInit, OnDestroy {
@@ -1185,35 +816,26 @@ export class RepairFormComponent implements OnInit, OnDestroy {
   private route = inject(ActivatedRoute);
   protected appVersion = APP_VERSION;
 
+  sectionsOpen = { session: true, item: true, visitor: true, repairer: true, outcome: true };
+
+  toggleSection(section: string) {
+    (this.sectionsOpen as any)[section] = !(this.sectionsOpen as any)[section];
+  }
+
   private normalizeRCDay(storedValue: string): string {
     if (!storedValue) return storedValue;
-
-    // Check if it already matches a value in our list exactly
-    if (this.availableDates.some(d => d.value === storedValue)) {
-      return storedValue;
-    }
-
-    // Try to normalize by components (Day, Month, Year)
-    // Format is "DayName, DD, MM, YYYY"
+    if (this.availableDates.some(d => d.value === storedValue)) return storedValue;
     const parts = storedValue.split(',').map(p => p.trim());
     if (parts.length < 4) return storedValue;
-
     const storedDay = parseInt(parts[1], 10);
     const storedMonth = parseInt(parts[2], 10);
     const storedYear = parseInt(parts[3], 10);
-
-    // Look for a Saturday in the same month/year that is within 1 day of the stored date
-    const match = this.availableDates.find(d => {
-      return d.date.getUTCMonth() + 1 === storedMonth &&
-        d.date.getUTCFullYear() === storedYear &&
-        Math.abs(d.date.getUTCDate() - storedDay) <= 1;
-    });
-
-    if (match) {
-      return match.value;
-    }
-
-    return storedValue;
+    const match = this.availableDates.find(d =>
+      d.date.getUTCMonth() + 1 === storedMonth &&
+      d.date.getUTCFullYear() === storedYear &&
+      Math.abs(d.date.getUTCDate() - storedDay) <= 1
+    );
+    return match ? match.value : storedValue;
   }
 
   repairForm: FormGroup;
@@ -1225,37 +847,92 @@ export class RepairFormComponent implements OnInit, OnDestroy {
   selectedFiles: PhotoFile[] = [];
   existingPhotos: RepairPhoto[] = [];
   showWebcamModal = false;
+  lightboxPhotos: string[] = [];
+  lightboxIndex = 0;
+  get lightboxUrl(): string | null { return this.lightboxPhotos[this.lightboxIndex] ?? null; }
+
+  openLightbox(startUrl: string) {
+    this.lightboxPhotos = [...this.existingPhotos.map(p => p.url), ...this.selectedFiles.map(f => f.preview)];
+    const idx = this.lightboxPhotos.indexOf(startUrl);
+    this.lightboxIndex = idx >= 0 ? idx : 0;
+  }
+  closeLightbox() { this.lightboxPhotos = []; }
+  lightboxPrev() { if (this.lightboxIndex > 0) this.lightboxIndex--; }
+  lightboxNext() { if (this.lightboxIndex < this.lightboxPhotos.length - 1) this.lightboxIndex++; }
+
+  @HostListener('document:keydown', ['$event'])
+  onLightboxKey(e: KeyboardEvent) {
+    if (!this.lightboxPhotos.length) return;
+    if (e.key === 'ArrowLeft')  { this.lightboxPrev(); e.preventDefault(); }
+    if (e.key === 'ArrowRight') { this.lightboxNext(); e.preventDefault(); }
+    if (e.key === 'Escape')     { this.closeLightbox(); }
+  }
+
   private videoStream: MediaStream | null = null;
+  private originalSnapshot = '';
+
+  get hasChanges(): boolean {
+    if (!this.isEdit) return true;
+    return this.getSnapshot() !== this.originalSnapshot;
+  }
+
+  private getSnapshot(): string {
+    return JSON.stringify({
+      form: this.repairForm.value,
+      make: this.additionalDetails.make,
+      model: this.additionalDetails.model,
+      colour: this.additionalDetails.colour,
+      serialNumber: this.additionalDetails.serialNumber,
+      yearOfManufacture: this.additionalDetails.yearOfManufacture,
+      repairVideos: this.additionalDetails.repairVideos,
+      tags: this.tags,
+      secondaryRepairers: this.secondaryRepairers,
+      newPhotos: this.selectedFiles.length,
+      existingPhotoTypes: this.existingPhotos.map(p => p.type)
+    });
+  }
 
   showAdditionalDetails = false;
   isSavingDetails = false;
   additionalDetails: {
-    make: string;
-    model: string;
-    colour: string;
-    serialNumber: string;
-    yearOfManufacture: string;
+    make: string; model: string; colour: string;
+    serialNumber: string; yearOfManufacture: string;
     repairVideos: { url: string; title: string }[];
-  } = {
-    make: '',
-    model: '',
-    colour: '',
-    serialNumber: '',
-    yearOfManufacture: '',
-    repairVideos: []
-  };
+  } = { make: '', model: '', colour: '', serialNumber: '', yearOfManufacture: '', repairVideos: [] };
 
   showVideoSearch = false;
   videoSearchLoading = false;
   videoSearchError = '';
   videoSearchQuery = '';
   videoSearchResults: VideoResult[] = [];
+  youtubeSearchQuery = '';
+  private lastAutoQuery = '';
+
+  showImageSearch = false;
+  imageSearchLoading = false;
+  imageSearchError = '';
+  imageSearchQuery = '';
+  imageSearchResults: ImageResult[] = [];
+  private lastAutoImageQuery = '';
+
   tags: string[] = [];
   allAvailableTags: Tag[] = [];
   filteredSuggestions: Tag[] = [];
   showSuggestions = false;
 
   availableDates: { label: string, value: string, date: Date }[] = [];
+
+  categories = [
+    { value: 'electrical',  emoji: '⚡', label: 'Electrical' },
+    { value: 'textile',     emoji: '🧵', label: 'Textile' },
+    { value: 'ornament',    emoji: '🪆', label: 'Ornament' },
+    { value: 'mechanical',  emoji: '⚙️', label: 'Mechanical' },
+    { value: 'furniture',   emoji: '🪑', label: 'Furniture' },
+    { value: 'toy',         emoji: '🧸', label: 'Toy' },
+    { value: 'clock',       emoji: '🕐', label: 'Clock' },
+    { value: 'jewelry',     emoji: '💍', label: 'Jewelry' },
+    { value: 'other',       emoji: '❓', label: 'Other' },
+  ];
 
   owners: Owner[] = [];
   filteredOwners: Owner[] = [];
@@ -1273,16 +950,17 @@ export class RepairFormComponent implements OnInit, OnDestroy {
   constructor() {
     this.generateAvailableDates();
 
-    // Calculate default RCDay (next upcoming date)
     const today = new Date();
-    // Normalize today to start of day in UTC for comparison against availableDates
     const todayUTC = new Date(Date.UTC(today.getFullYear(), today.getMonth(), today.getDate()));
     const nextDate = this.availableDates.find(d => d.date >= todayUTC);
     const defaultValue = nextDate ? nextDate.value : (this.availableDates.length > 0 ? this.availableDates[this.availableDates.length - 1].value : '');
 
     this.repairForm = this.fb.group({
       displayNumber: [''],
+      category: [''],
       itemDescription: ['', Validators.required],
+      fault: [''],
+      ageOfItem: [''],
       telephone: [''],
       owner: [''],
       repairer: [''],
@@ -1290,9 +968,6 @@ export class RepairFormComponent implements OnInit, OnDestroy {
       RCDay: [defaultValue, Validators.required]
     });
 
-
-
-    // Track every change to RCDay
     this.repairForm.get('RCDay')?.valueChanges.subscribe(val => {
       if (val === '' || val === null || val === undefined) {
         if (!this.isUploading) {
@@ -1300,31 +975,45 @@ export class RepairFormComponent implements OnInit, OnDestroy {
         }
         return;
       }
-
-      // FUTURE ENFORCEMENT for NEW repairs
-      if (!this.isEdit && !this.isUploading) {
-        const today = new Date();
-        const todayUTC = new Date(Date.UTC(today.getFullYear(), today.getMonth(), today.getDate()));
-        const selectedDateObj = this.availableDates.find(d => d.value === val);
-
-        if (selectedDateObj && selectedDateObj.date < todayUTC) {
-          this.repairForm.patchValue({ RCDay: defaultValue }, { emitEvent: false });
-        } else {
-          // Refresh suggested number for this date
-          this.repairService.getSuggestedDisplayNumber(val).then(num => {
-            this.repairForm.patchValue({ displayNumber: num }, { emitEvent: false });
-          });
-        }
+      if (!this.isUploading) {
+        this.repairService.getSuggestedDisplayNumber(val).then(num => {
+          this.repairForm.patchValue({ displayNumber: num }, { emitEvent: false });
+        });
       }
     });
 
-    // Auto-update status when repairer changes
     this.repairForm.get('repairer')?.valueChanges.subscribe(repairer => {
       const currentStatus = this.repairForm.get('status')?.value;
       if (repairer && currentStatus === 'New') {
         this.repairForm.patchValue({ status: 'Assigned' }, { emitEvent: false });
       } else if (!repairer && currentStatus === 'Assigned') {
         this.repairForm.patchValue({ status: 'New' }, { emitEvent: false });
+      }
+    });
+
+    const buildYoutubeQuery = () => {
+      const desc = this.repairForm.get('itemDescription')?.value?.trim() || '';
+      const fault = this.repairForm.get('fault')?.value?.trim() || '';
+      return [desc, fault].filter(Boolean).join(' ');
+    };
+
+    this.repairForm.get('itemDescription')?.valueChanges.subscribe(desc => {
+      const autoQuery = buildYoutubeQuery();
+      if (this.youtubeSearchQuery === '' || this.youtubeSearchQuery === this.lastAutoQuery) {
+        this.youtubeSearchQuery = autoQuery;
+        this.lastAutoQuery = autoQuery;
+      }
+      if (this.imageSearchQuery === '' || this.imageSearchQuery === this.lastAutoImageQuery) {
+        this.imageSearchQuery = desc?.trim() || '';
+        this.lastAutoImageQuery = desc?.trim() || '';
+      }
+    });
+
+    this.repairForm.get('fault')?.valueChanges.subscribe(() => {
+      const autoQuery = buildYoutubeQuery();
+      if (this.youtubeSearchQuery === '' || this.youtubeSearchQuery === this.lastAutoQuery) {
+        this.youtubeSearchQuery = autoQuery;
+        this.lastAutoQuery = autoQuery;
       }
     });
   }
@@ -1334,22 +1023,14 @@ export class RepairFormComponent implements OnInit, OnDestroy {
   }
 
   async ngOnInit() {
-    // Load all available tags for autocomplete
-    this.repairService.getAllTags().then(tags => {
-      this.allAvailableTags = tags;
-    });
+    this.repairService.getAllTags().then(tags => { this.allAvailableTags = tags; });
+    this.repairService.getOwners().subscribe(owners => { this.owners = owners; });
+    this.repairService.getRepairers().subscribe((repairers: any[]) => { this.allRepairers = repairers; });
+    this.repairService.getPrimaryRepairers().subscribe((repairers: any[]) => { this.allPrimaryRepairers = repairers; });
 
-    this.repairService.getOwners().subscribe(owners => {
-      this.owners = owners;
-    });
-
-    this.repairService.getRepairers().subscribe((repairers: any[]) => {
-      this.allRepairers = repairers;
-    });
-
-    this.repairService.getPrimaryRepairers().subscribe((repairers: any[]) => {
-      this.allPrimaryRepairers = repairers;
-    });
+    if (this.route.snapshot.queryParamMap.get('additional') === '1') {
+      this.showAdditionalDetails = true;
+    }
 
     const id = this.route.snapshot.paramMap.get('id');
     if (id) {
@@ -1361,31 +1042,18 @@ export class RepairFormComponent implements OnInit, OnDestroy {
         if (item) {
           const updates: any = {
             displayNumber: item.displayNumber,
+            category: item.category || '',
             itemDescription: item.itemDescription,
+            fault: item.fault || '',
+            ageOfItem: item.ageOfItem || '',
             telephone: item.telephone || '',
             owner: item.owner || '',
             repairer: item.repairer || '',
             status: item.status || 'New'
           };
-
           if (item.RCDay && item.RCDay.trim() !== '') {
-            const normalized = this.normalizeRCDay(item.RCDay);
-
-            // FUTURE PREFERENCE: If we are editing an old item with a PAST session date,
-            // DO NOT patch the date field. Let it keep the defaultValue (the next upcoming session).
-            const today = new Date();
-            const todayUTC = new Date(Date.UTC(today.getFullYear(), today.getMonth(), today.getDate()));
-            const normalizedObj = this.availableDates.find(d => d.value === normalized);
-
-            if (normalizedObj && normalizedObj.date < todayUTC) {
-              // We don't add to 'updates' so it retains existing defaultValue from constructor
-            } else {
-              updates.RCDay = normalized;
-            }
-          } else {
-            // No RCDay provided by database.
+            updates.RCDay = this.normalizeRCDay(item.RCDay);
           }
-
           this.repairForm.patchValue(updates);
           this.existingPhotos = (item.photos || []).map(toRepairPhoto);
           this.tags = item.tags || [];
@@ -1398,6 +1066,7 @@ export class RepairFormComponent implements OnInit, OnDestroy {
             yearOfManufacture: item.yearOfManufacture || '',
             repairVideos: item.repairVideos || []
           };
+          setTimeout(() => { this.originalSnapshot = this.getSnapshot(); }, 0);
         }
       });
     } else {
@@ -1405,15 +1074,11 @@ export class RepairFormComponent implements OnInit, OnDestroy {
         const currentRCDay = this.repairForm.get('RCDay')?.value;
         const suggestion = await this.repairService.getSuggestedDisplayNumber(currentRCDay);
         this.repairForm.patchValue({ displayNumber: suggestion });
-
-        // SECOND-PASS SAFETY: Repatch defaultValue after a short delay 
-        // to ensure no browser autocomplete or late sync clobbered it.
         setTimeout(() => {
           const currentVal = this.repairForm.get('RCDay')?.value;
           const today = new Date();
           const todayUTC = new Date(Date.UTC(today.getFullYear(), today.getMonth(), today.getDate()));
           const currentSelectedObj = this.availableDates.find(d => d.value === currentVal);
-
           if (!currentVal || currentVal === '' || (currentSelectedObj && currentSelectedObj.date < todayUTC)) {
             const nextDate = this.availableDates.find(d => d.date >= todayUTC);
             const fallback = nextDate ? nextDate.value : (this.availableDates.length > 0 ? this.availableDates[this.availableDates.length - 1].value : '');
@@ -1430,44 +1095,33 @@ export class RepairFormComponent implements OnInit, OnDestroy {
     const files = event.target.files as FileList;
     if (files && files.length > 0) {
       const newFiles = Array.from(files);
-      // Reset input so the same file(s) can be re-selected later
       event.target.value = '';
-
       const readPromises = newFiles.map(file => new Promise<PhotoFile>(resolve => {
         const reader = new FileReader();
         reader.onload = (e: any) => resolve({ file, preview: e.target.result, status: 'ready', type: 'before' });
         reader.readAsDataURL(file);
       }));
-
-      Promise.all(readPromises).then(loaded => {
-        this.selectedFiles = [...this.selectedFiles, ...loaded];
-      });
+      Promise.all(readPromises).then(loaded => { this.selectedFiles = [...this.selectedFiles, ...loaded]; });
     }
   }
 
-  removeSelectedFile(index: number) {
-    this.selectedFiles.splice(index, 1);
-  }
-
-  removeExistingPhoto(index: number) {
-    this.existingPhotos.splice(index, 1);
-  }
+  removeSelectedFile(index: number) { this.selectedFiles.splice(index, 1); }
+  removeExistingPhoto(index: number) { this.existingPhotos.splice(index, 1); }
 
   onTakePhotoClick() {
     if (this.isUploading) return;
-    this.openWebcam();
+    const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+    if (isMobile) { this.cameraInputRef.nativeElement.click(); } else { this.openWebcam(); }
   }
 
   async openWebcam() {
     this.showWebcamModal = true;
-    // Wait one tick for Angular to render the video element
     setTimeout(async () => {
       try {
         this.videoStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
         this.webcamVideoRef.nativeElement.srcObject = this.videoStream;
       } catch {
         this.showWebcamModal = false;
-        // Fall back to file picker if camera access is denied
         this.cameraInputRef.nativeElement.click();
       }
     }, 50);
@@ -1483,9 +1137,7 @@ export class RepairFormComponent implements OnInit, OnDestroy {
       if (blob) {
         const file = new File([blob], `photo-${Date.now()}.jpg`, { type: 'image/jpeg' });
         const reader = new FileReader();
-        reader.onload = (e: any) => {
-          this.selectedFiles = [...this.selectedFiles, { file, preview: e.target.result, status: 'ready', type: 'before' }];
-        };
+        reader.onload = (e: any) => { this.selectedFiles = [...this.selectedFiles, { file, preview: e.target.result, status: 'ready', type: 'before' }]; };
         reader.readAsDataURL(file);
       }
       this.closeWebcam();
@@ -1493,54 +1145,27 @@ export class RepairFormComponent implements OnInit, OnDestroy {
   }
 
   closeWebcam() {
-    if (this.videoStream) {
-      this.videoStream.getTracks().forEach(t => t.stop());
-      this.videoStream = null;
-    }
+    if (this.videoStream) { this.videoStream.getTracks().forEach(t => t.stop()); this.videoStream = null; }
     this.showWebcamModal = false;
   }
 
-  ngOnDestroy() {
-    this.closeWebcam();
-  }
+  ngOnDestroy() { this.closeWebcam(); }
 
   hasAdditionalDetails(): boolean {
     return !!(this.additionalDetails.make || this.additionalDetails.model ||
               this.additionalDetails.colour || this.additionalDetails.serialNumber ||
-              this.additionalDetails.yearOfManufacture ||
-              this.additionalDetails.repairVideos?.length);
-  }
-
-  get selectedVideoCount(): number {
-    return this.videoSearchResults.filter(v => v.selected).length;
+              this.additionalDetails.yearOfManufacture || this.additionalDetails.repairVideos?.length);
   }
 
   async searchRepairVideos() {
-    const description = this.repairForm.get('itemDescription')?.value || '';
-    const parts = [
-      description,
-      this.additionalDetails.make,
-      this.additionalDetails.model,
-      this.additionalDetails.colour,
-      this.additionalDetails.yearOfManufacture
-    ].filter(p => p?.trim()).join(' ');
-
-    this.videoSearchQuery = `${parts} repair`;
-    this.showVideoSearch = true;
+    if (!this.youtubeSearchQuery.trim()) return;
     this.videoSearchLoading = true;
     this.videoSearchError = '';
     this.videoSearchResults = [];
-
     try {
       const response = await firstValueFrom(
         this.http.get<any>('https://www.googleapis.com/youtube/v3/search', {
-          params: {
-            part: 'snippet',
-            q: this.videoSearchQuery,
-            type: 'video',
-            maxResults: '12',
-            key: environment.youtubeApiKey
-          }
+          params: { part: 'snippet', q: this.youtubeSearchQuery, type: 'video', maxResults: '12', key: environment.youtubeApiKey }
         })
       );
       this.videoSearchResults = (response.items || []).map((item: any) => ({
@@ -1554,48 +1179,78 @@ export class RepairFormComponent implements OnInit, OnDestroy {
       const apiMsg = err?.error?.error?.message;
       const status = err?.status;
       if (status === 403) {
-        this.videoSearchError = `YouTube API access denied (403)${apiMsg ? ': ' + apiMsg : ''}. Make sure the YouTube Data API v3 is enabled in Google Cloud Console and the API key has no referrer restrictions blocking this site.`;
+        this.videoSearchError = `YouTube API access denied (403)${apiMsg ? ': ' + apiMsg : ''}.`;
       } else if (status === 400) {
-        this.videoSearchError = `Bad request (400)${apiMsg ? ': ' + apiMsg : ''}. Check the API key is correct.`;
+        this.videoSearchError = `Bad request (400)${apiMsg ? ': ' + apiMsg : ''}.`;
       } else if (apiMsg) {
         this.videoSearchError = `YouTube API error: ${apiMsg}`;
       } else {
-        this.videoSearchError = `Search failed (${status || 'network error'}). Open browser DevTools → Network tab for details.`;
+        this.videoSearchError = `Search failed (${status || 'network error'}).`;
       }
-      console.error('YouTube search error:', err);
     } finally {
       this.videoSearchLoading = false;
     }
   }
 
-  addSelectedVideos() {
-    const newVideos = this.videoSearchResults
-      .filter(v => v.selected)
-      .map(v => ({ url: `https://www.youtube.com/watch?v=${v.id}`, title: v.title }));
-
+  addSingleVideo(video: VideoResult) {
+    const url = `https://www.youtube.com/watch?v=${video.id}`;
     const existing = this.additionalDetails.repairVideos || [];
-    const existingUrls = new Set(existing.map(v => v.url));
-    const toAdd = newVideos.filter(v => !existingUrls.has(v.url));
-    this.additionalDetails.repairVideos = [...existing, ...toAdd];
-    this.showVideoSearch = false;
+    if (!existing.some(v => v.url === url)) {
+      this.additionalDetails.repairVideos = [...existing, { url, title: video.title }];
+    }
+    this.videoSearchResults = this.videoSearchResults.filter(v => v.id !== video.id);
   }
 
-  removeRepairVideo(index: number) {
-    this.additionalDetails.repairVideos.splice(index, 1);
+  onYoutubeQueryEdit() { this.lastAutoQuery = ''; }
+  removeRepairVideo(index: number) { this.additionalDetails.repairVideos.splice(index, 1); }
+  onImageQueryEdit() { this.lastAutoImageQuery = ''; }
+
+  async searchImages() {
+    if (!this.imageSearchQuery.trim()) return;
+    this.imageSearchLoading = true;
+    this.imageSearchError = '';
+    this.imageSearchResults = [];
+    if (!environment.pixabayApiKey) {
+      this.imageSearchError = 'Image search is not configured.';
+      this.imageSearchLoading = false;
+      return;
+    }
+    try {
+      const response = await firstValueFrom(
+        this.http.get<any>('https://pixabay.com/api/', {
+          params: { key: environment.pixabayApiKey, q: this.imageSearchQuery, image_type: 'photo', safesearch: 'true', per_page: '18', min_width: '200' }
+        })
+      );
+      this.imageSearchResults = (response.hits || []).map((hit: any) => ({
+        url: hit.largeImageURL || hit.webformatURL,
+        thumbnail: hit.previewURL || hit.webformatURL,
+        title: hit.tags, width: hit.imageWidth || 0, height: hit.imageHeight || 0, selected: false
+      }));
+      if (this.imageSearchResults.length === 0) {
+        this.imageSearchError = 'No images found. Try a different search term.';
+      }
+    } catch (err: any) {
+      const status = err?.status;
+      this.imageSearchError = status === 400 ? 'Invalid API key or request.' : `Search failed (${status || 'network error'}).`;
+    } finally {
+      this.imageSearchLoading = false;
+    }
   }
 
-  closeAdditionalDetails() {
-    this.showAdditionalDetails = false;
+  addSingleImage(img: ImageResult) {
+    if (!this.existingPhotos.some(p => p.url === img.url)) {
+      this.existingPhotos = [...this.existingPhotos, { url: img.url, type: 'before' }];
+    }
+    this.imageSearchResults = this.imageSearchResults.filter(i => i.url !== img.url);
   }
+
+  closeAdditionalDetails() { this.showAdditionalDetails = false; }
 
   async saveAdditionalDetails() {
     if (this.isEdit && this.editItemId) {
       this.isSavingDetails = true;
-      try {
-        await this.repairService.updateRepairItem(this.editItemId, { ...this.additionalDetails });
-      } finally {
-        this.isSavingDetails = false;
-      }
+      try { await this.repairService.updateRepairItem(this.editItemId, { ...this.additionalDetails }); }
+      finally { this.isSavingDetails = false; }
     }
     this.showAdditionalDetails = false;
   }
@@ -1604,54 +1259,36 @@ export class RepairFormComponent implements OnInit, OnDestroy {
     const value = input.value.trim();
     if (value && !this.tags.includes(value)) {
       this.tags.push(value);
-      // Update local cache so it appears in suggestions immediately if typed again
       if (!this.allAvailableTags.find(t => t.name === value)) {
         const emoji = this.repairService.getEmojiForTag(value);
-        this.allAvailableTags.push({ name: value, emoji: emoji });
+        this.allAvailableTags.push({ name: value, emoji });
         this.allAvailableTags.sort((a, b) => a.name.localeCompare(b.name));
       }
       input.value = '';
     }
   }
 
-  removeTag(index: number) {
-    this.tags.splice(index, 1);
-  }
+  removeTag(index: number) { this.tags.splice(index, 1); }
 
   onTagSearch(value: string) {
-    if (!value.trim()) {
-      this.filteredSuggestions = [];
-      this.showSuggestions = false;
-      return;
-    }
+    if (!value.trim()) { this.filteredSuggestions = []; this.showSuggestions = false; return; }
     const term = value.toLowerCase();
-    this.filteredSuggestions = this.allAvailableTags.filter(tag =>
-      tag.name.toLowerCase().includes(term) && !this.tags.includes(tag.name)
-    );
+    this.filteredSuggestions = this.allAvailableTags.filter(tag => tag.name.toLowerCase().includes(term) && !this.tags.includes(tag.name));
     this.showSuggestions = this.filteredSuggestions.length > 0;
   }
 
   selectSuggestion(tag: Tag, input: HTMLInputElement) {
-    if (!this.tags.includes(tag.name)) {
-      this.tags.push(tag.name);
-    }
+    if (!this.tags.includes(tag.name)) this.tags.push(tag.name);
     input.value = '';
     this.filteredSuggestions = [];
     this.showSuggestions = false;
   }
 
-  hideSuggestions() {
-    // Use timeout to allow mousedown on suggestion to trigger first
-    setTimeout(() => {
-      this.showSuggestions = false;
-    }, 200);
-  }
+  hideSuggestions() { setTimeout(() => { this.showSuggestions = false; }, 200); }
 
   onOwnerSearch(value: string) {
     const term = (value || '').toLowerCase();
-    this.filteredOwners = this.owners.filter(o =>
-      !term || o.name.toLowerCase().includes(term)
-    );
+    this.filteredOwners = this.owners.filter(o => !term || o.name.toLowerCase().includes(term));
     this.showOwnerSuggestions = true;
   }
 
@@ -1661,23 +1298,12 @@ export class RepairFormComponent implements OnInit, OnDestroy {
     this.showOwnerSuggestions = false;
   }
 
-  clearOwner() {
-    this.repairForm.patchValue({ owner: '' });
-    this.filteredOwners = [];
-    this.showOwnerSuggestions = false;
-  }
-
-  hideOwnerSuggestions() {
-    setTimeout(() => {
-      this.showOwnerSuggestions = false;
-    }, 200);
-  }
+  clearOwner() { this.repairForm.patchValue({ owner: '' }); this.filteredOwners = []; this.showOwnerSuggestions = false; }
+  hideOwnerSuggestions() { setTimeout(() => { this.showOwnerSuggestions = false; }, 200); }
 
   onRepairerSearch(value: string) {
     const term = (value || '').toLowerCase();
-    this.filteredRepairers = this.allPrimaryRepairers.filter(r =>
-      !term || r.name.toLowerCase().includes(term)
-    );
+    this.filteredRepairers = this.allPrimaryRepairers.filter(r => !term || r.name.toLowerCase().includes(term));
     this.showRepairerSuggestions = true;
   }
 
@@ -1687,17 +1313,8 @@ export class RepairFormComponent implements OnInit, OnDestroy {
     this.showRepairerSuggestions = false;
   }
 
-  clearRepairer() {
-    this.repairForm.patchValue({ repairer: '' });
-    this.filteredRepairers = [];
-    this.showRepairerSuggestions = false;
-  }
-
-  hideRepairerSuggestions() {
-    setTimeout(() => {
-      this.showRepairerSuggestions = false;
-    }, 200);
-  }
+  clearRepairer() { this.repairForm.patchValue({ repairer: '' }); this.filteredRepairers = []; this.showRepairerSuggestions = false; }
+  hideRepairerSuggestions() { setTimeout(() => { this.showRepairerSuggestions = false; }, 200); }
 
   onSecondaryRepairerSearch(value: string) {
     const term = (value || '').toLowerCase();
@@ -1711,29 +1328,19 @@ export class RepairFormComponent implements OnInit, OnDestroy {
   }
 
   addSecondaryRepairer(repairer: any, input: HTMLInputElement) {
-    if (!this.secondaryRepairers.includes(repairer.name)) {
-      this.secondaryRepairers.push(repairer.name);
-    }
+    if (!this.secondaryRepairers.includes(repairer.name)) this.secondaryRepairers.push(repairer.name);
     input.value = '';
     this.filteredSecondaryRepairers = [];
     this.showSecondaryRepairerSuggestions = false;
   }
 
-  removeSecondaryRepairer(index: number) {
-    this.secondaryRepairers.splice(index, 1);
-  }
-
-  hideSecondaryRepairerSuggestions() {
-    setTimeout(() => {
-      this.showSecondaryRepairerSuggestions = false;
-    }, 200);
-  }
+  removeSecondaryRepairer(index: number) { this.secondaryRepairers.splice(index, 1); }
+  hideSecondaryRepairerSuggestions() { setTimeout(() => { this.showSecondaryRepairerSuggestions = false; }, 200); }
 
   async onSubmit() {
     if (this.repairForm.valid && !this.isUploading) {
       this.isUploading = true;
       this.uploadError = null;
-
       try {
         const uploadPromises = this.selectedFiles.map(async (photoFile): Promise<RepairPhoto> => {
           try {
@@ -1747,10 +1354,8 @@ export class RepairFormComponent implements OnInit, OnDestroy {
             throw err;
           }
         });
-
         const newPhotos = await Promise.all(uploadPromises);
         const allPhotos: RepairPhoto[] = [...this.existingPhotos, ...newPhotos];
-
         const itemData = {
           ...this.repairForm.value,
           photos: allPhotos,
@@ -1758,13 +1363,13 @@ export class RepairFormComponent implements OnInit, OnDestroy {
           additionalRepairers: this.secondaryRepairers,
           ...this.additionalDetails
         };
-
         if (this.isEdit && this.editItemId) {
           await this.repairService.updateRepairItem(this.editItemId, itemData);
+          this.selectedFiles = this.selectedFiles.filter(f => f.status !== 'success');
+          this.originalSnapshot = this.getSnapshot();
         } else {
           await this.repairService.addRepairItem(itemData);
         }
-
         this.repairService.setEditItem(null);
         this.router.navigate(['/']);
       } catch (error) {
@@ -1776,10 +1381,16 @@ export class RepairFormComponent implements OnInit, OnDestroy {
     }
   }
 
+  selectCategory(value: string) {
+    const current = this.repairForm.get('category')?.value;
+    this.repairForm.patchValue({ category: current === value ? '' : value });
+  }
+
   onCancel() {
-    if (!this.isUploading) {
-      this.repairService.setEditItem(null);
-      this.router.navigate(['/']);
-    }
+    if (!this.isUploading) { this.repairService.setEditItem(null); this.router.navigate(['/']); }
+  }
+
+  goToComplete() {
+    if (this.editItemId) { this.router.navigate(['/complete', this.editItemId]); }
   }
 }
