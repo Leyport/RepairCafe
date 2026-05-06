@@ -51,5 +51,9 @@ export const routes: Routes = [
   {
     path: 'repairer-dashboard/:name',
     loadComponent: () => import('./components/repairer-dashboard/repairer-dashboard.component').then(m => m.RepairerDashboardComponent)
+  },
+  {
+    path: 'analytics',
+    loadComponent: () => import('./components/analytics-dashboard/analytics-dashboard.component').then(m => m.AnalyticsDashboardComponent)
   }
 ];

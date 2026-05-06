@@ -1,0 +1,764 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Repair Cafe Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --green-dark:   #1B5E20;
+      --green:        #2E7D32;
+      --green-mid:    #388E3C;
+      --green-light:  #4CAF50;
+      --bg:           #F1F8E9;
+      --surface:      #FFFFFF;
+      --surface-2:    #F9FBE7;
+      --text:         #212121;
+      --text-2:       #616161;
+      --border:       #E0E0E0;
+      --shadow:       0 2px 10px rgba(0,0,0,.1);
+      --shadow-lg:    0 6px 24px rgba(0,0,0,.14);
+      --radius:       16px;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    /* ── HEADER ── */
+    header {
+      background: linear-gradient(135deg, var(--green-dark) 0%, var(--green-mid) 100%);
+      color: #fff;
+      padding: 20px 32px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      box-shadow: 0 3px 14px rgba(0,0,0,.25);
+    }
+    .header-icon { font-size: 38px; flex-shrink: 0; }
+    .header-text h1 { font-size: 24px; font-weight: 800; letter-spacing: -.4px; }
+    .header-text p  { font-size: 13px; opacity: .8; margin-top: 2px; }
+    .header-actions { margin-left: auto; display: flex; gap: 10px; align-items: center; }
+    .btn-outline {
+      background: rgba(255,255,255,.12);
+      border: 1.5px solid rgba(255,255,255,.45);
+      color: #fff;
+      padding: 8px 18px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 600;
+      transition: background .2s;
+      white-space: nowrap;
+    }
+    .btn-outline:hover { background: rgba(255,255,255,.24); }
+
+    /* ── UPLOAD SCREEN ── */
+    #upload-screen {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: calc(100vh - 84px);
+      padding: 40px 24px;
+    }
+    .drop-zone {
+      background: var(--surface);
+      border: 3px dashed var(--green-light);
+      border-radius: 24px;
+      padding: 64px 80px;
+      text-align: center;
+      cursor: pointer;
+      transition: all .25s;
+      max-width: 520px;
+      width: 100%;
+      user-select: none;
+    }
+    .drop-zone:hover, .drop-zone.drag-over {
+      border-color: var(--green);
+      background: var(--surface-2);
+      transform: translateY(-3px);
+      box-shadow: var(--shadow-lg);
+    }
+    .drop-icon { font-size: 72px; margin-bottom: 18px; display: block; }
+    .drop-zone h2 { font-size: 22px; color: var(--green); margin-bottom: 10px; }
+    .drop-zone p  { color: var(--text-2); font-size: 14px; line-height: 1.7; }
+    .drop-zone .badge {
+      display: inline-block;
+      margin-top: 18px;
+      background: #E8F5E9;
+      color: var(--green);
+      font-size: 12px;
+      font-weight: 600;
+      padding: 5px 14px;
+      border-radius: 20px;
+      letter-spacing: .3px;
+    }
+
+    /* ── DASHBOARD ── */
+    #dashboard { display: none; padding: 28px 0 48px; }
+    .container { max-width: 1380px; margin: 0 auto; padding: 0 28px; }
+
+    /* Year tabs */
+    .filter-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 26px;
+      flex-wrap: wrap;
+    }
+    .filter-label { font-size: 13px; color: var(--text-2); font-weight: 600; margin-right: 4px; }
+    .year-tab {
+      padding: 7px 20px;
+      border-radius: 24px;
+      border: 2px solid var(--border);
+      background: var(--surface);
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--text-2);
+      transition: all .2s;
+    }
+    .year-tab:hover { border-color: var(--green-light); color: var(--green); }
+    .year-tab.active { background: var(--green); border-color: var(--green); color: #fff; }
+
+    /* KPI Row */
+    .kpi-row {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 18px;
+      margin-bottom: 26px;
+    }
+    .kpi-card {
+      background: var(--surface);
+      border-radius: var(--radius);
+      padding: 22px 22px 18px;
+      box-shadow: var(--shadow);
+      border-top: 4px solid;
+      transition: transform .2s, box-shadow .2s;
+      position: relative;
+      overflow: hidden;
+    }
+    .kpi-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-lg); }
+    .kpi-card:nth-child(1) { border-color: #4CAF50; }
+    .kpi-card:nth-child(2) { border-color: #1E88E5; }
+    .kpi-card:nth-child(3) { border-color: #FB8C00; }
+    .kpi-card:nth-child(4) { border-color: #8E24AA; }
+    .kpi-bg-icon {
+      position: absolute;
+      right: 16px;
+      top: 12px;
+      font-size: 44px;
+      opacity: .08;
+      pointer-events: none;
+    }
+    .kpi-label {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .8px;
+      color: var(--text-2);
+      margin-bottom: 10px;
+    }
+    .kpi-value {
+      font-size: 42px;
+      font-weight: 900;
+      color: var(--text);
+      line-height: 1;
+      letter-spacing: -1px;
+    }
+    .kpi-sub { font-size: 12px; color: var(--text-2); margin-top: 7px; }
+
+    /* Chart grid */
+    .charts-grid { display: flex; flex-direction: column; gap: 22px; }
+    .chart-row { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; }
+    .chart-row-3 { display: grid; grid-template-columns: 5fr 4fr 4fr; gap: 22px; }
+
+    .chart-card {
+      background: var(--surface);
+      border-radius: var(--radius);
+      padding: 24px;
+      box-shadow: var(--shadow);
+    }
+    .chart-card h3 { font-size: 15px; font-weight: 800; color: var(--text); margin-bottom: 3px; }
+    .chart-sub { font-size: 12px; color: var(--text-2); margin-bottom: 20px; }
+    .chart-wrap { position: relative; }
+
+    /* Footer */
+    footer {
+      text-align: center;
+      padding: 32px;
+      font-size: 12px;
+      color: var(--text-2);
+    }
+    footer a { color: var(--green); text-decoration: none; }
+
+    /* Responsive */
+    @media (max-width: 1100px) { .chart-row-3 { grid-template-columns: 1fr 1fr; } }
+    @media (max-width: 860px)  { .kpi-row { grid-template-columns: 1fr 1fr; } .chart-row { grid-template-columns: 1fr; } .chart-row-3 { grid-template-columns: 1fr; } }
+    @media (max-width: 480px)  { .kpi-row { grid-template-columns: 1fr; } .drop-zone { padding: 40px 24px; } }
+  </style>
+</head>
+<body>
+
+<header>
+  <span class="header-icon">♻️</span>
+  <div class="header-text">
+    <h1>Repair Cafe Dashboard</h1>
+    <p>Upload your session data to explore repair activity</p>
+  </div>
+  <div class="header-actions">
+    <label class="btn-outline" for="file-header">📂 Load New File</label>
+    <input type="file" id="file-header" accept=".xlsx,.xls" style="display:none">
+  </div>
+</header>
+
+<!-- ── UPLOAD SCREEN ── -->
+<div id="upload-screen">
+  <div class="drop-zone" id="drop-zone">
+    <span class="drop-icon">📊</span>
+    <h2>Upload Repair Cafe data</h2>
+    <p>
+      Drop your Excel file here or click to browse.<br>
+      The workbook should contain <strong>Monthly_Data</strong> sheets<br>
+      (e.g. <em>Monthly_Data 2025</em>, <em>Monthly_Data 2026</em>).
+    </p>
+    <span class="badge">Supports .xlsx and .xls</span>
+  </div>
+  <input type="file" id="file-drop" accept=".xlsx,.xls" style="display:none">
+</div>
+
+<!-- ── DASHBOARD ── -->
+<div id="dashboard">
+  <div class="container">
+
+    <!-- Year filter -->
+    <div class="filter-bar">
+      <span class="filter-label">Year:</span>
+      <div id="year-tabs"></div>
+    </div>
+
+    <!-- KPIs -->
+    <div class="kpi-row">
+      <div class="kpi-card">
+        <span class="kpi-bg-icon">📅</span>
+        <div class="kpi-label">Sessions</div>
+        <div class="kpi-value" id="kpi-sessions">—</div>
+        <div class="kpi-sub" id="kpi-sessions-sub"></div>
+      </div>
+      <div class="kpi-card">
+        <span class="kpi-bg-icon">🔧</span>
+        <div class="kpi-label">Items brought in</div>
+        <div class="kpi-value" id="kpi-items">—</div>
+        <div class="kpi-sub" id="kpi-items-sub"></div>
+      </div>
+      <div class="kpi-card">
+        <span class="kpi-bg-icon">✅</span>
+        <div class="kpi-label">Success rate</div>
+        <div class="kpi-value" id="kpi-success">—</div>
+        <div class="kpi-sub" id="kpi-success-sub"></div>
+      </div>
+      <div class="kpi-card">
+        <span class="kpi-bg-icon">👥</span>
+        <div class="kpi-label">Visitors</div>
+        <div class="kpi-value" id="kpi-visitors">—</div>
+        <div class="kpi-sub" id="kpi-visitors-sub"></div>
+      </div>
+    </div>
+
+    <!-- Charts -->
+    <div class="charts-grid">
+
+      <!-- Row 1: Items per session (full width stacked bar) -->
+      <div class="chart-card">
+        <h3>Items Repaired per Session</h3>
+        <div class="chart-sub">Stacked by item category — hover for details</div>
+        <div class="chart-wrap" style="height:310px">
+          <canvas id="chart-sessions"></canvas>
+        </div>
+      </div>
+
+      <!-- Row 2: Outcomes (donut) + Categories (h-bar) + Success rate (line) -->
+      <div class="chart-row-3">
+        <div class="chart-card">
+          <h3>Repair Outcomes</h3>
+          <div class="chart-sub">How each item was resolved</div>
+          <div class="chart-wrap" style="height:290px">
+            <canvas id="chart-outcomes"></canvas>
+          </div>
+        </div>
+        <div class="chart-card">
+          <h3>Items by Category</h3>
+          <div class="chart-sub">Most frequent types of repair</div>
+          <div class="chart-wrap" style="height:290px">
+            <canvas id="chart-categories"></canvas>
+          </div>
+        </div>
+        <div class="chart-card">
+          <h3>Success Rate per Session</h3>
+          <div class="chart-sub">% items successfully repaired (complete + partial)</div>
+          <div class="chart-wrap" style="height:290px">
+            <canvas id="chart-success"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- Row 3: Visitors trend (full width) -->
+      <div class="chart-card">
+        <h3>Attendance per Session</h3>
+        <div class="chart-sub">Visitors with items, incidental visitors, and volunteers</div>
+        <div class="chart-wrap" style="height:280px">
+          <canvas id="chart-visitors"></canvas>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<footer>
+  Built with <a href="https://www.chartjs.org/" target="_blank">Chart.js</a> &amp;
+  <a href="https://sheetjs.com/" target="_blank">SheetJS</a> —
+  Shrewsbury Repair Cafe
+</footer>
+
+<script>
+// ══════════════════════════════════════════
+//  CONFIG
+// ══════════════════════════════════════════
+const CAT_KEYS   = ['electrical','clothing','ornament','mechanical','furniture','toy','clock','jewellery','miscellaneous'];
+const CAT_LABELS = ['Electrical','Clothing & Textile','Ornament','Mechanical','Furniture','Toy','Clock','Jewellery','Miscellaneous'];
+const CAT_COLORS = ['#FF7043','#E91E63','#AB47BC','#546E7A','#795548','#29B6F6','#009688','#FFC107','#90A4AE'];
+
+const OUTCOME_CFG = [
+  { key: 'complete',     label: 'Complete Repair',       color: '#43A047' },
+  { key: 'partial',      label: 'Partial Repair',         color: '#8BC34A' },
+  { key: 'completeHome', label: 'Complete at Home',       color: '#C5E1A5' },
+  { key: 'ongoingHome',  label: 'Ongoing at Home',        color: '#FFC107' },
+  { key: 'advice',       label: 'Advice Given',           color: '#42A5F5' },
+  { key: 'unable',       label: 'Unable to Repair',       color: '#EF5350' },
+  { key: 'willBring',    label: 'Will Bring Back',        color: '#FF9800' },
+  { key: 'paperwork',    label: 'Paperwork Missing',      color: '#BDBDBD' },
+];
+
+// ══════════════════════════════════════════
+//  STATE
+// ══════════════════════════════════════════
+let allSessions = [];
+let charts      = {};
+
+// ══════════════════════════════════════════
+//  EXCEL PARSING
+// ══════════════════════════════════════════
+function excelToDate(serial) {
+  // Excel epoch = Dec 30 1899 (accounting for 1900-leap-year bug)
+  return new Date(Math.round((serial - 25569) * 86400_000));
+}
+
+function n(v) { const x = parseFloat(v); return isNaN(x) ? 0 : x; }
+
+function parseWorkbook(wb) {
+  const sessions = [];
+
+  wb.SheetNames.forEach(name => {
+    if (!name.startsWith('Monthly_Data')) return;
+
+    const sheet = wb.Sheets[name];
+    const rows  = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: true, defval: '' });
+
+    // First 3 rows are headers; data starts at row index 3
+    for (let i = 3; i < rows.length; i++) {
+      const r = rows[i];
+
+      const dateSerial = n(r[1]);
+      const totalItems = n(r[7]);
+      if (!dateSerial || totalItems === 0) continue;
+
+      const date = excelToDate(dateSerial);
+      if (isNaN(date.getTime())) continue;
+
+      sessions.push({
+        date,
+        year:       date.getFullYear(),
+        monthLabel: date.toLocaleDateString('en-GB', { month: 'short', year: '2-digit' }),
+        fullLabel:  date.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }),
+
+        volunteers:        n(r[2]),
+        incidentalVisitors: n(r[3]),
+        visitorsWithItems:  n(r[4]),
+        firstVisitors:      n(r[5]),
+        repeatVisitors:     n(r[6]),
+        totalItems,
+
+        outcomes: {
+          complete:     n(r[8]),
+          partial:      n(r[9]),
+          ongoingHome:  n(r[10]),
+          completeHome: n(r[11]),
+          advice:       n(r[12]),
+          unable:       n(r[13]),
+          willBring:    n(r[14]),
+          paperwork:    n(r[15]),
+        },
+
+        categories: {
+          electrical:     n(r[16]),
+          clothing:       n(r[17]),
+          ornament:       n(r[18]),
+          mechanical:     n(r[19]),
+          furniture:      n(r[20]),
+          toy:            n(r[21]),
+          clock:          n(r[22]),
+          jewellery:      n(r[23]),
+          miscellaneous:  n(r[24]),
+        },
+      });
+    }
+  });
+
+  sessions.sort((a, b) => a.date - b.date);
+  return sessions;
+}
+
+// ══════════════════════════════════════════
+//  FILE HANDLING
+// ══════════════════════════════════════════
+function loadFile(file) {
+  const reader = new FileReader();
+  reader.onload = e => {
+    const wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
+    allSessions = parseWorkbook(wb);
+
+    if (!allSessions.length) {
+      alert('No session data found.\n\nMake sure the workbook contains sheets named "Monthly_Data YYYY" with repair data starting on row 4.');
+      return;
+    }
+
+    buildYearTabs();
+    activateTab('all');
+    document.getElementById('upload-screen').style.display = 'none';
+    document.getElementById('dashboard').style.display = 'block';
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+// ══════════════════════════════════════════
+//  YEAR TABS
+// ══════════════════════════════════════════
+function buildYearTabs() {
+  const years  = [...new Set(allSessions.map(s => s.year))].sort();
+  const holder = document.getElementById('year-tabs');
+  holder.innerHTML = '';
+
+  ['all', ...years].forEach(y => {
+    const btn = document.createElement('button');
+    btn.className   = 'year-tab' + (y === 'all' ? ' active' : '');
+    btn.textContent = y === 'all' ? 'All years' : y;
+    btn.dataset.year = y;
+    btn.addEventListener('click', () => activateTab(y));
+    holder.appendChild(btn);
+  });
+}
+
+function activateTab(year) {
+  document.querySelectorAll('.year-tab').forEach(b => b.classList.toggle('active', b.dataset.year == year));
+  const sessions = year === 'all' ? allSessions : allSessions.filter(s => s.year == year);
+  updateKPIs(sessions);
+  updateCharts(sessions);
+}
+
+// ══════════════════════════════════════════
+//  KPI CARDS
+// ══════════════════════════════════════════
+function updateKPIs(sessions) {
+  const totalItems      = sessions.reduce((s, x) => s + x.totalItems, 0);
+  const totalSuccessful = sessions.reduce((s, x) => s + x.outcomes.complete + x.outcomes.partial + x.outcomes.completeHome, 0);
+  const totalComplete   = sessions.reduce((s, x) => s + x.outcomes.complete + x.outcomes.completeHome, 0);
+  const totalVisitors   = sessions.reduce((s, x) => s + x.visitorsWithItems, 0);
+  const totalIncidental = sessions.reduce((s, x) => s + x.incidentalVisitors, 0);
+  const successRate     = totalItems ? Math.round(totalSuccessful / totalItems * 100) : 0;
+  const avgItems        = sessions.length ? Math.round(totalItems / sessions.length) : 0;
+
+  set('kpi-sessions',     sessions.length);
+  set('kpi-sessions-sub', `Avg ${avgItems} items per session`);
+
+  set('kpi-items',     totalItems.toLocaleString());
+  set('kpi-items-sub', `${totalComplete.toLocaleString()} fully repaired`);
+
+  set('kpi-success',     successRate + '%');
+  set('kpi-success-sub', `${totalSuccessful} of ${totalItems} items repaired`);
+
+  set('kpi-visitors',     totalVisitors.toLocaleString());
+  set('kpi-visitors-sub', `+ ${totalIncidental.toLocaleString()} incidental visitors`);
+}
+
+function set(id, text) { document.getElementById(id).textContent = text; }
+
+// ══════════════════════════════════════════
+//  CHARTS
+// ══════════════════════════════════════════
+function kill(id) { if (charts[id]) { charts[id].destroy(); delete charts[id]; } }
+
+function updateCharts(sessions) {
+  renderSessionsChart(sessions);
+  renderOutcomesChart(sessions);
+  renderCategoriesChart(sessions);
+  renderSuccessChart(sessions);
+  renderVisitorsChart(sessions);
+}
+
+// ── 1. Stacked bar: items per session by category ──
+function renderSessionsChart(sessions) {
+  kill('sessions');
+  const labels   = sessions.map(s => s.monthLabel);
+  const fullDates = sessions.map(s => s.fullLabel);
+
+  const datasets = CAT_KEYS.map((key, i) => ({
+    label:           CAT_LABELS[i],
+    data:            sessions.map(s => s.categories[key]),
+    backgroundColor: CAT_COLORS[i],
+    stack:           'stack',
+    borderWidth:     0,
+  }));
+
+  charts['sessions'] = new Chart(
+    document.getElementById('chart-sessions').getContext('2d'),
+    {
+      type: 'bar',
+      data: { labels, datasets },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } },
+          tooltip: {
+            mode: 'index',
+            callbacks: {
+              title: (items) => fullDates[items[0].dataIndex],
+              footer: (items) => 'Total: ' + items.reduce((s, i) => s + i.raw, 0),
+            }
+          }
+        },
+        scales: {
+          x: { stacked: true, grid: { display: false } },
+          y: { stacked: true, beginAtZero: true, title: { display: true, text: 'Items' } }
+        }
+      }
+    }
+  );
+}
+
+// ── 2. Doughnut: repair outcomes ──
+function renderOutcomesChart(sessions) {
+  kill('outcomes');
+
+  const totals = OUTCOME_CFG.map(cfg => sessions.reduce((s, x) => s + x.outcomes[cfg.key], 0));
+  const active = OUTCOME_CFG.map((cfg, i) => ({ ...cfg, total: totals[i] })).filter(x => x.total > 0);
+
+  charts['outcomes'] = new Chart(
+    document.getElementById('chart-outcomes').getContext('2d'),
+    {
+      type: 'doughnut',
+      data: {
+        labels:   active.map(x => x.label),
+        datasets: [{
+          data:            active.map(x => x.total),
+          backgroundColor: active.map(x => x.color),
+          borderWidth:     2,
+          borderColor:     '#fff',
+          hoverOffset:     6,
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        cutout: '58%',
+        plugins: {
+          legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } },
+          tooltip: {
+            callbacks: {
+              label: ctx => {
+                const sum = ctx.dataset.data.reduce((a, b) => a + b, 0);
+                return ` ${ctx.label}: ${ctx.raw} (${Math.round(ctx.raw / sum * 100)}%)`;
+              }
+            }
+          }
+        }
+      }
+    }
+  );
+}
+
+// ── 3. Horizontal bar: category totals ──
+function renderCategoriesChart(sessions) {
+  kill('categories');
+
+  const totals = CAT_KEYS.map(k => sessions.reduce((s, x) => s + x.categories[k], 0));
+  const sorted = CAT_KEYS.map((k, i) => ({ label: CAT_LABELS[i], total: totals[i], color: CAT_COLORS[i] }))
+    .sort((a, b) => b.total - a.total);
+
+  charts['categories'] = new Chart(
+    document.getElementById('chart-categories').getContext('2d'),
+    {
+      type: 'bar',
+      data: {
+        labels:   sorted.map(x => x.label),
+        datasets: [{
+          label:           'Items',
+          data:            sorted.map(x => x.total),
+          backgroundColor: sorted.map(x => x.color),
+          borderRadius:    5,
+          borderSkipped:   false,
+        }]
+      },
+      options: {
+        indexAxis: 'y',
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { beginAtZero: true, title: { display: true, text: 'Items' } },
+          y: { grid: { display: false } }
+        }
+      }
+    }
+  );
+}
+
+// ── 4. Line: success rate per session ──
+function renderSuccessChart(sessions) {
+  kill('success');
+
+  const labels   = sessions.map(s => s.monthLabel);
+  const fullDates = sessions.map(s => s.fullLabel);
+  const rates    = sessions.map(s => {
+    const done = s.outcomes.complete + s.outcomes.partial + s.outcomes.completeHome;
+    return s.totalItems ? Math.round(done / s.totalItems * 100) : 0;
+  });
+
+  charts['success'] = new Chart(
+    document.getElementById('chart-success').getContext('2d'),
+    {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [{
+          label:           'Success %',
+          data:            rates,
+          borderColor:     '#43A047',
+          backgroundColor: 'rgba(67,160,71,.12)',
+          fill:            true,
+          tension:         0.4,
+          pointRadius:     5,
+          pointHoverRadius: 7,
+          pointBackgroundColor: '#43A047',
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              title:  items => fullDates[items[0].dataIndex],
+              label:  ctx  => ` Success rate: ${ctx.raw}%`,
+            }
+          }
+        },
+        scales: {
+          x: { grid: { display: false } },
+          y: { beginAtZero: true, max: 100, ticks: { callback: v => v + '%' } }
+        }
+      }
+    }
+  );
+}
+
+// ── 5. Line: visitors per session ──
+function renderVisitorsChart(sessions) {
+  kill('visitors');
+
+  const labels    = sessions.map(s => s.monthLabel);
+  const fullDates = sessions.map(s => s.fullLabel);
+
+  const mk = (label, key, color, dash) => ({
+    label,
+    data:                sessions.map(s => s[key] || 0),
+    borderColor:         color,
+    backgroundColor:     color + '18',
+    fill:                !dash,
+    tension:             0.4,
+    pointRadius:         5,
+    pointHoverRadius:    7,
+    pointBackgroundColor: color,
+    borderDash:          dash || [],
+  });
+
+  charts['visitors'] = new Chart(
+    document.getElementById('chart-visitors').getContext('2d'),
+    {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [
+          mk('Visitors with items', 'visitorsWithItems', '#1E88E5'),
+          mk('Incidental visitors',  'incidentalVisitors', '#8E24AA'),
+          mk('Volunteers',           'volunteers',          '#FB8C00', [6, 3]),
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } },
+          tooltip: {
+            callbacks: { title: items => fullDates[items[0].dataIndex] }
+          }
+        },
+        scales: {
+          x: { grid: { display: false } },
+          y: { beginAtZero: true }
+        }
+      }
+    }
+  );
+}
+
+// ══════════════════════════════════════════
+//  EVENT WIRING
+// ══════════════════════════════════════════
+(function wire() {
+  const dropZone   = document.getElementById('drop-zone');
+  const fileDrop   = document.getElementById('file-drop');
+  const fileHeader = document.getElementById('file-header');
+
+  dropZone.addEventListener('click', () => fileDrop.click());
+
+  fileDrop.addEventListener('change', e => { if (e.target.files[0]) loadFile(e.target.files[0]); e.target.value = ''; });
+  fileHeader.addEventListener('change', e => {
+    if (e.target.files[0]) {
+      loadFile(e.target.files[0]);
+      document.getElementById('upload-screen').style.display = 'none';
+    }
+    e.target.value = '';
+  });
+
+  dropZone.addEventListener('dragover',  e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+  dropZone.addEventListener('dragleave', ()  => dropZone.classList.remove('drag-over'));
+  dropZone.addEventListener('drop', e => {
+    e.preventDefault();
+    dropZone.classList.remove('drag-over');
+    if (e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0]);
+  });
+})();
+</script>
+</body>
+</html>

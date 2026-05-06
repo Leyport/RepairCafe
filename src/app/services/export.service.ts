@@ -1,5 +1,5 @@
 import { Injectable, inject } from '@angular/core';
-import { HttpClient, HttpHeaders } from '@angular/common/http';
+import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
 import { RepairService } from './repair.service';
 import { firstValueFrom } from 'rxjs';
 import { RepairItem } from '../models/repair-item.model';
@@ -62,36 +62,28 @@ export class ExportService {
         await this.updateSheetValues(accessToken, spreadsheetId, values);
 
         // 4. Move to Target folder
-        try {
-            const targetFolderId = folderId || await this.getOrCreateExportsFolder(accessToken);
-            await this.moveFileToFolder(accessToken, spreadsheetId, targetFolderId);
-        } catch (error) {
-            console.warn('Failed to move file to folder, it will remain in root:', error);
-        }
+        const targetFolderId = folderId || await this.getOrCreateExportsFolder(accessToken);
+        await this.moveFileToFolder(accessToken, spreadsheetId, targetFolderId);
 
         return spreadsheet.spreadsheetUrl;
     }
 
     private async getOrCreateExportsFolder(token: string): Promise<string> {
-        const headers = new HttpHeaders({
-            'Authorization': `Bearer ${token}`
-        });
-
-        // Search for existing "Exports" folder
-        const searchUrl = `https://www.googleapis.com/drive/v3/files?q=name='Exports' and mimeType='application/vnd.google-apps.folder' and trashed=false`;
-        const searchResult: any = await firstValueFrom(this.http.get(searchUrl, { headers }));
+        const headers = new HttpHeaders({ 'Authorization': `Bearer ${token}` });
+        const params = new HttpParams().set('q', "name='Exports' and mimeType='application/vnd.google-apps.folder' and trashed=false");
+        const searchResult: any = await firstValueFrom(
+            this.http.get('https://www.googleapis.com/drive/v3/files', { headers, params })
+        );
 
         if (searchResult.files && searchResult.files.length > 0) {
             return searchResult.files[0].id;
         }
 
-        // Create new "Exports" folder
-        const createUrl = 'https://www.googleapis.com/drive/v3/files';
-        const body = {
-            name: 'Exports',
-            mimeType: 'application/vnd.google-apps.folder'
-        };
-        const createResult: any = await firstValueFrom(this.http.post(createUrl, body, { headers }));
+        const createResult: any = await firstValueFrom(
+            this.http.post('https://www.googleapis.com/drive/v3/files',
+                { name: 'Exports', mimeType: 'application/vnd.google-apps.folder' },
+                { headers })
+        );
         return createResult.id;
     }
 

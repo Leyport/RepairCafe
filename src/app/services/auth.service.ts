@@ -35,7 +35,7 @@ export class AuthService {
     async loginWithGoogle(): Promise<any> {
         const provider = new GoogleAuthProvider();
         provider.addScope('https://www.googleapis.com/auth/spreadsheets');
-        provider.addScope('https://www.googleapis.com/auth/drive.file');
+        provider.addScope('https://www.googleapis.com/auth/drive');
 
         try {
             const result = await signInWithPopup(this.auth, provider);

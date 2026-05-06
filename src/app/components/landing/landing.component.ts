@@ -1,5 +1,6 @@
 import { Component, inject, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { AuthService } from '../../services/auth.service';
 import { Subscription } from 'rxjs';
@@ -7,7 +8,7 @@ import { Subscription } from 'rxjs';
 @Component({
   selector: 'app-landing',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, FormsModule],
   template: `
     <div class="landing">
 
@@ -31,7 +32,6 @@ import { Subscription } from 'rxjs';
           <!-- Sign-in card -->
           <div class="signin-card glass">
             <p class="signin-title">Volunteer sign in</p>
-            <p class="signin-hint">Use your existing account — no new password to remember</p>
 
             <div class="social-btns">
               <button class="social-btn google" (click)="login('google')" [disabled]="loading">
@@ -44,22 +44,23 @@ import { Subscription } from 'rxjs';
                 <span>Continue with Google</span>
               </button>
 
-              <button class="social-btn microsoft" (click)="login('microsoft')" [disabled]="loading">
-                <svg class="social-icon" viewBox="0 0 21 21" width="20" height="20">
-                  <rect x="0"  y="0"  width="10" height="10" fill="#f25022"/>
-                  <rect x="11" y="0"  width="10" height="10" fill="#00a4ef"/>
-                  <rect x="0"  y="11" width="10" height="10" fill="#7fba00"/>
-                  <rect x="11" y="11" width="10" height="10" fill="#ffb900"/>
-                </svg>
-                <span>Continue with Microsoft</span>
-              </button>
-
               <button class="social-btn facebook" (click)="login('facebook')" [disabled]="loading">
                 <svg class="social-icon" viewBox="0 0 24 24" width="20" height="20" fill="white">
                   <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
                 </svg>
                 <span>Continue with Facebook</span>
               </button>
+            </div>
+
+            <div class="divider"><span>or</span></div>
+
+            <div class="email-form">
+              <input class="email-input" type="email" placeholder="Email address" [(ngModel)]="emailValue" [disabled]="loading" />
+              <input class="email-input" type="password" placeholder="Password" [(ngModel)]="passwordValue" [disabled]="loading" (keyup.enter)="emailSignIn()" />
+              <div class="email-btns">
+                <button class="btn-email-signin" (click)="emailSignIn()" [disabled]="loading || !emailValue || !passwordValue">Sign in</button>
+                <button class="btn-email-register" (click)="emailRegister()" [disabled]="loading || !emailValue || !passwordValue">Create account</button>
+              </div>
             </div>
 
             <div class="error-msg" *ngIf="error">{{ error }}</div>
@@ -232,15 +233,6 @@ import { Subscription } from 'rxjs';
       box-shadow: 0 4px 16px rgba(0,0,0,0.25);
     }
 
-    .social-btn.microsoft {
-      background: #2f2f2f;
-      color: white;
-      border-color: rgba(255,255,255,0.15);
-    }
-    .social-btn.microsoft:hover:not(:disabled) {
-      background: #404040;
-    }
-
     .social-btn.facebook {
       background: #1877f2;
       color: white;
@@ -252,6 +244,83 @@ import { Subscription } from 'rxjs';
 
     .social-icon {
       flex-shrink: 0;
+    }
+
+    .divider {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin: 1rem 0;
+      color: rgba(255,255,255,0.25);
+      font-size: 0.8rem;
+    }
+    .divider::before, .divider::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: rgba(255,255,255,0.1);
+    }
+
+    .email-form {
+      display: flex;
+      flex-direction: column;
+      gap: 0.6rem;
+    }
+
+    .email-input {
+      width: 100%;
+      padding: 0.75rem 1rem;
+      border-radius: 10px;
+      border: 1px solid rgba(255,255,255,0.12);
+      background: rgba(255,255,255,0.06);
+      color: white;
+      font-size: 0.95rem;
+      outline: none;
+      box-sizing: border-box;
+      transition: border-color 0.2s;
+    }
+    .email-input::placeholder { color: rgba(255,255,255,0.3); }
+    .email-input:focus { border-color: rgba(0,242,255,0.4); }
+    .email-input:disabled { opacity: 0.5; }
+
+    .email-btns {
+      display: flex;
+      gap: 0.6rem;
+      margin-top: 0.2rem;
+    }
+
+    .btn-email-signin, .btn-email-register {
+      flex: 1;
+      padding: 0.75rem;
+      border-radius: 10px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      border: 1px solid;
+    }
+    .btn-email-signin {
+      background: var(--accent-color, #00f2ff);
+      color: #0a0a0a;
+      border-color: transparent;
+    }
+    .btn-email-signin:hover:not(:disabled) {
+      background: #33f5ff;
+      box-shadow: 0 0 14px rgba(0,242,255,0.35);
+    }
+    .btn-email-register {
+      background: transparent;
+      color: rgba(255,255,255,0.7);
+      border-color: rgba(255,255,255,0.15);
+    }
+    .btn-email-register:hover:not(:disabled) {
+      background: rgba(255,255,255,0.07);
+      border-color: rgba(255,255,255,0.3);
+      color: white;
+    }
+    .btn-email-signin:disabled, .btn-email-register:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
     }
 
     .error-msg {
@@ -347,6 +416,8 @@ export class LandingComponent implements OnInit, OnDestroy {
 
   loading = false;
   error = '';
+  emailValue = '';
+  passwordValue = '';
 
   ngOnInit() {
     this.sub = this.authService.user$.subscribe(user => {
@@ -358,18 +429,47 @@ export class LandingComponent implements OnInit, OnDestroy {
     this.sub?.unsubscribe();
   }
 
-  async login(provider: 'google' | 'microsoft' | 'facebook') {
+  async login(provider: 'google' | 'facebook') {
     this.loading = true;
     this.error = '';
     try {
       if (provider === 'google') await this.authService.loginWithGoogle();
-      else if (provider === 'microsoft') await this.authService.loginWithMicrosoft();
       else await this.authService.loginWithFacebook();
     } catch (e: any) {
       const code = e?.code || '';
       if (code !== 'auth/popup-closed-by-user' && code !== 'auth/cancelled-popup-request') {
         this.error = 'Sign in failed. Please try again.';
       }
+    } finally {
+      this.loading = false;
+    }
+  }
+
+  async emailSignIn() {
+    this.loading = true;
+    this.error = '';
+    try {
+      await this.authService.loginWithEmail(this.emailValue, this.passwordValue);
+    } catch (e: any) {
+      this.error = e?.code === 'auth/invalid-credential' || e?.code === 'auth/wrong-password'
+        ? 'Incorrect email or password.'
+        : 'Sign in failed. Please try again.';
+    } finally {
+      this.loading = false;
+    }
+  }
+
+  async emailRegister() {
+    this.loading = true;
+    this.error = '';
+    try {
+      await this.authService.signUpWithEmail(this.emailValue, this.passwordValue);
+    } catch (e: any) {
+      this.error = e?.code === 'auth/email-already-in-use'
+        ? 'An account with this email already exists.'
+        : e?.code === 'auth/weak-password'
+        ? 'Password must be at least 6 characters.'
+        : 'Registration failed. Please try again.';
     } finally {
       this.loading = false;
     }

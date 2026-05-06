@@ -1,9 +1,10 @@
-import { Component, inject } from '@angular/core';
+import { Component, inject, ElementRef, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { AuthService } from '../../../services/auth.service';
 import { ImportService } from '../../../services/import.service';
 import { RepairService } from '../../../services/repair.service';
+import * as XLSX from 'xlsx';
 
 @Component({
   selector: 'app-import-panel',
@@ -11,8 +12,93 @@ import { RepairService } from '../../../services/repair.service';
   imports: [CommonModule, FormsModule],
   template: `
     <div class="import-section">
+
+      <!-- Local File Upload -->
       <div class="section-header">
-        <h3>📥 Import from Google Sheets</h3>
+        <h3>📂 Import from Local File</h3>
+        <p>Upload an Excel (.xlsx) or CSV file directly from your computer.</p>
+      </div>
+
+      <div
+        class="drop-zone glass"
+        [class.drag-over]="isDragOver"
+        (dragover)="onDragOver($event)"
+        (dragleave)="isDragOver = false"
+        (drop)="onDrop($event)">
+        <input #fileInput type="file" accept=".xlsx,.xls,.csv" style="display:none" (change)="onFileSelected($event)">
+        <div class="drop-content" *ngIf="!localFileName">
+          <span class="drop-icon">📄</span>
+          <p>Drag &amp; drop a file here, or</p>
+          <button class="btn-primary" (click)="fileInput.click()">Browse Files</button>
+          <p class="drop-hint">.xlsx, .xls or .csv</p>
+        </div>
+        <div class="drop-content" *ngIf="localFileName">
+          <span class="drop-icon">✅</span>
+          <p class="file-chosen">{{ localFileName }}</p>
+          <button class="btn-text" (click)="clearLocalFile(); fileInput.value = ''">Remove</button>
+        </div>
+      </div>
+
+      <!-- Reuse the same mapping + import UI for local files -->
+      <ng-container *ngIf="localFileName">
+        <div class="form-group" style="margin-top:1rem">
+          <label for="localCollectionName">Target Collection Name</label>
+          <input
+            type="text"
+            id="localCollectionName"
+            [(ngModel)]="collectionName"
+            placeholder="e.g. ImportedTestData"
+            [disabled]="isImporting">
+        </div>
+
+        <div class="mapper-section" *ngIf="collectionName">
+          <button class="btn-secondary" (click)="analyzeLocalFile()" *ngIf="fileHeaders.length === 0" [disabled]="isImporting">
+            Analyze File &amp; Map Columns
+          </button>
+
+          <div class="mapping-grid" *ngIf="fileHeaders.length > 0">
+            <p class="mapping-instruction">Map your spreadsheet columns to Repair Attributes:</p>
+            <div class="mapping-row header-row">
+              <span>Spreadsheet Column</span>
+              <span>Target Attribute</span>
+            </div>
+            <div class="mapping-row" *ngFor="let header of fileHeaders; let i = index">
+              <div class="col-info">
+                <span class="badger">{{ header }}</span>
+                <span class="sample-val" *ngIf="sampleRow[i]">{{ sampleRow[i] | slice:0:40 }}{{ sampleRow[i].length > 40 ? '…' : '' }}</span>
+              </div>
+              <select [(ngModel)]="columnMapping[header]" [disabled]="isImporting">
+                <option *ngFor="let attr of availableAttributes" [value]="attr.key">
+                  {{ attr.label }}
+                </option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div class="button-group" style="margin-top:1rem" *ngIf="fileHeaders.length > 0">
+          <button
+            class="btn-import"
+            (click)="startLocalImport()"
+            [disabled]="isImporting || !collectionName">
+            <span *ngIf="!isImporting">Import "{{ localFileName }}"</span>
+            <span *ngIf="isImporting" class="spinner-small"></span>
+            <span *ngIf="isImporting">Importing...</span>
+          </button>
+        </div>
+      </ng-container>
+
+      <div class="import-status" *ngIf="statusMessage && !accessToken">
+        <div class="status-card" [class.error]="isError" [class.success]="isSuccess">
+          {{ statusMessage }}
+        </div>
+      </div>
+
+      <hr class="section-divider">
+
+      <!-- Google Drive section -->
+      <div class="section-header" style="margin-top:1.5rem">
+        <h3>📥 Import from Google Drive</h3>
         <p>Browse your Drive and select a spreadsheet to import.</p>
       </div>
 
@@ -108,11 +194,14 @@ import { RepairService } from '../../../services/repair.service';
              <div class="mapping-grid" *ngIf="fileHeaders.length > 0">
                <p class="mapping-instruction">Map your spreadsheet columns to Repair Attributes:</p>
                <div class="mapping-row header-row">
-                 <span>File Header</span>
+                 <span>Spreadsheet Column</span>
                  <span>Target Attribute</span>
                </div>
-               <div class="mapping-row" *ngFor="let header of fileHeaders">
-                 <span class="badger">{{ header }}</span>
+               <div class="mapping-row" *ngFor="let header of fileHeaders; let i = index">
+                 <div class="col-info">
+                   <span class="badger">{{ header }}</span>
+                   <span class="sample-val" *ngIf="sampleRow[i]">{{ sampleRow[i] | slice:0:40 }}{{ sampleRow[i].length > 40 ? '…' : '' }}</span>
+                 </div>
                  <select [(ngModel)]="columnMapping[header]" [disabled]="isImporting">
                    <option *ngFor="let attr of availableAttributes" [value]="attr.key">
                      {{ attr.label }}
@@ -162,7 +251,7 @@ import { RepairService } from '../../../services/repair.service';
         </ng-container>
       </div>
 
-      <div class="import-status" *ngIf="statusMessage">
+      <div class="import-status" *ngIf="statusMessage && accessToken">
         <div class="status-card" [class.error]="isError" [class.success]="isSuccess">
           {{ statusMessage }}
         </div>
@@ -172,6 +261,42 @@ import { RepairService } from '../../../services/repair.service';
   styles: [`
     .import-section {
       max-width: 800px;
+    }
+    .section-divider {
+      border: none;
+      border-top: 1px solid rgba(255, 255, 255, 0.1);
+      margin: 2rem 0;
+    }
+    .drop-zone {
+      padding: 2rem;
+      border: 2px dashed rgba(255, 255, 255, 0.2);
+      border-radius: 12px;
+      text-align: center;
+      transition: all 0.2s;
+      cursor: default;
+    }
+    .drop-zone.drag-over {
+      border-color: var(--accent-color);
+      background: rgba(0, 242, 255, 0.05);
+    }
+    .drop-content {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .drop-icon {
+      font-size: 2.5rem;
+    }
+    .drop-hint {
+      font-size: 0.8rem;
+      color: rgba(255, 255, 255, 0.35);
+      margin: 0;
+    }
+    .file-chosen {
+      font-weight: 600;
+      color: var(--accent-color);
+      margin: 0;
     }
     .section-header h3 {
       margin: 0;
@@ -564,6 +689,12 @@ import { RepairService } from '../../../services/repair.service';
       background: #1a1a1a; 
       z-index: 2;
     }
+    .col-info {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      min-width: 0;
+    }
     .badger {
       background: rgba(255, 255, 255, 0.1);
       padding: 2px 6px;
@@ -571,6 +702,15 @@ import { RepairService } from '../../../services/repair.service';
       font-family: monospace;
       font-size: 0.85rem;
       word-break: break-all;
+      align-self: flex-start;
+    }
+    .sample-val {
+      font-size: 0.75rem;
+      color: rgba(255, 255, 255, 0.4);
+      font-style: italic;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
     .mapping-row select {
       width: 100%;
@@ -583,9 +723,16 @@ import { RepairService } from '../../../services/repair.service';
   `]
 })
 export class ImportPanelComponent {
+  @ViewChild('fileInput') fileInputRef!: ElementRef<HTMLInputElement>;
+
   private authService = inject(AuthService);
   private importService = inject(ImportService);
   private repairService = inject(RepairService);
+
+  // Local file state
+  localFileName = '';
+  localFileData: any[][] = [];
+  isDragOver = false;
 
   accessToken = '';
   directories: { id: string, name: string, mimeType?: string }[] = [];
@@ -610,6 +757,7 @@ export class ImportPanelComponent {
 
   // Mapping
   fileHeaders: string[] = [];
+  sampleRow: string[] = [];
   columnMapping: { [key: string]: string } = {};
 
   availableAttributes = [
@@ -633,6 +781,85 @@ export class ImportPanelComponent {
     { key: 'itemNumber', label: 'Sequence' }, // Alias
     { key: 'photos', label: 'Photos' }
   ];
+
+  onDragOver(event: DragEvent) {
+    event.preventDefault();
+    this.isDragOver = true;
+  }
+
+  onDrop(event: DragEvent) {
+    event.preventDefault();
+    this.isDragOver = false;
+    const file = event.dataTransfer?.files?.[0];
+    if (file) this.loadLocalFile(file);
+  }
+
+  onFileSelected(event: Event) {
+    const file = (event.target as HTMLInputElement).files?.[0];
+    if (file) this.loadLocalFile(file);
+  }
+
+  private loadLocalFile(file: File) {
+    this.clearLocalFile();
+    this.localFileName = file.name;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const data = new Uint8Array(e.target!.result as ArrayBuffer);
+      const workbook = XLSX.read(data, { type: 'array' });
+      const sheet = workbook.Sheets[workbook.SheetNames[0]];
+      this.localFileData = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' }) as any[][];
+    };
+    reader.readAsArrayBuffer(file);
+  }
+
+  clearLocalFile() {
+    this.localFileName = '';
+    this.localFileData = [];
+    this.fileHeaders = [];
+    this.sampleRow = [];
+    this.columnMapping = {};
+    this.statusMessage = '';
+  }
+
+  analyzeLocalFile() {
+    if (!this.localFileData || this.localFileData.length === 0) return;
+    this.fileHeaders = this.localFileData[0].map((h: any) => h.toString().trim());
+    this.sampleRow = this.localFileData.length > 1 ? this.localFileData[1].map((v: any) => v?.toString() ?? '') : [];
+    this.columnMapping = {};
+    this.fileHeaders.forEach(header => {
+      const lowerHeader = header.toLowerCase();
+      const match = this.availableAttributes.find(attr => attr.label.toLowerCase() === lowerHeader || attr.key.toLowerCase() === lowerHeader);
+      this.columnMapping[header] = match ? match.key : 'ignore';
+    });
+  }
+
+  async startLocalImport() {
+    if (!this.localFileData || this.localFileData.length < 2) return;
+    this.isImporting = true;
+    this.statusMessage = `Importing ${this.localFileData.length - 1} records to "${this.collectionName}"...`;
+    this.isError = false;
+    this.isSuccess = false;
+
+    try {
+      const mappedValues = Object.values(this.columnMapping);
+      if (!mappedValues.includes('itemDescription')) {
+        throw new Error('You must map a column to "Description".');
+      }
+
+      const importedCount = await this.importService.importToFirestore(this.collectionName, this.localFileData, this.columnMapping);
+      await this.repairService.trackCollection(this.collectionName);
+
+      this.statusMessage = `✅ Successfully imported ${importedCount} records to "${this.collectionName}".`;
+      this.isSuccess = true;
+      this.fileHeaders = [];
+      this.sampleRow = [];
+    } catch (error: any) {
+      this.statusMessage = '❌ Import Failed: ' + (error?.message || 'Unknown error');
+      this.isError = true;
+    } finally {
+      this.isImporting = false;
+    }
+  }
 
   goBack() {
     if (this.navigationPath.length > 0) {
@@ -765,16 +992,12 @@ export class ImportPanelComponent {
       const data = await this.importService.readSheetData(this.accessToken, this.selectedFileId);
       if (data && data.length > 0) {
         this.fileHeaders = data[0].map(h => h.toString().trim());
-        // Auto-match headers to attributes if possible (case-insensitive)
+        this.sampleRow = data.length > 1 ? data[1].map(v => v?.toString() ?? '') : [];
         this.columnMapping = {};
         this.fileHeaders.forEach(header => {
           const lowerHeader = header.toLowerCase();
           const match = this.availableAttributes.find(attr => attr.label.toLowerCase() === lowerHeader || attr.key.toLowerCase() === lowerHeader);
-          if (match) {
-            this.columnMapping[header] = match.key;
-          } else {
-            this.columnMapping[header] = 'ignore';
-          }
+          this.columnMapping[header] = match ? match.key : 'ignore';
         });
         this.statusMessage = '';
       }
@@ -810,7 +1033,8 @@ export class ImportPanelComponent {
 
       this.statusMessage = `✅ Successfully imported ${importedCount} records to "${this.collectionName}".`;
       this.isSuccess = true;
-      this.fileHeaders = []; // Reset mapping UI
+      this.fileHeaders = [];
+      this.sampleRow = [];
     } catch (error: any) {
       console.error('Import failed:', error);
       this.statusMessage = '❌ Import Failed: ' + (error?.message || 'Unknown error');
@@ -832,6 +1056,7 @@ export class ImportPanelComponent {
     this.searchTerm = '';
     this.searchResults = [];
     this.fileHeaders = [];
+    this.sampleRow = [];
     this.columnMapping = {};
   }
 
