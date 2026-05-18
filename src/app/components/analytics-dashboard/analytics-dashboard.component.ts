@@ -459,8 +459,8 @@ export class AnalyticsDashboardComponent implements OnInit, OnDestroy {
 
     this.liveSub?.unsubscribe();
     this.liveSub = combineLatest([repairItems$, imported$]).pipe(
-      map(([items, importedDocs]: [any, any]) =>
-        this.mergeDataSources(items as RepairItem[], importedDocs as any[]))
+      map((result: any) =>
+        this.mergeDataSources(result[0] as RepairItem[], result[1] as any[]))
     ).subscribe({
       next: (sessions) => {
         this.allSessions    = sessions;
