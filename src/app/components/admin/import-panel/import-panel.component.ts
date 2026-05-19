@@ -67,7 +67,7 @@ import * as XLSX from 'xlsx';
                 <span class="badger">{{ header }}</span>
                 <span class="sample-val" *ngIf="sampleRow[i]">{{ sampleRow[i] | slice:0:40 }}{{ sampleRow[i].length > 40 ? '…' : '' }}</span>
               </div>
-              <select [(ngModel)]="columnMapping[header]" [disabled]="isImporting">
+              <select [(ngModel)]="columnMapping[header]" [name]="'local_col_' + i" [disabled]="isImporting">
                 <option *ngFor="let attr of availableAttributes" [value]="attr.key">
                   {{ attr.label }}
                 </option>
@@ -228,7 +228,7 @@ import * as XLSX from 'xlsx';
                    <span class="badger">{{ header }}</span>
                    <span class="sample-val" *ngIf="sampleRow[i]">{{ sampleRow[i] | slice:0:40 }}{{ sampleRow[i].length > 40 ? '…' : '' }}</span>
                  </div>
-                 <select [(ngModel)]="columnMapping[header]" [disabled]="isImporting">
+                 <select [(ngModel)]="columnMapping[header]" [name]="'drive_col_' + i" [disabled]="isImporting">
                    <option *ngFor="let attr of availableAttributes" [value]="attr.key">
                      {{ attr.label }}
                    </option>
