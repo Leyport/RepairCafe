@@ -188,7 +188,14 @@ export class ImportService {
         return result.files && result.files.length > 0 ? result.files[0].id : null;
     }
 
-    async readSheetData(token: string, fileId: string): Promise<any[][]> {
+    async getSheetNames(token: string, fileId: string): Promise<string[]> {
+        const headers = new HttpHeaders({ 'Authorization': `Bearer ${token}` });
+        const url = `https://sheets.googleapis.com/v4/spreadsheets/${fileId}?fields=sheets.properties.title`;
+        const result: any = await firstValueFrom(this.http.get(url, { headers }));
+        return (result.sheets || []).map((s: any) => s.properties.title as string);
+    }
+
+    async readSheetData(token: string, fileId: string, sheetName?: string): Promise<any[][]> {
         const headers = new HttpHeaders({
             'Authorization': `Bearer ${token}`
         });
@@ -199,13 +206,11 @@ export class ImportService {
         const mimeType = metadata.mimeType;
 
         if (mimeType === 'application/vnd.google-apps.spreadsheet') {
-            // Google Sheets: Use Sheets API or Export
-            // Sheets API is more robust for data reading
-            const url = `https://sheets.googleapis.com/v4/spreadsheets/${fileId}/values/A1:ZZ5000`;
+            const range = sheetName ? `${encodeURIComponent(sheetName)}!A1:ZZ5000` : 'A1:ZZ5000';
+            const url = `https://sheets.googleapis.com/v4/spreadsheets/${fileId}/values/${range}`;
             const result: any = await firstValueFrom(this.http.get(url, { headers }));
             return result.values || [];
         } else if (mimeType === 'text/csv' || mimeType === 'application/csv') {
-            // CSV: Use standard Drive download with alt=media
             const url = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`;
             const csvData: any = await firstValueFrom(this.http.get(url, { headers, responseType: 'text' }));
             return this.parseCSV(csvData);
@@ -213,12 +218,26 @@ export class ImportService {
             mimeType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
             mimeType === 'application/vnd.ms-excel'
         ) {
-            // Excel: Google Drive cannot directly export binary Excel files to CSV via the /export endpoint.
-            // Users should convert to Google Sheets or we'd need an XLSX parsing library.
             throw new Error(`XLSX files must be converted to Google Sheets first, or use a CSV file. (MimeType: ${mimeType})`);
         } else {
             throw new Error(`Unsupported file type for import: ${mimeType}. Please use a Google Sheet or CSV.`);
         }
+    }
+
+    // Read all sheets and merge: header from first sheet, data rows from all sheets combined.
+    async readAllSheetsData(token: string, fileId: string): Promise<any[][]> {
+        const sheetNames = await this.getSheetNames(token, fileId);
+        const combined: any[][] = [];
+        for (let i = 0; i < sheetNames.length; i++) {
+            const sheetData = await this.readSheetData(token, fileId, sheetNames[i]);
+            if (!sheetData || sheetData.length === 0) continue;
+            if (i === 0) {
+                combined.push(...sheetData); // include header from first sheet
+            } else {
+                combined.push(...sheetData.slice(1)); // skip header row from subsequent sheets
+            }
+        }
+        return combined;
     }
 
     private parseCSV(csvText: string): any[][] {

@@ -156,10 +156,10 @@ import * as XLSX from 'xlsx';
             <div class="explorer-section">
               <label>Files</label>
               <div class="grid-list" *ngIf="files.length > 0">
-                <div 
-                  class="grid-item file" 
-                  *ngFor="let file of files" 
-                  (click)="selectedFileId = file.id; selectedFileName = file.name"
+                <div
+                  class="grid-item file"
+                  *ngFor="let file of files"
+                  (click)="selectFile(file)"
                   [class.selected]="selectedFileId === file.id">
                   <span class="icon">{{ file.mimeType === 'application/vnd.google-apps.spreadsheet' ? '📊' : '📄' }}</span>
                   <div class="grid-info">
@@ -185,10 +185,36 @@ import * as XLSX from 'xlsx';
               [disabled]="isImporting">
           </div>
 
+          <!-- Sheet / Tab selector (Google Sheets only) -->
+          <div class="form-group sheet-selector" *ngIf="selectedFileId && sheetNames.length > 0">
+            <label>Sheet / Tab</label>
+            <div class="sheet-loading" *ngIf="isLoadingSheets">
+              <span class="spinner-small" style="border-left-color:var(--accent-color)"></span>
+              <span>Loading tabs...</span>
+            </div>
+            <div class="sheet-tabs" *ngIf="!isLoadingSheets">
+              <button
+                class="sheet-tab-btn"
+                [class.active]="selectedSheet === '__all__'"
+                (click)="selectSheet('__all__')"
+                [disabled]="isImporting">
+                All tabs
+              </button>
+              <button
+                *ngFor="let name of sheetNames"
+                class="sheet-tab-btn"
+                [class.active]="selectedSheet === name"
+                (click)="selectSheet(name)"
+                [disabled]="isImporting">
+                {{ name }}
+              </button>
+            </div>
+          </div>
+
           <!-- Mapping UI -->
           <div class="mapper-section" *ngIf="selectedFileId && collectionName">
-             <button class="btn-secondary" (click)="parseFileHeaders()" *ngIf="fileHeaders.length === 0" [disabled]="isImporting">
-               Analyze File & Map Columns
+             <button class="btn-secondary" (click)="parseFileHeaders()" *ngIf="fileHeaders.length === 0" [disabled]="isImporting || isLoadingSheets">
+               Analyze File &amp; Map Columns
              </button>
 
              <div class="mapping-grid" *ngIf="fileHeaders.length > 0">
@@ -654,6 +680,45 @@ import * as XLSX from 'xlsx';
       border-color: #00ff7f;
       color: #00ff7f;
     }
+    .sheet-selector {
+      margin-top: 1rem;
+    }
+    .sheet-loading {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      color: rgba(255,255,255,0.5);
+      font-size: 0.85rem;
+    }
+    .sheet-tabs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin-top: 0.4rem;
+    }
+    .sheet-tab-btn {
+      padding: 0.35rem 0.9rem;
+      border-radius: 20px;
+      border: 1px solid rgba(255,255,255,0.2);
+      background: rgba(255,255,255,0.05);
+      color: rgba(255,255,255,0.8);
+      font-size: 0.85rem;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .sheet-tab-btn:hover:not(:disabled) {
+      background: rgba(255,255,255,0.12);
+    }
+    .sheet-tab-btn.active {
+      background: rgba(0,242,255,0.15);
+      border-color: var(--accent-color);
+      color: var(--accent-color);
+      font-weight: 600;
+    }
+    .sheet-tab-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
     .mapper-section {
       margin-top: 1rem;
       padding: 1rem;
@@ -747,6 +812,7 @@ export class ImportPanelComponent {
 
   isLoadingFolders = false;
   isLoadingFiles = false;
+  isLoadingSheets = false;
   isImporting = false;
   statusMessage = '';
   isError = false;
@@ -754,6 +820,10 @@ export class ImportPanelComponent {
   debugInfo = '';
   searchTerm = '';
   searchResults: { id: string, name: string, mimeType?: string }[] = [];
+
+  // Sheet / tab selection
+  sheetNames: string[] = [];
+  selectedSheet = '__all__';
 
   // Mapping
   fileHeaders: string[] = [];
@@ -963,6 +1033,11 @@ export class ImportPanelComponent {
     this.currentFolder = dir;
     this.selectedFileId = '';
     this.selectedFileName = '';
+    this.sheetNames = [];
+    this.selectedSheet = '__all__';
+    this.fileHeaders = [];
+    this.sampleRow = [];
+    this.columnMapping = {};
     await this.loadCurrentDirectory();
   }
 
@@ -984,12 +1059,42 @@ export class ImportPanelComponent {
 
 
 
+  async selectFile(file: { id: string, name: string, mimeType: string }) {
+    this.selectedFileId = file.id;
+    this.selectedFileName = file.name;
+    this.sheetNames = [];
+    this.selectedSheet = '__all__';
+    this.fileHeaders = [];
+    this.sampleRow = [];
+    this.columnMapping = {};
+
+    if (file.mimeType === 'application/vnd.google-apps.spreadsheet') {
+      this.isLoadingSheets = true;
+      try {
+        this.sheetNames = await this.importService.getSheetNames(this.accessToken, file.id);
+        if (this.sheetNames.length === 1) {
+          this.selectedSheet = this.sheetNames[0];
+        }
+      } catch (e: any) {
+        this.statusMessage = '⚠️ Could not load sheet names: ' + e.message;
+      } finally {
+        this.isLoadingSheets = false;
+      }
+    }
+  }
+
+  selectSheet(name: string) {
+    this.selectedSheet = name;
+    this.fileHeaders = [];
+    this.sampleRow = [];
+    this.columnMapping = {};
+  }
+
   async parseFileHeaders() {
     this.statusMessage = 'Analyzing file headers...';
     try {
-      // Read first few rows just to get headers
-      // Note: readSheetData returns all data, but that's fine for now
-      const data = await this.importService.readSheetData(this.accessToken, this.selectedFileId);
+      const sheetName = this.selectedSheet === '__all__' ? undefined : this.selectedSheet;
+      const data = await this.importService.readSheetData(this.accessToken, this.selectedFileId, sheetName);
       if (data && data.length > 0) {
         this.fileHeaders = data[0].map(h => h.toString().trim());
         this.sampleRow = data.length > 1 ? data[1].map(v => v?.toString() ?? '') : [];
@@ -1014,7 +1119,10 @@ export class ImportPanelComponent {
     this.isSuccess = false;
 
     try {
-      const data = await this.importService.readSheetData(this.accessToken, this.selectedFileId);
+      const sheetName = this.selectedSheet === '__all__' ? undefined : this.selectedSheet;
+      const data = this.selectedSheet === '__all__' && this.sheetNames.length > 1
+        ? await this.importService.readAllSheetsData(this.accessToken, this.selectedFileId)
+        : await this.importService.readSheetData(this.accessToken, this.selectedFileId, sheetName);
       if (!data || data.length < 2) throw new Error('Spreadsheet is empty or has no data rows.');
 
       // Validate mapping: ensure at least itemDescription is mapped
@@ -1058,6 +1166,10 @@ export class ImportPanelComponent {
     this.fileHeaders = [];
     this.sampleRow = [];
     this.columnMapping = {};
+    this.sheetNames = [];
+    this.selectedSheet = '__all__';
+    this.selectedFileId = '';
+    this.selectedFileName = '';
   }
 
   async navigateToFolder(folderId: string) {
