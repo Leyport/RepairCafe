@@ -1068,7 +1068,12 @@ export class ImportPanelComponent {
     this.sampleRow = [];
     this.columnMapping = {};
 
-    if (file.mimeType === 'application/vnd.google-apps.spreadsheet') {
+    const SHEET_MIME_TYPES = [
+      'application/vnd.google-apps.spreadsheet',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'application/vnd.ms-excel'
+    ];
+    if (SHEET_MIME_TYPES.includes(file.mimeType)) {
       this.isLoadingSheets = true;
       try {
         this.sheetNames = await this.importService.getSheetNames(this.accessToken, file.id);
