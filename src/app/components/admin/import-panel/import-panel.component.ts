@@ -67,7 +67,7 @@ import * as XLSX from 'xlsx';
                 <span class="badger">{{ header }}</span>
                 <span class="sample-val" *ngIf="sampleRow[i]">{{ sampleRow[i] | slice:0:40 }}{{ sampleRow[i].length > 40 ? '…' : '' }}</span>
               </div>
-              <select [(ngModel)]="columnMapping[header]" [name]="'local_col_' + i" [disabled]="isImporting">
+              <select [(ngModel)]="columnMappings[i]" [name]="'local_col_' + i" [disabled]="isImporting">
                 <option *ngFor="let attr of availableAttributes" [value]="attr.key">
                   {{ attr.label }}
                 </option>
@@ -228,7 +228,7 @@ import * as XLSX from 'xlsx';
                    <span class="badger">{{ header }}</span>
                    <span class="sample-val" *ngIf="sampleRow[i]">{{ sampleRow[i] | slice:0:40 }}{{ sampleRow[i].length > 40 ? '…' : '' }}</span>
                  </div>
-                 <select [(ngModel)]="columnMapping[header]" [name]="'drive_col_' + i" [disabled]="isImporting">
+                 <select [(ngModel)]="columnMappings[i]" [name]="'drive_col_' + i" [disabled]="isImporting">
                    <option *ngFor="let attr of availableAttributes" [value]="attr.key">
                      {{ attr.label }}
                    </option>
@@ -828,7 +828,7 @@ export class ImportPanelComponent {
   // Mapping
   fileHeaders: string[] = [];
   sampleRow: string[] = [];
-  columnMapping: { [key: string]: string } = {};
+  columnMappings: string[] = [];
 
   availableAttributes = [
     { key: 'ignore', label: '(Ignore Column)' },
@@ -887,7 +887,7 @@ export class ImportPanelComponent {
     this.localFileData = [];
     this.fileHeaders = [];
     this.sampleRow = [];
-    this.columnMapping = {};
+    this.columnMappings = [];
     this.statusMessage = '';
   }
 
@@ -895,12 +895,17 @@ export class ImportPanelComponent {
     if (!this.localFileData || this.localFileData.length === 0) return;
     this.fileHeaders = this.localFileData[0].map((h: any) => h.toString().trim());
     this.sampleRow = this.localFileData.length > 1 ? this.localFileData[1].map((v: any) => v?.toString() ?? '') : [];
-    this.columnMapping = {};
-    this.fileHeaders.forEach(header => {
+    this.columnMappings = this.fileHeaders.map(header => {
       const lowerHeader = header.toLowerCase();
       const match = this.availableAttributes.find(attr => attr.label.toLowerCase() === lowerHeader || attr.key.toLowerCase() === lowerHeader);
-      this.columnMapping[header] = match ? match.key : 'ignore';
+      return match ? match.key : 'ignore';
     });
+  }
+
+  private buildMappingObject(): { [key: string]: string } {
+    const obj: { [key: string]: string } = {};
+    this.fileHeaders.forEach((header, i) => { obj[header] = this.columnMappings[i] ?? 'ignore'; });
+    return obj;
   }
 
   async startLocalImport() {
@@ -911,12 +916,12 @@ export class ImportPanelComponent {
     this.isSuccess = false;
 
     try {
-      const mappedValues = Object.values(this.columnMapping);
-      if (!mappedValues.includes('itemDescription')) {
+      const mapping = this.buildMappingObject();
+      if (!Object.values(mapping).includes('itemDescription')) {
         throw new Error('You must map a column to "Description".');
       }
 
-      const importedCount = await this.importService.importToFirestore(this.collectionName, this.localFileData, this.columnMapping);
+      const importedCount = await this.importService.importToFirestore(this.collectionName, this.localFileData, mapping);
       await this.repairService.trackCollection(this.collectionName);
 
       this.statusMessage = `✅ Successfully imported ${importedCount} records to "${this.collectionName}".`;
@@ -1037,7 +1042,7 @@ export class ImportPanelComponent {
     this.selectedSheet = '__all__';
     this.fileHeaders = [];
     this.sampleRow = [];
-    this.columnMapping = {};
+    this.columnMappings = [];
     await this.loadCurrentDirectory();
   }
 
@@ -1066,7 +1071,7 @@ export class ImportPanelComponent {
     this.selectedSheet = '__all__';
     this.fileHeaders = [];
     this.sampleRow = [];
-    this.columnMapping = {};
+    this.columnMappings = [];
 
     const SHEET_MIME_TYPES = [
       'application/vnd.google-apps.spreadsheet',
@@ -1092,7 +1097,7 @@ export class ImportPanelComponent {
     this.selectedSheet = name;
     this.fileHeaders = [];
     this.sampleRow = [];
-    this.columnMapping = {};
+    this.columnMappings = [];
   }
 
   async parseFileHeaders() {
@@ -1103,11 +1108,10 @@ export class ImportPanelComponent {
       if (data && data.length > 0) {
         this.fileHeaders = data[0].map(h => h.toString().trim());
         this.sampleRow = data.length > 1 ? data[1].map(v => v?.toString() ?? '') : [];
-        this.columnMapping = {};
-        this.fileHeaders.forEach(header => {
+        this.columnMappings = this.fileHeaders.map(header => {
           const lowerHeader = header.toLowerCase();
           const match = this.availableAttributes.find(attr => attr.label.toLowerCase() === lowerHeader || attr.key.toLowerCase() === lowerHeader);
-          this.columnMapping[header] = match ? match.key : 'ignore';
+          return match ? match.key : 'ignore';
         });
         this.statusMessage = '';
       }
@@ -1131,16 +1135,14 @@ export class ImportPanelComponent {
         : await this.importService.readSheetData(this.accessToken, this.selectedFileId, sheetName);
       if (!data || data.length < 2) throw new Error('Spreadsheet is empty or has no data rows.');
 
-      // Validate mapping: ensure at least itemDescription is mapped
-      const mappedValues = Object.values(this.columnMapping);
-      if (!mappedValues.includes('itemDescription')) {
+      const mapping = this.buildMappingObject();
+      if (!Object.values(mapping).includes('itemDescription')) {
         throw new Error('You must map a column to "Description".');
       }
 
       this.statusMessage = `Importing ${data.length - 1} records to collection "${this.collectionName}"...`;
 
-      // Pass the mapping to import service
-      const importedCount = await this.importService.importToFirestore(this.collectionName, data, this.columnMapping);
+      const importedCount = await this.importService.importToFirestore(this.collectionName, data, mapping);
 
       // Track the new collection in database explorer
       await this.repairService.trackCollection(this.collectionName);
@@ -1171,7 +1173,7 @@ export class ImportPanelComponent {
     this.searchResults = [];
     this.fileHeaders = [];
     this.sampleRow = [];
-    this.columnMapping = {};
+    this.columnMappings = [];
     this.sheetNames = [];
     this.selectedSheet = '__all__';
     this.selectedFileId = '';
