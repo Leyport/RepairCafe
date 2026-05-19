@@ -1108,7 +1108,8 @@ export class ImportPanelComponent {
       }
     } catch (e: any) {
       console.error('Failed to parse headers:', e);
-      this.statusMessage = '❌ Failed to read file headers.';
+      const detail = e?.error?.error?.message || e?.message || 'Unknown error';
+      this.statusMessage = `❌ Failed to read file headers: ${detail}`;
     }
   }
 

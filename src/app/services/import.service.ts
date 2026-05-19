@@ -206,8 +206,10 @@ export class ImportService {
         const mimeType = metadata.mimeType;
 
         if (mimeType === 'application/vnd.google-apps.spreadsheet') {
-            const range = sheetName ? `${encodeURIComponent(sheetName)}!A1:ZZ5000` : 'A1:ZZ5000';
-            const url = `https://sheets.googleapis.com/v4/spreadsheets/${fileId}/values/${range}`;
+            // Wrap sheet name in single quotes (required for names with spaces/special chars),
+            // then percent-encode the entire range as a URL path segment.
+            const range = sheetName ? `'${sheetName}'!A1:ZZ5000` : 'A1:ZZ5000';
+            const url = `https://sheets.googleapis.com/v4/spreadsheets/${fileId}/values/${encodeURIComponent(range)}`;
             const result: any = await firstValueFrom(this.http.get(url, { headers }));
             return result.values || [];
         } else if (mimeType === 'text/csv' || mimeType === 'application/csv') {
