@@ -33,6 +33,10 @@ export const routes: Routes = [
       {
         path: 'version',
         loadComponent: () => import('./components/admin/version-manager/version-manager.component').then(m => m.VersionManagerComponent)
+      },
+      {
+        path: 'mapper',
+        loadComponent: () => import('./components/admin/collection-mapper/collection-mapper.component').then(m => m.CollectionMapperComponent)
       }
     ]
   },

@@ -56,6 +56,14 @@ import { ExportService } from '../../../services/export.service';
           </div>
         </a>
 
+        <a routerLink="mapper" routerLinkActive="active" class="nav-card">
+          <div class="card-icon">🔀</div>
+          <div class="card-content">
+            <h3>Collection Mapper</h3>
+            <p>Map imported collection records to RepairItems and transfer them.</p>
+          </div>
+        </a>
+
         <div class="nav-card" (click)="doExport()" [class.disabled]="isExporting">
           <div class="card-icon" *ngIf="!isExporting">📊</div>
           <div class="spinner" *ngIf="isExporting"></div>
