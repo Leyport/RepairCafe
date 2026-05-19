@@ -2,6 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { Firestore, collection, addDoc, writeBatch, doc, Timestamp, setDoc, query, where, getDocs } from '@angular/fire/firestore';
 import { firstValueFrom } from 'rxjs';
+import * as XLSX from 'xlsx';
 
 @Injectable({
     providedIn: 'root'
@@ -188,22 +189,41 @@ export class ImportService {
         return result.files && result.files.length > 0 ? result.files[0].id : null;
     }
 
+    private async getMimeType(token: string, fileId: string): Promise<string> {
+        const headers = new HttpHeaders({ 'Authorization': `Bearer ${token}` });
+        const url = `https://www.googleapis.com/drive/v3/files/${fileId}?fields=mimeType`;
+        const metadata: any = await firstValueFrom(this.http.get(url, { headers }));
+        return metadata.mimeType;
+    }
+
+    private async downloadXlsxWorkbook(token: string, fileId: string): Promise<XLSX.WorkBook> {
+        const headers = new HttpHeaders({ 'Authorization': `Bearer ${token}` });
+        const url = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`;
+        const buffer: any = await firstValueFrom(this.http.get(url, { headers, responseType: 'arraybuffer' }));
+        return XLSX.read(new Uint8Array(buffer), { type: 'array' });
+    }
+
     async getSheetNames(token: string, fileId: string): Promise<string[]> {
         const headers = new HttpHeaders({ 'Authorization': `Bearer ${token}` });
-        const url = `https://sheets.googleapis.com/v4/spreadsheets/${fileId}?fields=sheets.properties.title`;
-        const result: any = await firstValueFrom(this.http.get(url, { headers }));
-        return (result.sheets || []).map((s: any) => s.properties.title as string);
+        const mimeType = await this.getMimeType(token, fileId);
+
+        if (mimeType === 'application/vnd.google-apps.spreadsheet') {
+            const url = `https://sheets.googleapis.com/v4/spreadsheets/${fileId}?fields=sheets.properties.title`;
+            const result: any = await firstValueFrom(this.http.get(url, { headers }));
+            return (result.sheets || []).map((s: any) => s.properties.title as string);
+        } else if (
+            mimeType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+            mimeType === 'application/vnd.ms-excel'
+        ) {
+            const workbook = await this.downloadXlsxWorkbook(token, fileId);
+            return workbook.SheetNames;
+        }
+        return [];
     }
 
     async readSheetData(token: string, fileId: string, sheetName?: string): Promise<any[][]> {
-        const headers = new HttpHeaders({
-            'Authorization': `Bearer ${token}`
-        });
-
-        // 1. Get file metadata to check mimeType
-        const metadataUrl = `https://www.googleapis.com/drive/v3/files/${fileId}?fields=mimeType`;
-        const metadata: any = await firstValueFrom(this.http.get(metadataUrl, { headers }));
-        const mimeType = metadata.mimeType;
+        const headers = new HttpHeaders({ 'Authorization': `Bearer ${token}` });
+        const mimeType = await this.getMimeType(token, fileId);
 
         if (mimeType === 'application/vnd.google-apps.spreadsheet') {
             // Wrap sheet name in single quotes (required for names with spaces/special chars),
@@ -212,17 +232,20 @@ export class ImportService {
             const url = `https://sheets.googleapis.com/v4/spreadsheets/${fileId}/values/${encodeURIComponent(range)}`;
             const result: any = await firstValueFrom(this.http.get(url, { headers }));
             return result.values || [];
-        } else if (mimeType === 'text/csv' || mimeType === 'application/csv') {
-            const url = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`;
-            const csvData: any = await firstValueFrom(this.http.get(url, { headers, responseType: 'text' }));
-            return this.parseCSV(csvData);
         } else if (
             mimeType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
             mimeType === 'application/vnd.ms-excel'
         ) {
-            throw new Error(`XLSX files must be converted to Google Sheets first, or use a CSV file. (MimeType: ${mimeType})`);
+            const workbook = await this.downloadXlsxWorkbook(token, fileId);
+            const sheet = workbook.Sheets[sheetName || workbook.SheetNames[0]];
+            if (!sheet) throw new Error(`Sheet "${sheetName}" not found in workbook.`);
+            return XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' }) as any[][];
+        } else if (mimeType === 'text/csv' || mimeType === 'application/csv') {
+            const url = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`;
+            const csvData: any = await firstValueFrom(this.http.get(url, { headers, responseType: 'text' }));
+            return this.parseCSV(csvData);
         } else {
-            throw new Error(`Unsupported file type for import: ${mimeType}. Please use a Google Sheet or CSV.`);
+            throw new Error(`Unsupported file type: ${mimeType}. Please use a Google Sheet, XLSX, or CSV.`);
         }
     }
 
