@@ -278,8 +278,8 @@ export class ImportService {
     async importToFirestore(collectionName: string, data: any[][], mapping?: { [key: string]: string }): Promise<number> {
         if (!data || data.length < 2) return 0;
 
-        // Use original headers if mapping is provided, otherwise sanitize
-        const headers = mapping ? data[0].map(h => h.toString()) : data[0].map(h => this.sanitizeHeader(h));
+        // Trim headers when mapping is provided so keys match what was captured during analysis
+        const headers = mapping ? data[0].map(h => h.toString().trim()) : data[0].map(h => this.sanitizeHeader(h));
         const rows = data.slice(1);
         const targetCollection = collection(this.firestore, collectionName);
 

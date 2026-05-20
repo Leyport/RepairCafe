@@ -57,7 +57,12 @@ import * as XLSX from 'xlsx';
           </button>
 
           <div class="mapping-grid" *ngIf="fileHeaders.length > 0">
-            <p class="mapping-instruction">Map your spreadsheet columns to Repair Attributes:</p>
+            <p class="mapping-instruction">
+              Map your spreadsheet columns to Repair Attributes:
+              <span class="mapped-count" [class.none-mapped]="mappedCount === 0">
+                {{ mappedCount }} of {{ fileHeaders.length }} columns mapped
+              </span>
+            </p>
             <div class="mapping-row header-row">
               <span>Spreadsheet Column</span>
               <span>Target Attribute</span>
@@ -218,7 +223,12 @@ import * as XLSX from 'xlsx';
              </button>
 
              <div class="mapping-grid" *ngIf="fileHeaders.length > 0">
-               <p class="mapping-instruction">Map your spreadsheet columns to Repair Attributes:</p>
+               <p class="mapping-instruction">
+                 Map your spreadsheet columns to Repair Attributes:
+                 <span class="mapped-count" [class.none-mapped]="mappedCount === 0">
+                   {{ mappedCount }} of {{ fileHeaders.length }} columns mapped
+                 </span>
+               </p>
                <div class="mapping-row header-row">
                  <span>Spreadsheet Column</span>
                  <span>Target Attribute</span>
@@ -729,6 +739,25 @@ import * as XLSX from 'xlsx';
       margin: 0 0 1rem;
       color: rgba(255, 255, 255, 0.8);
       font-size: 0.9rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
+    .mapped-count {
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--accent-color);
+      background: rgba(0, 242, 255, 0.1);
+      border: 1px solid rgba(0, 242, 255, 0.3);
+      padding: 2px 8px;
+      border-radius: 12px;
+    }
+    .mapped-count.none-mapped {
+      color: #ff9944;
+      background: rgba(255, 153, 68, 0.1);
+      border-color: rgba(255, 153, 68, 0.3);
     }
     .mapping-grid {
       display: flex;
@@ -902,6 +931,10 @@ export class ImportPanelComponent {
     });
   }
 
+  get mappedCount(): number {
+    return this.columnMappings.filter(m => m && m !== 'ignore').length;
+  }
+
   updateMapping(index: number, value: string) {
     const updated = [...this.columnMappings];
     updated[index] = value;
@@ -916,6 +949,11 @@ export class ImportPanelComponent {
 
   async startLocalImport() {
     if (!this.localFileData || this.localFileData.length < 2) return;
+    if (this.mappedCount === 0) {
+      this.statusMessage = '⚠️ No columns are mapped. Please set at least one column to a target attribute before importing.';
+      this.isError = true;
+      return;
+    }
     this.isImporting = true;
     this.statusMessage = `Importing ${this.localFileData.length - 1} records to "${this.collectionName}"...`;
     this.isError = false;
@@ -1126,6 +1164,11 @@ export class ImportPanelComponent {
   }
 
   async startImport() {
+    if (this.mappedCount === 0) {
+      this.statusMessage = '⚠️ No columns are mapped. Please set at least one column to a target attribute before importing.';
+      this.isError = true;
+      return;
+    }
     this.isImporting = true;
     this.statusMessage = 'Reading spreadsheet data...';
     this.isError = false;
