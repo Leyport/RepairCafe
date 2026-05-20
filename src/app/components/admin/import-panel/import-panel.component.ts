@@ -58,24 +58,27 @@ import * as XLSX from 'xlsx';
 
           <div class="mapping-grid" *ngIf="fileHeaders.length > 0">
             <p class="mapping-instruction">
-              Map your spreadsheet columns to Repair Attributes:
-              <span class="mapped-count" [class.none-mapped]="mappedCount === 0">
-                {{ mappedCount }} of {{ fileHeaders.length }} columns mapped
+              Review column mappings — auto-matched columns are highlighted.
+              <span class="mapped-count" [class.none-mapped]="autoMatchCount === 0">
+                {{ autoMatchCount }} auto-matched &bull; {{ rawCount }} imported as-is &bull; {{ ignoredCount }} skipped
               </span>
             </p>
             <div class="mapping-row header-row">
               <span>Spreadsheet Column</span>
-              <span>Target Attribute</span>
+              <span>Maps To</span>
             </div>
-            <div class="mapping-row" *ngFor="let header of fileHeaders; let i = index">
+            <div class="mapping-row" [class.row-auto]="autoMatchedIndices.has(i)" [class.row-raw]="!autoMatchedIndices.has(i) && columnMappings[i] === '__raw__'" [class.row-ignored]="columnMappings[i] === 'ignore'" *ngFor="let header of fileHeaders; let i = index">
               <div class="col-info">
                 <span class="badger">{{ header }}</span>
-                <span class="sample-val" *ngIf="sampleRow[i]">{{ sampleRow[i] | slice:0:40 }}{{ sampleRow[i].length > 40 ? '…' : '' }}</span>
+                <span class="auto-badge" *ngIf="autoMatchedIndices.has(i)">✓ Auto-matched</span>
+                <span class="raw-badge" *ngIf="!autoMatchedIndices.has(i) && columnMappings[i] === '__raw__'">→ {{ sanitizeColumnName(header) }}</span>
+                <span class="sample-val" *ngIf="sampleRow[i]">{{ sampleRow[i] | slice:0:40 }}{{ (sampleRow[i] + '').length > 40 ? '…' : '' }}</span>
               </div>
               <select [ngModel]="columnMappings[i]" (ngModelChange)="updateMapping(i, $event)" [name]="'local_col_' + i" [disabled]="isImporting">
-                <option *ngFor="let attr of availableAttributes" [value]="attr.key">
-                  {{ attr.label }}
-                </option>
+                <option value="__raw__">← keep original column name</option>
+                <option value="ignore">✕ Skip this column</option>
+                <option disabled>──────────────</option>
+                <option *ngFor="let attr of mappableAttributes" [value]="attr.key">{{ attr.label }}</option>
               </select>
             </div>
           </div>
@@ -224,24 +227,27 @@ import * as XLSX from 'xlsx';
 
              <div class="mapping-grid" *ngIf="fileHeaders.length > 0">
                <p class="mapping-instruction">
-                 Map your spreadsheet columns to Repair Attributes:
-                 <span class="mapped-count" [class.none-mapped]="mappedCount === 0">
-                   {{ mappedCount }} of {{ fileHeaders.length }} columns mapped
+                 Review column mappings — auto-matched columns are highlighted.
+                 <span class="mapped-count" [class.none-mapped]="autoMatchCount === 0">
+                   {{ autoMatchCount }} auto-matched &bull; {{ rawCount }} imported as-is &bull; {{ ignoredCount }} skipped
                  </span>
                </p>
                <div class="mapping-row header-row">
                  <span>Spreadsheet Column</span>
-                 <span>Target Attribute</span>
+                 <span>Maps To</span>
                </div>
-               <div class="mapping-row" *ngFor="let header of fileHeaders; let i = index">
+               <div class="mapping-row" [class.row-auto]="autoMatchedIndices.has(i)" [class.row-raw]="!autoMatchedIndices.has(i) && columnMappings[i] === '__raw__'" [class.row-ignored]="columnMappings[i] === 'ignore'" *ngFor="let header of fileHeaders; let i = index">
                  <div class="col-info">
                    <span class="badger">{{ header }}</span>
-                   <span class="sample-val" *ngIf="sampleRow[i]">{{ sampleRow[i] | slice:0:40 }}{{ sampleRow[i].length > 40 ? '…' : '' }}</span>
+                   <span class="auto-badge" *ngIf="autoMatchedIndices.has(i)">✓ Auto-matched</span>
+                   <span class="raw-badge" *ngIf="!autoMatchedIndices.has(i) && columnMappings[i] === '__raw__'">→ {{ sanitizeColumnName(header) }}</span>
+                   <span class="sample-val" *ngIf="sampleRow[i]">{{ sampleRow[i] | slice:0:40 }}{{ (sampleRow[i] + '').length > 40 ? '…' : '' }}</span>
                  </div>
                  <select [ngModel]="columnMappings[i]" (ngModelChange)="updateMapping(i, $event)" [name]="'drive_col_' + i" [disabled]="isImporting">
-                   <option *ngFor="let attr of availableAttributes" [value]="attr.key">
-                     {{ attr.label }}
-                   </option>
+                   <option value="__raw__">← keep original column name</option>
+                   <option value="ignore">✕ Skip this column</option>
+                   <option disabled>──────────────</option>
+                   <option *ngFor="let attr of mappableAttributes" [value]="attr.key">{{ attr.label }}</option>
                  </select>
                </div>
              </div>
@@ -814,6 +820,35 @@ import * as XLSX from 'xlsx';
       color: white;
       border: 1px solid rgba(255, 255, 255, 0.2);
     }
+    .mapping-row.row-auto {
+      border-left: 3px solid #00c87a;
+      padding-left: calc(0.5rem - 3px);
+      background: rgba(0, 200, 122, 0.05);
+    }
+    .mapping-row.row-raw {
+      border-left: 3px solid rgba(255,255,255,0.15);
+      padding-left: calc(0.5rem - 3px);
+    }
+    .mapping-row.row-ignored {
+      opacity: 0.45;
+      border-left: 3px solid transparent;
+      padding-left: calc(0.5rem - 3px);
+    }
+    .auto-badge {
+      font-size: 0.7rem;
+      font-weight: 700;
+      color: #00c87a;
+      background: rgba(0, 200, 122, 0.15);
+      border: 1px solid rgba(0, 200, 122, 0.4);
+      padding: 1px 6px;
+      border-radius: 10px;
+      align-self: flex-start;
+    }
+    .raw-badge {
+      font-size: 0.7rem;
+      color: rgba(255,255,255,0.45);
+      font-style: italic;
+    }
   `]
 })
 export class ImportPanelComponent {
@@ -858,6 +893,7 @@ export class ImportPanelComponent {
   fileHeaders: string[] = [];
   sampleRow: string[] = [];
   columnMappings: string[] = [];
+  autoMatchedIndices = new Set<number>();
 
   availableAttributes = [
     { key: 'ignore',              label: '(Ignore Column)' },
@@ -917,6 +953,27 @@ export class ImportPanelComponent {
     { key: 'photos',              label: 'Photos' },
   ];
 
+  get mappableAttributes() {
+    // Deduplicate by key+label for display, exclude meta options
+    return this.availableAttributes.filter(a => a.key !== 'ignore');
+  }
+
+  get autoMatchCount(): number {
+    return this.autoMatchedIndices.size;
+  }
+
+  get rawCount(): number {
+    return this.columnMappings.filter((m, i) => m === '__raw__' && !this.autoMatchedIndices.has(i)).length;
+  }
+
+  get ignoredCount(): number {
+    return this.columnMappings.filter(m => m === 'ignore').length;
+  }
+
+  sanitizeColumnName(header: string): string {
+    return header.trim().replace(/^\.+/, '').replace(/[^a-zA-Z0-9_]/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '') || 'col';
+  }
+
   onDragOver(event: DragEvent) {
     event.preventDefault();
     this.isDragOver = true;
@@ -953,6 +1010,7 @@ export class ImportPanelComponent {
     this.fileHeaders = [];
     this.sampleRow = [];
     this.columnMappings = [];
+    this.autoMatchedIndices = new Set();
     this.statusMessage = '';
   }
 
@@ -960,36 +1018,50 @@ export class ImportPanelComponent {
     if (!this.localFileData || this.localFileData.length === 0) return;
     this.fileHeaders = this.localFileData[0].map((h: any) => h.toString().trim());
     this.sampleRow = this.localFileData.length > 1 ? this.localFileData[1].map((v: any) => v?.toString() ?? '') : [];
-    this.columnMappings = this.fileHeaders.map(header => {
-      const lowerHeader = header.toLowerCase();
-      const match = this.availableAttributes.find(attr => attr.label.toLowerCase() === lowerHeader || attr.key.toLowerCase() === lowerHeader);
-      return match ? match.key : 'ignore';
+    this.autoMatchedIndices = new Set();
+    this.columnMappings = this.fileHeaders.map((header, i) => {
+      const normalized = header.toLowerCase().replace(/^\.+/, '').trim();
+      const match = this.availableAttributes.find(attr =>
+        attr.label.toLowerCase().replace(/^\.+/, '').trim() === normalized ||
+        attr.key.toLowerCase() === normalized
+      );
+      if (match) {
+        this.autoMatchedIndices.add(i);
+        return match.key;
+      }
+      return '__raw__';
     });
   }
 
   get mappedCount(): number {
-    return this.columnMappings.filter(m => m && m !== 'ignore').length;
+    return this.columnMappings.filter(m => m && m !== 'ignore' && m !== '__raw__').length;
   }
 
   updateMapping(index: number, value: string) {
     const updated = [...this.columnMappings];
     updated[index] = value;
     this.columnMappings = updated;
+    // User manually changed a mapping — remove auto-match marker
+    if (this.autoMatchedIndices.has(index)) {
+      const newSet = new Set(this.autoMatchedIndices);
+      newSet.delete(index);
+      this.autoMatchedIndices = newSet;
+    }
   }
 
   private buildMappingObject(): { [key: string]: string } {
     const obj: { [key: string]: string } = {};
-    this.fileHeaders.forEach((header, i) => { obj[header] = this.columnMappings[i] ?? 'ignore'; });
+    this.fileHeaders.forEach((header, i) => {
+      const mapping = this.columnMappings[i] ?? '__raw__';
+      if (mapping === 'ignore') return;
+      // '__raw__' → use sanitized column name as Firestore key
+      obj[header] = mapping === '__raw__' ? this.sanitizeColumnName(header) : mapping;
+    });
     return obj;
   }
 
   async startLocalImport() {
     if (!this.localFileData || this.localFileData.length < 2) return;
-    if (this.mappedCount === 0) {
-      this.statusMessage = '⚠️ No columns are mapped. Please set at least one column to a target attribute before importing.';
-      this.isError = true;
-      return;
-    }
     this.isImporting = true;
     this.statusMessage = `Importing ${this.localFileData.length - 1} records to "${this.collectionName}"...`;
     this.isError = false;
@@ -1120,6 +1192,7 @@ export class ImportPanelComponent {
     this.fileHeaders = [];
     this.sampleRow = [];
     this.columnMappings = [];
+    this.autoMatchedIndices = new Set();
     await this.loadCurrentDirectory();
   }
 
@@ -1149,6 +1222,7 @@ export class ImportPanelComponent {
     this.fileHeaders = [];
     this.sampleRow = [];
     this.columnMappings = [];
+    this.autoMatchedIndices = new Set();
 
     const SHEET_MIME_TYPES = [
       'application/vnd.google-apps.spreadsheet',
@@ -1175,6 +1249,7 @@ export class ImportPanelComponent {
     this.fileHeaders = [];
     this.sampleRow = [];
     this.columnMappings = [];
+    this.autoMatchedIndices = new Set();
   }
 
   async parseFileHeaders() {
@@ -1185,10 +1260,18 @@ export class ImportPanelComponent {
       if (data && data.length > 0) {
         this.fileHeaders = data[0].map(h => h.toString().trim());
         this.sampleRow = data.length > 1 ? data[1].map(v => v?.toString() ?? '') : [];
-        this.columnMappings = this.fileHeaders.map(header => {
-          const lowerHeader = header.toLowerCase();
-          const match = this.availableAttributes.find(attr => attr.label.toLowerCase() === lowerHeader || attr.key.toLowerCase() === lowerHeader);
-          return match ? match.key : 'ignore';
+        this.autoMatchedIndices = new Set();
+        this.columnMappings = this.fileHeaders.map((header, i) => {
+          const normalized = header.toLowerCase().replace(/^\.+/, '').trim();
+          const match = this.availableAttributes.find(attr =>
+            attr.label.toLowerCase().replace(/^\.+/, '').trim() === normalized ||
+            attr.key.toLowerCase() === normalized
+          );
+          if (match) {
+            this.autoMatchedIndices.add(i);
+            return match.key;
+          }
+          return '__raw__';
         });
         this.statusMessage = '';
       }
@@ -1200,11 +1283,6 @@ export class ImportPanelComponent {
   }
 
   async startImport() {
-    if (this.mappedCount === 0) {
-      this.statusMessage = '⚠️ No columns are mapped. Please set at least one column to a target attribute before importing.';
-      this.isError = true;
-      return;
-    }
     this.isImporting = true;
     this.statusMessage = 'Reading spreadsheet data...';
     this.isError = false;
@@ -1252,6 +1330,7 @@ export class ImportPanelComponent {
     this.fileHeaders = [];
     this.sampleRow = [];
     this.columnMappings = [];
+    this.autoMatchedIndices = new Set();
     this.sheetNames = [];
     this.selectedSheet = '__all__';
     this.selectedFileId = '';
