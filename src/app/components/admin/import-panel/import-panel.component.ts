@@ -1139,10 +1139,6 @@ export class ImportPanelComponent {
       if (!data || data.length < 2) throw new Error('Spreadsheet is empty or has no data rows.');
 
       const mapping = this.buildMappingObject();
-      if (!Object.values(mapping).includes('itemDescription')) {
-        throw new Error('You must map a column to "Description".');
-      }
-
       this.statusMessage = `Importing ${data.length - 1} records to collection "${this.collectionName}"...`;
 
       const importedCount = await this.importService.importToFirestore(this.collectionName, data, mapping);
