@@ -14,24 +14,50 @@ interface AttributeOption {
 
 const ATTRIBUTE_OPTIONS: AttributeOption[] = [
   { key: 'ignore',              label: '(Ignore)' },
+  // Core identifiers
   { key: 'itemDescription',     label: 'Description *' },
-  { key: 'repairItem',          label: 'Item Type' },
-  { key: 'fault',               label: 'Fault' },
-  { key: 'owner',               label: 'Owner' },
-  { key: 'telephone',           label: 'Telephone' },
-  { key: 'repairer',            label: 'Repairer' },
-  { key: 'additionalRepairers', label: 'Additional Repairers' },
-  { key: 'status',              label: 'Status' },
-  { key: 'category',            label: 'Category' },
-  { key: 'tags',                label: 'Tags (comma-separated)' },
+  { key: 'displayNumber',       label: 'Display Number' },
+  { key: 'itemNumber',          label: 'Item Number' },
   { key: 'RCDay',               label: 'RC Day' },
+  { key: 'rcDayNumber',         label: 'RC Day Sequence' },
+  { key: 'creationDate',        label: 'Date' },
+  { key: 'rcdate',              label: 'RC Event Date' },
+  // Item details
+  { key: 'repairItem',          label: 'Item Type' },
+  { key: 'category',            label: 'Category' },
+  { key: 'fault',               label: 'Fault' },
+  { key: 'ageOfItem',           label: 'Age of Item' },
   { key: 'make',                label: 'Make' },
   { key: 'model',               label: 'Model' },
   { key: 'colour',              label: 'Colour' },
   { key: 'serialNumber',        label: 'Serial Number' },
   { key: 'yearOfManufacture',   label: 'Year of Manufacture' },
-  { key: 'ageOfItem',           label: 'Age of Item' },
-  { key: 'displayNumber',       label: 'Display Number' },
+  // Repair details
+  { key: 'repairer',            label: 'Primary Repairer' },
+  { key: 'additionalRepairers', label: 'Additional Repairers' },
+  { key: 'status',              label: 'Status' },
+  { key: 'repairOutcome',       label: 'Repair Outcome' },
+  { key: 'repairConsequence',   label: 'Repair Consequence' },
+  { key: 'patTest',             label: 'PAT Test' },
+  { key: 'path',                label: 'Path' },
+  // Visitor / owner
+  { key: 'owner',               label: 'Owner' },
+  { key: 'telephone',           label: 'Telephone' },
+  { key: 'numberOfVisitors',    label: 'No of Visitors' },
+  { key: 'ageRange',            label: 'Age Range' },
+  { key: 'visitorType',         label: 'Visitor Type' },
+  { key: 'ownerSatisfied',      label: 'Satisfied' },
+  { key: 'likely',              label: 'Likely' },
+  { key: 'left',                label: 'Left' },
+  { key: 'positive',            label: 'Positive' },
+  { key: 'donationAmount',      label: 'Donation Amount' },
+  // Location / admin
+  { key: 'councilWard',         label: 'Council Ward' },
+  // Notes
+  { key: 'notes',               label: 'Notes' },
+  { key: 'comments',            label: 'Comments' },
+  { key: 'tags',                label: 'Tags' },
+  { key: 'photos',              label: 'Photos' },
 ];
 
 interface FieldMapping {

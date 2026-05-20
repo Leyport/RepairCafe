@@ -10,21 +10,21 @@ export function toRepairPhoto(p: RepairPhoto | string): RepairPhoto {
 
 export interface RepairItem {
   id?: string;
-  itemNumber: number; // Sequence number starting at 1 for each RCDay
+  itemNumber: number;
   itemDescription: string;
   fault?: string;
   ageOfItem?: string;
-  repairItem?: string; // The type/name of item (e.g. Toaster)
-  repairer?: string; // Name of the repairer assigned (Primary)
-  additionalRepairers?: string[]; // Names of additional repairers
-  creationDate: any; // Using any for Firestore compatibility (Timestamp)
-  rcdate?: any; // RC event date (optional, Timestamp)
+  repairItem?: string;
+  repairer?: string;
+  additionalRepairers?: string[];
+  creationDate: any;
+  rcdate?: any;
   displayNumber: string;
   RCDay: string;
   rcDayNumber: number;
-  status?: string; // Status: "New", "Assigned", "Completed"
-  telephone?: string; // Contact telephone number
-  owner?: string; // Name of the owner
+  status?: string;
+  telephone?: string;
+  owner?: string;
   category?: string;
   tags?: string[];
   photos?: RepairPhoto[];
@@ -36,6 +36,20 @@ export interface RepairItem {
   repairVideos?: { url: string; title: string }[];
   ownerSatisfied?: boolean;
   donationAmount?: number;
+  // Extended fields
+  numberOfVisitors?: number;
+  repairOutcome?: string;
+  patTest?: string;
+  ageRange?: string;
+  visitorType?: string;
+  path?: string;
+  notes?: string;
+  comments?: string;
+  positive?: string;
+  repairConsequence?: string;
+  councilWard?: string;
+  left?: string;
+  likely?: string;
 }
 
 export interface Owner {

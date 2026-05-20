@@ -860,25 +860,61 @@ export class ImportPanelComponent {
   columnMappings: string[] = [];
 
   availableAttributes = [
-    { key: 'ignore', label: '(Ignore Column)' },
-    { key: 'id', label: 'ID (Record ID)' },
-    { key: 'displayNumber', label: 'Display Number' },
-    { key: 'itemDescription', label: 'Description' },
-    { key: 'repairItem', label: 'Item Type' },
-    { key: 'status', label: 'Status' },
-    { key: 'repairer', label: 'Repairer' },
-    { key: 'owner', label: 'Owner' },
-    { key: 'telephone', label: 'Telephone' },
-    { key: 'tags', label: 'Tags' },
+    { key: 'ignore',              label: '(Ignore Column)' },
+    // Core identifiers
+    { key: 'id',                  label: 'ID (Record ID)' },
+    { key: 'displayNumber',       label: 'Display Number' },
+    { key: 'itemNumber',          label: 'Item Number' },
+    { key: 'itemNumber',          label: 'Item No' },
+    { key: 'RCDay',               label: 'RC Day' },
+    { key: 'rcDayNumber',         label: 'RC Day Sequence' },
+    { key: 'creationDate',        label: 'Creation Date' },
+    { key: 'creationDate',        label: 'Date' },
+    { key: 'rcdate',              label: 'RC Event Date' },
+    // Item details
+    { key: 'itemDescription',     label: 'Description' },
+    { key: 'itemDescription',     label: 'Item Description' },
+    { key: 'repairItem',          label: 'Item Type' },
+    { key: 'category',            label: 'Category' },
+    { key: 'category',            label: 'Item Category' },
+    { key: 'fault',               label: 'Fault' },
+    { key: 'ageOfItem',           label: 'Age of Item' },
+    { key: 'make',                label: 'Make' },
+    { key: 'model',               label: 'Model' },
+    { key: 'colour',              label: 'Colour' },
+    { key: 'serialNumber',        label: 'Serial Number' },
+    { key: 'yearOfManufacture',   label: 'Year of Manufacture' },
+    // Repair details
+    { key: 'repairer',            label: 'Repairer' },
+    { key: 'repairer',            label: 'Primary Repairer' },
     { key: 'additionalRepairers', label: 'Additional Repairers' },
-    { key: 'creationDate', label: 'Creation Date' },
-    { key: 'creationDate', label: 'Created Date' }, // Alias
-    { key: 'rcdate', label: 'RC Event Date' },
-    { key: 'RCDay', label: 'RC Day' },
-    { key: 'rcDayNumber', label: 'RC Day Sequence' },
-    { key: 'itemNumber', label: 'Item Number' },
-    { key: 'itemNumber', label: 'Sequence' }, // Alias
-    { key: 'photos', label: 'Photos' }
+    { key: 'status',              label: 'Status' },
+    { key: 'repairOutcome',       label: 'Repair Outcome' },
+    { key: 'repairOutcome',       label: '.Repair Outcome' },
+    { key: 'repairConsequence',   label: 'Repair Consequence' },
+    { key: 'patTest',             label: 'PAT Test' },
+    { key: 'path',                label: 'Path' },
+    // Visitor / owner
+    { key: 'owner',               label: 'Owner' },
+    { key: 'telephone',           label: 'Telephone' },
+    { key: 'numberOfVisitors',    label: 'No of Visitors' },
+    { key: 'ageRange',            label: 'Age Range' },
+    { key: 'ageRange',            label: 'Age range' },
+    { key: 'visitorType',         label: 'Visitor Type' },
+    { key: 'ownerSatisfied',      label: 'Owner Satisfied' },
+    { key: 'ownerSatisfied',      label: 'Satisfied' },
+    { key: 'likely',              label: 'Likely' },
+    { key: 'left',                label: 'Left' },
+    { key: 'positive',            label: 'Positive' },
+    { key: 'donationAmount',      label: 'Donation Amount' },
+    // Location / admin
+    { key: 'councilWard',         label: 'Shropshire Council Wards' },
+    { key: 'councilWard',         label: 'Council Ward' },
+    // Notes
+    { key: 'notes',               label: 'Notes' },
+    { key: 'comments',            label: 'Comments' },
+    { key: 'tags',                label: 'Tags' },
+    { key: 'photos',              label: 'Photos' },
   ];
 
   onDragOver(event: DragEvent) {
