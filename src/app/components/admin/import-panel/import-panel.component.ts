@@ -67,7 +67,7 @@ import * as XLSX from 'xlsx';
                 <span class="badger">{{ header }}</span>
                 <span class="sample-val" *ngIf="sampleRow[i]">{{ sampleRow[i] | slice:0:40 }}{{ sampleRow[i].length > 40 ? '…' : '' }}</span>
               </div>
-              <select [(ngModel)]="columnMappings[i]" [name]="'local_col_' + i" [disabled]="isImporting">
+              <select [ngModel]="columnMappings[i]" (ngModelChange)="updateMapping(i, $event)" [name]="'local_col_' + i" [disabled]="isImporting">
                 <option *ngFor="let attr of availableAttributes" [value]="attr.key">
                   {{ attr.label }}
                 </option>
@@ -228,7 +228,7 @@ import * as XLSX from 'xlsx';
                    <span class="badger">{{ header }}</span>
                    <span class="sample-val" *ngIf="sampleRow[i]">{{ sampleRow[i] | slice:0:40 }}{{ sampleRow[i].length > 40 ? '…' : '' }}</span>
                  </div>
-                 <select [(ngModel)]="columnMappings[i]" [name]="'drive_col_' + i" [disabled]="isImporting">
+                 <select [ngModel]="columnMappings[i]" (ngModelChange)="updateMapping(i, $event)" [name]="'drive_col_' + i" [disabled]="isImporting">
                    <option *ngFor="let attr of availableAttributes" [value]="attr.key">
                      {{ attr.label }}
                    </option>
@@ -902,6 +902,12 @@ export class ImportPanelComponent {
     });
   }
 
+  updateMapping(index: number, value: string) {
+    const updated = [...this.columnMappings];
+    updated[index] = value;
+    this.columnMappings = updated;
+  }
+
   private buildMappingObject(): { [key: string]: string } {
     const obj: { [key: string]: string } = {};
     this.fileHeaders.forEach((header, i) => { obj[header] = this.columnMappings[i] ?? 'ignore'; });
@@ -917,9 +923,6 @@ export class ImportPanelComponent {
 
     try {
       const mapping = this.buildMappingObject();
-      if (!Object.values(mapping).includes('itemDescription')) {
-        throw new Error('You must map a column to "Description".');
-      }
 
       const importedCount = await this.importService.importToFirestore(this.collectionName, this.localFileData, mapping);
       await this.repairService.trackCollection(this.collectionName);
