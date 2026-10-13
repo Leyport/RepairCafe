@@ -604,40 +604,20 @@ export class RepairService {
     }
 
     // App Version
-    private parseVersion(v: string): number[] {
-        return v.replace(/^v/, '').split('.').map(n => parseInt(n, 10) || 0);
-    }
-
-    private isNewerVersion(a: string, b: string): boolean {
-        const av = this.parseVersion(a);
-        const bv = this.parseVersion(b);
-        for (let i = 0; i < Math.max(av.length, bv.length); i++) {
-            const diff = (av[i] || 0) - (bv[i] || 0);
-            if (diff !== 0) return diff > 0;
-        }
-        return false;
-    }
-
+    //
+    // APP_VERSION is auto-generated at build time (see scripts/generate-version.js)
+    // from the git commit + build timestamp, so it is always exactly what's running
+    // in this browser tab — never a manually-typed label that can drift out of sync
+    // with the actual deployed code. We still write it through to Firestore so admins
+    // can see what the latest-seen deployed build is across all clients, but the
+    // badge shown to this user is always the local value, never overridden by it.
     getAppVersion(): Observable<{ version: string, description: string }> {
         const versionDocRef = doc(this.firestore, 'sys_settings', 'app_version');
         const local = { version: APP_VERSION.version, description: APP_VERSION.description };
-        return docData(versionDocRef).pipe(
-            map((data: any) => {
-                if (!data?.version || this.isNewerVersion(local.version, data.version)) {
-                    // Deployed version is newer — push it to Firestore so all clients stay in sync
-                    setDoc(versionDocRef, local).catch(e => console.warn('Version sync to Firestore failed:', e));
-                    return local;
-                }
-                return data;
-            }),
-            catchError(() => of(local))
-        );
+        setDoc(versionDocRef, local).catch(e => console.warn('Version sync to Firestore failed:', e));
+        return of(local);
     }
 
-    async updateAppVersion(version: string, description: string): Promise<void> {
-        const versionDocRef = doc(this.firestore, 'sys_settings', 'app_version');
-        await setDoc(versionDocRef, { version, description });
-    }
     async syncOwnersFromRepairItems(): Promise<void> {
         const itemsSnapshot = await getDocs(this.repairCollection);
         const ownersSet = new Set<string>();
