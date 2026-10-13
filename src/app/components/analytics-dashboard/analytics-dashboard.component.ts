@@ -1,7 +1,7 @@
 import { Component, OnInit, OnDestroy, ChangeDetectorRef, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
-import { combineLatest, Subscription, of } from 'rxjs';
+import { combineLatest, Observable, Subscription, of } from 'rxjs';
 import { map, catchError } from 'rxjs/operators';
 import { Chart } from 'chart.js/auto';
 import * as XLSX from 'xlsx';
@@ -454,8 +454,8 @@ export class AnalyticsDashboardComponent implements OnInit, OnDestroy {
     this.cdr.detectChanges();
 
     const importedCol  = collection(this.firestore, 'imported_sessions');
-    const imported$    = (collectionData(importedCol) as any).pipe(catchError(() => of([])));
-    const repairItems$ = this.repairService.getRepairItems().pipe(catchError(() => of([])));
+    const imported$: Observable<any[]> = (collectionData(importedCol) as Observable<any[]>).pipe(catchError(() => of([] as any[])));
+    const repairItems$: Observable<RepairItem[]> = this.repairService.getRepairItems().pipe(catchError(() => of([] as RepairItem[])));
 
     this.liveSub?.unsubscribe();
     this.liveSub = combineLatest([repairItems$, imported$]).pipe(
