@@ -47,9 +47,7 @@
               </svg>
               <span>Analytics</span>
             </a>
-            <button class="btn-new" (click)="createNewRepair()" [disabled]="isCreatingRepair" title="New Repair Record">
-              {{ isCreatingRepair ? '...' : 'New' }}
-            </button>
+            <a routerLink="/register" class="btn-new" title="Register a new item for repair">Register Item</a>
           </ng-container>
         </div>
 

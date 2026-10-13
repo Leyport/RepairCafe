@@ -36,6 +36,8 @@ export interface RepairItem {
   repairVideos?: { url: string; title: string }[];
   ownerSatisfied?: boolean;
   donationAmount?: number;
+  investigationNotes?: string;
+  aiReportUrl?: string;
 }
 
 export interface Owner {

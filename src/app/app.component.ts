@@ -1,6 +1,6 @@
 import { Component, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { Router, RouterOutlet, RouterLink } from '@angular/router';
+import { RouterOutlet, RouterLink } from '@angular/router';
 import { RepairService } from './services/repair.service';
 import { map } from 'rxjs/operators';
 
@@ -17,11 +17,9 @@ import { LoginComponent } from './components/auth/login/login.component';
 export class AppComponent {
   title = 'RepairCafe';
   showLogin = false;
-  isCreatingRepair = false;
 
   private repairService = inject(RepairService);
   private authService = inject(AuthService);
-  private router = inject(Router);
 
   appVersion$ = this.repairService.getAppVersion();
 
@@ -51,21 +49,4 @@ export class AppComponent {
     await this.authService.logout();
   }
 
-  async createNewRepair() {
-    if (this.isCreatingRepair) return;
-    this.isCreatingRepair = true;
-    try {
-      const rcDay = this.repairService.getNextRCDay();
-      const docRef = await this.repairService.addRepairItem({
-        itemDescription: '',
-        RCDay: rcDay,
-        status: 'New'
-      });
-      this.router.navigate(['/edit', docRef.id]);
-    } catch (error) {
-      console.error('Failed to create repair item:', error);
-    } finally {
-      this.isCreatingRepair = false;
-    }
-  }
 }

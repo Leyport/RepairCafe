@@ -186,6 +186,7 @@ interface RepairerGroup {
                     (click)="$event.stopPropagation()"
                     [value]="''">
               <option value="" disabled>⋯</option>
+              <option value="investigate">Investigate (AI)</option>
               <option value="additional">Additional Details</option>
               <option value="complete">Complete</option>
               <option value="delete">Delete</option>
@@ -1016,7 +1017,8 @@ export class RepairListComponent implements OnInit {
     const action = select.value;
     select.value = '';
     if (!item.id) return;
-    if (action === 'additional') this.onAdditionalDetails(item.id, event);
+    if (action === 'investigate') this.onInvestigate(item.id, event);
+    else if (action === 'additional') this.onAdditionalDetails(item.id, event);
     else if (action === 'complete') this.onComplete(item.id, event);
     else if (action === 'delete') this.onDelete(item.id, event);
   }
@@ -1251,6 +1253,11 @@ export class RepairListComponent implements OnInit {
   onComplete(id: string, event: Event) {
     event.stopPropagation();
     setTimeout(() => this.router.navigate(['/complete', id]), 0);
+  }
+
+  onInvestigate(id: string, event: Event) {
+    event.stopPropagation();
+    setTimeout(() => this.router.navigate(['/investigate', id]), 0);
   }
 
   onAdditionalDetails(id: string, event: Event) {

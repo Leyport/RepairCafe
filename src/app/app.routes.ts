@@ -6,6 +6,8 @@ import { RepairCompleteComponent } from './components/repair-complete/repair-com
 export const routes: Routes = [
   { path: '', loadComponent: () => import('./components/landing/landing.component').then(m => m.LandingComponent) },
   { path: 'repairs', component: RepairListComponent },
+  { path: 'register', loadComponent: () => import('./components/intake/intake.component').then(m => m.IntakeComponent) },
+  { path: 'investigate/:id', loadComponent: () => import('./components/investigation/investigation.component').then(m => m.InvestigationComponent) },
   { path: 'new', component: RepairFormComponent },
   { path: 'edit/:id', component: RepairFormComponent },
   { path: 'item/:id', loadComponent: () => import('./components/repair-detail/repair-detail.component').then(m => m.RepairDetailComponent) },
