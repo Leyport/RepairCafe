@@ -68,30 +68,6 @@ interface FollowUp {
           <div class="photo-strip" *ngIf="item.photos && item.photos.length">
             <img class="photo-thumb" alt="Item photo" *ngFor="let photo of item.photos" [src]="getPhotoUrl(photo)">
           </div>
-          <div class="photo-add-row">
-            <div class="photo-add-group" *ngIf="!addingPhoto">
-              <button class="photo-add-btn" title="Take photo with camera" (click)="openWebcam()">
-                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
-                  <circle cx="12" cy="13" r="4"></circle>
-                </svg>
-                Camera
-              </button>
-              <label class="photo-add-btn">
-                <input type="file" accept="image/*" style="display:none" (change)="onPhotoSelected($event)">
-                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
-                  <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-                  <circle cx="8.5" cy="8.5" r="1.5"></circle>
-                  <polyline points="21 15 16 10 5 21"></polyline>
-                </svg>
-                Add Photo
-              </label>
-            </div>
-            <div class="photo-add uploading" *ngIf="addingPhoto">
-              <span class="spinner-small"></span> Uploading…
-            </div>
-            <div class="photo-add-error" *ngIf="photoError">{{ photoError }}</div>
-          </div>
         </div>
 
         <div class="ai-panel">
@@ -184,14 +160,35 @@ interface FollowUp {
               </div>
             </ng-container>
 
-            <div class="followup-input-row" *ngIf="aiSuggestions && !aiLoading">
-              <textarea class="followup-input" placeholder="Ask a follow-up question…" rows="2"
-                        [(ngModel)]="followUpQuestion" [disabled]="followUpLoading"
-                        (keydown.control.enter)="sendFollowUp()"></textarea>
-              <button class="btn-followup" [disabled]="!followUpQuestion.trim() || followUpLoading" (click)="sendFollowUp()">
-                <span *ngIf="!followUpLoading">Send</span>
-                <span class="loading-row" *ngIf="followUpLoading"><span class="spinner-sm"></span></span>
-              </button>
+            <div class="followup-compose" *ngIf="aiSuggestions && !aiLoading">
+              <div class="followup-photos" *ngIf="item.photos && item.photos.length">
+                <img class="followup-photo-thumb" alt="Item photo" *ngFor="let photo of item.photos" [src]="getPhotoUrl(photo)">
+                <span class="followup-photo-status" *ngIf="addingPhoto"><span class="spinner-small"></span> Adding…</span>
+              </div>
+              <div class="followup-photo-error" *ngIf="photoError">{{ photoError }}</div>
+              <div class="followup-input-row">
+                <button class="btn-attach" title="Add a photo from your camera" [disabled]="addingPhoto" (click)="openWebcam()">
+                  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
+                    <circle cx="12" cy="13" r="4"></circle>
+                  </svg>
+                </button>
+                <label class="btn-attach" title="Add a photo from a file" [class.disabled]="addingPhoto">
+                  <input type="file" accept="image/*" style="display:none" [disabled]="addingPhoto" (change)="onPhotoSelected($event)">
+                  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                    <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                    <polyline points="21 15 16 10 5 21"></polyline>
+                  </svg>
+                </label>
+                <textarea class="followup-input" placeholder="Ask a follow-up question… (add a photo first if it'll help)" rows="2"
+                          [(ngModel)]="followUpQuestion" [disabled]="followUpLoading"
+                          (keydown.control.enter)="sendFollowUp()"></textarea>
+                <button class="btn-followup" [disabled]="!followUpQuestion.trim() || followUpLoading" (click)="sendFollowUp()">
+                  <span *ngIf="!followUpLoading">Send</span>
+                  <span class="loading-row" *ngIf="followUpLoading"><span class="spinner-sm"></span></span>
+                </button>
+              </div>
             </div>
           </div>
 
@@ -260,12 +257,6 @@ interface FollowUp {
     .fault-text { margin: 0; font-size: .9rem; color: #fffc; line-height: 1.5; }
     .photo-strip { display: flex; gap: .5rem; flex-wrap: wrap; }
     .photo-thumb { width: 70px; height: 70px; border-radius: 8px; object-fit: cover; border: 1px solid rgba(255,255,255,.15); }
-    .photo-add-row { display: flex; flex-direction: column; gap: .4rem; }
-    .photo-add-group { display: flex; gap: .5rem; flex-wrap: wrap; }
-    .photo-add-btn { display: flex; align-items: center; gap: .4rem; background: #ffffff0d; border: 1px solid rgba(255,255,255,.15); color: #ffffff8c; border-radius: 8px; padding: .45rem .75rem; cursor: pointer; font-size: .78rem; font-weight: 600; font-family: inherit; transition: all .15s; white-space: nowrap; }
-    .photo-add-btn:hover { border-color: var(--accent-color); color: var(--accent-color); background: #00f2ff0f; }
-    .photo-add.uploading { display: flex; align-items: center; gap: .4rem; font-size: .8rem; color: #ffffff73; }
-    .photo-add-error { color: #f1948a; font-size: .78rem; }
     .spinner-small { display: inline-block; width: 14px; height: 14px; border: 2px solid rgba(255,255,255,.2); border-top-color: var(--accent-color); border-radius: 50%; animation: spin .7s linear infinite; }
     .ai-panel { display: flex; flex-direction: column; gap: 1.2rem; min-width: 0; }
     .ai-card, .notes-card { border-radius: 14px; padding: 1.5rem; }
@@ -326,12 +317,26 @@ interface FollowUp {
     .followup-a strong { color: #fff; }
     .followup-thinking { display: flex; align-items: center; gap: .5rem; font-size: .85rem; color: #ffffff59; }
     /*
+      The photo-attach buttons live inside this same compose block, directly
+      beside the question textarea, so adding a photo visibly belongs to the
+      follow-up question you're about to ask rather than being a separate,
+      disconnected "edit the item" action elsewhere on the page.
+    */
+    .followup-compose { border-top: 1px solid rgba(255,255,255,.07); margin-top: 1rem; padding-top: 1rem; display: flex; flex-direction: column; gap: .6rem; }
+    .followup-photos { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
+    .followup-photo-thumb { width: 44px; height: 44px; border-radius: 6px; object-fit: cover; border: 1px solid rgba(255,255,255,.15); }
+    .followup-photo-status { display: flex; align-items: center; gap: .35rem; font-size: .78rem; color: #ffffff73; }
+    .followup-photo-error { color: #f1948a; font-size: .78rem; }
+    /*
       followup-input-row: on narrow phones in portrait mode the Send button was being
       pushed off the right edge (textarea has no min-width:0, so a flex item won't
       shrink below its intrinsic content width). min-width:0 lets it shrink, and the
       column layout below is a hard guarantee the button always stays on-screen.
     */
-    .followup-input-row { display: flex; gap: .6rem; align-items: flex-end; border-top: 1px solid rgba(255,255,255,.07); margin-top: 1rem; padding-top: 1rem; }
+    .followup-input-row { display: flex; gap: .5rem; align-items: flex-end; flex-wrap: wrap; }
+    .btn-attach { display: flex; align-items: center; justify-content: center; flex-shrink: 0; width: 38px; height: 38px; background: #ffffff0d; border: 1px solid rgba(255,255,255,.15); color: #ffffff8c; border-radius: 8px; cursor: pointer; transition: all .15s; }
+    .btn-attach:hover:not(:disabled), .btn-attach:hover:not(.disabled) { border-color: var(--accent-color); color: var(--accent-color); background: #00f2ff0f; }
+    .btn-attach:disabled, .btn-attach.disabled { opacity: .4; cursor: not-allowed; pointer-events: none; }
     .followup-input { flex: 1; min-width: 0; background: #ffffff0a; border: 1px solid rgba(255,255,255,.1); color: #ffffffd9; border-radius: 8px; padding: .6rem .8rem; font-size: .88rem; font-family: inherit; resize: none; outline: none; transition: border-color .15s; box-sizing: border-box; }
     .followup-input:focus { border-color: #9b59b699; }
     .followup-input::placeholder { color: #fff3; }
@@ -340,8 +345,7 @@ interface FollowUp {
     .btn-followup:hover:not(:disabled) { background: #9b59b640; }
     .btn-followup:disabled { opacity: .4; cursor: not-allowed; }
     @media (max-width: 480px) {
-      .followup-input-row { flex-direction: column; align-items: stretch; }
-      .btn-followup { align-self: flex-end; }
+      .btn-followup { flex-basis: 100%; }
     }
     .spinner { width: 36px; height: 36px; border: 3px solid rgba(255,255,255,.1); border-top-color: var(--accent-color); border-radius: 50%; animation: spin .8s linear infinite; }
     .spinner-sm { display: inline-block; width: 14px; height: 14px; border: 2px solid rgba(155,89,182,.3); border-top-color: #c39bd3; border-radius: 50%; animation: spin .7s linear infinite; }
