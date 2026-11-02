@@ -40,3 +40,10 @@ testem.log
 # System files
 .DS_Store
 Thumbs.db
+
+# Generated on every build by scripts/generate-version.js
+/src/app/constants/version.ts
+/src/assets/version.json
+
+# Firebase deploy cache
+/.firebase/
