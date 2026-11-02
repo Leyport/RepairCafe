@@ -781,7 +781,7 @@ export class RcdDashboardComponent implements OnInit {
 
   async connectGoogle() {
     try {
-      const { token } = await this.authService.loginWithGoogle();
+      const { token } = await this.authService.connectGoogleDrive();
       if (token) {
         this.accessToken = token;
         await this.loadFolders();

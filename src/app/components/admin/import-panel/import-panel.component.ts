@@ -876,7 +876,7 @@ export class ImportPanelComponent {
     this.debugInfo = '';
 
     try {
-      const { token } = await this.authService.loginWithGoogle();
+      const { token } = await this.authService.connectGoogleDrive();
       console.log('Token received:', token ? `YES (length ${token.length})` : 'NO');
 
       if (!token) throw new Error('Failed to get access token from Google.');

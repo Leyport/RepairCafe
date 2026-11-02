@@ -32,11 +32,21 @@ export class AuthService {
         }, { merge: true });
     }
 
+    // Plain sign-in only asks for name/email, which Google allows without app verification.
     async loginWithGoogle(): Promise<any> {
+        return this.googleSignIn(new GoogleAuthProvider());
+    }
+
+    // Drive/Sheets scopes trigger Google's "app not verified" warning, so they are only
+    // requested when an admin uses a Google Sheets import/export feature.
+    async connectGoogleDrive(): Promise<any> {
         const provider = new GoogleAuthProvider();
         provider.addScope('https://www.googleapis.com/auth/spreadsheets');
         provider.addScope('https://www.googleapis.com/auth/drive');
+        return this.googleSignIn(provider);
+    }
 
+    private async googleSignIn(provider: GoogleAuthProvider): Promise<any> {
         try {
             const result = await signInWithPopup(this.auth, provider);
             const credential = GoogleAuthProvider.credentialFromResult(result);

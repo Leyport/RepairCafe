@@ -235,7 +235,7 @@ export class AdminPanelComponent implements OnDestroy {
     this.exportUrl = '';
 
     try {
-      const { token } = await this.authService.loginWithGoogle();
+      const { token } = await this.authService.connectGoogleDrive();
       if (!token) throw new Error('Failed to get access token.');
 
       this.exportStatus = 'Creating spreadsheet and uploading data...';
