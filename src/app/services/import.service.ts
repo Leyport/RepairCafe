@@ -2,6 +2,78 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { Firestore, collection, addDoc, writeBatch, doc, Timestamp, setDoc, query, where, getDocs } from '@angular/fire/firestore';
 import { firstValueFrom } from 'rxjs';
+import * as XLSX from 'xlsx';
+
+/** One sheet of an uploaded workbook, with its header row located and blank rows trimmed. */
+export interface SheetPreview {
+    name: string;
+    headerRow: number;          // 0-based row index of the column headings in the sheet
+    headers: string[];
+    rows: any[][];              // data rows below the header
+    sample: string[];           // first non-blank value seen in each column, for the mapping UI
+    rowsWithData: number;
+    looksLikeRepairData: boolean;
+}
+
+/** Targets a spreadsheet column can be mapped to when importing repair items. */
+export const REPAIR_COLUMN_TARGETS = [
+    { key: 'ignore', label: '(Ignore column)' },
+    { key: 'keep', label: 'Keep as extra field' },
+    { key: 'rcdate', label: 'Session date' },
+    { key: 'itemNumber', label: 'Item number' },
+    { key: 'itemDescription', label: 'Item description' },
+    { key: 'repairItem', label: 'Item type' },
+    { key: 'category', label: 'Category' },
+    { key: 'fault', label: 'Fault' },
+    { key: 'ageOfItem', label: 'Age of item' },
+    { key: 'repairer', label: 'Repairer' },
+    { key: 'additionalRepairers', label: 'Additional repairers' },
+    { key: 'outcome', label: 'Repair outcome (sets status)' },
+    { key: 'satisfaction', label: 'Owner satisfaction' },
+    { key: 'owner', label: 'Owner' },
+    { key: 'telephone', label: 'Telephone' },
+    { key: 'make', label: 'Make' },
+    { key: 'model', label: 'Model' },
+    { key: 'tags', label: 'Tags' }
+];
+
+// Spreadsheet heading (lower-cased, punctuation stripped) -> import target.
+const HEADER_TARGETS: { [header: string]: string } = {
+    'date': 'rcdate', 'session date': 'rcdate', 'rc date': 'rcdate',
+    'item no': 'itemNumber', 'item number': 'itemNumber',
+    'item description': 'itemDescription', 'description': 'itemDescription',
+    'item type': 'repairItem',
+    'item category': 'category', 'category': 'category',
+    'fault': 'fault',
+    'age of item': 'ageOfItem',
+    'primary repairer': 'repairer', 'repairer': 'repairer',
+    'additional repairers': 'additionalRepairers',
+    'repair outcome': 'outcome', 'outcome': 'outcome',
+    'satisfied': 'satisfaction',
+    'owner': 'owner', 'telephone': 'telephone', 'phone': 'telephone',
+    'make': 'make', 'model': 'model', 'tags': 'tags'
+};
+
+// Spreadsheet categories -> the app's category values (see intake categories).
+const CATEGORY_RULES: [RegExp, string][] = [
+    [/electric/i, 'electrical'],
+    [/cloth|textile|material|fabric/i, 'textile'],
+    [/ornament|ceramic/i, 'ornament'],
+    [/mechanical/i, 'mechanical'],
+    [/furniture/i, 'furniture'],
+    [/toy/i, 'toy'],
+    [/clock|watch/i, 'clock'],
+    [/jewel/i, 'jewelry']
+];
+
+// Spreadsheet repair outcomes -> the app's status values (see repair-complete outcomes).
+const OUTCOME_RULES: [RegExp, string][] = [
+    [/partial/i, 'Partially Repaired'],
+    [/advice/i, 'Advice Given'],
+    [/not repaired yet|ongoing|bring back|coming back|pending|out of time|going home/i, 'Assigned'],
+    [/unable|unrepairable|not (repaired|reaired|able)|invalid|wasn't broke|needs part/i, 'Not Repaired'],
+    [/repair|complete/i, 'Repaired']
+];
 
 @Injectable({
     providedIn: 'root'
@@ -229,6 +301,207 @@ export class ImportService {
                 // Simple CSV parser (doesn't handle quoted commas, but good for basic sheets)
                 return line.split(',').map(cell => cell.replace(/^"(.*)"$/, '$1').trim());
             });
+    }
+
+    // ── Local workbook import (multi-sheet, repair item rows) ──────────────────
+
+    async readWorkbook(file: File): Promise<SheetPreview[]> {
+        const wb = XLSX.read(await file.arrayBuffer(), { type: 'array' });
+        return wb.SheetNames.map(name => this.previewSheet(name, wb.Sheets[name])).filter((s): s is SheetPreview => s !== null);
+    }
+
+    private previewSheet(name: string, ws: XLSX.WorkSheet): SheetPreview | null {
+        // Some sheets declare a used range of a million rows; shrink it to the cells that actually exist.
+        let maxRow = -1, maxCol = -1;
+        for (const key of Object.keys(ws)) {
+            if (key.startsWith('!')) continue;
+            const c = XLSX.utils.decode_cell(key);
+            if (c.r > maxRow) maxRow = c.r;
+            if (c.c > maxCol) maxCol = c.c;
+        }
+        if (maxRow < 0) return null;
+        ws['!ref'] = XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: maxRow, c: maxCol } });
+
+        const all = XLSX.utils.sheet_to_json<any[]>(ws, { header: 1, defval: '', raw: true, blankrows: true });
+
+        // The heading row is the one (within the first 10) with the most text cells, e.g. row 2 under a title row.
+        let headerRow = 0, best = -1;
+        all.slice(0, 10).forEach((row, i) => {
+            const textCells = row.filter(c => typeof c === 'string' && c.trim() !== '').length;
+            if (textCells > best) { best = textCells; headerRow = i; }
+        });
+
+        const headers = (all[headerRow] || []).map(h => String(h ?? '').trim());
+        const rows = all.slice(headerRow + 1);
+        const sample = headers.map((_, i) => {
+            const hit = rows.find(r => r[i] !== '' && r[i] !== null && r[i] !== undefined);
+            return hit ? this.displayCell(hit[i]) : '';
+        });
+
+        const targets = this.autoMapColumns(headers);
+        const preview: SheetPreview = {
+            name, headerRow, headers, rows, sample,
+            rowsWithData: 0,
+            looksLikeRepairData: targets.includes('itemDescription')
+        };
+        preview.rowsWithData = rows.filter(r => this.isItemRow(r, targets)).length;
+        return preview;
+    }
+
+    /** Suggests a target for each column by its heading; repeated headings (e.g. a second "Date") are ignored. */
+    autoMapColumns(headers: string[]): string[] {
+        const used = new Set<string>();
+        return headers.map(h => {
+            const norm = h.toLowerCase().replace(/[^a-z0-9 ]/g, '').replace(/\s+/g, ' ').trim();
+            const target = HEADER_TARGETS[norm];
+            if (target) {
+                if (used.has(target)) return 'ignore';
+                used.add(target);
+                return target;
+            }
+            return 'keep';
+        });
+    }
+
+    /** A row is a repair item if it has a description, category or repairer; date/number-only rows are skipped. */
+    isItemRow(row: any[], targets: string[]): boolean {
+        return targets.some((t, i) =>
+            (t === 'itemDescription' || t === 'category' || t === 'repairer') && String(row[i] ?? '').trim() !== '');
+    }
+
+    /** Converts mapped sheet rows into repair item documents keyed by session date + item number. */
+    buildRepairDocs(sheet: SheetPreview, targets: string[], usedIds: Set<string>): { docs: { id: string; data: any }[]; skipped: number } {
+        const docs: { id: string; data: any }[] = [];
+        let skipped = 0;
+        const extraNames = sheet.headers.map((h, i) => this.extraFieldName(h, i));
+
+        sheet.rows.forEach((row, r) => {
+            if (!this.isItemRow(row, targets)) {
+                if (row.some(c => String(c ?? '').trim() !== '')) skipped++;
+                return;
+            }
+
+            const data: any = { importSource: `${sheet.name} row ${sheet.headerRow + r + 2}` };
+            targets.forEach((target, i) => {
+                const raw = row[i];
+                const text = String(raw ?? '').trim();
+                if (target === 'ignore' || text === '') return;
+
+                switch (target) {
+                    case 'rcdate': {
+                        const date = this.parseSheetDate(raw);
+                        if (date) data.rcdate = date;
+                        else data.originalDate = text;
+                        break;
+                    }
+                    case 'itemNumber': {
+                        data.displayNumber = text;
+                        const n = parseInt(text, 10);
+                        if (!isNaN(n)) data.itemNumber = n;
+                        break;
+                    }
+                    case 'category':
+                        data.originalCategory = text;
+                        data.category = CATEGORY_RULES.find(([re]) => re.test(text))?.[1] ?? 'other';
+                        break;
+                    case 'outcome':
+                        data.repairOutcome = text;
+                        data.status = OUTCOME_RULES.find(([re]) => re.test(text))?.[1];
+                        break;
+                    case 'satisfaction':
+                        data.satisfaction = text;
+                        data.ownerSatisfied = !/dissatisfied/i.test(text);
+                        break;
+                    case 'tags':
+                    case 'additionalRepairers':
+                        data[target] = text.split(',').map(t => t.trim()).filter(t => t);
+                        break;
+                    case 'keep':
+                        data[extraNames[i]] = typeof raw === 'number' ? raw : text;
+                        break;
+                    default:
+                        data[target] = text;
+                }
+            });
+
+            if (!data.itemDescription) data.itemDescription = '(No description)';
+            if (!data.status) data.status = data.repairer ? 'Assigned' : 'New';
+
+            const date: Date | undefined = data.rcdate;
+            if (date) {
+                data.RCDay = this.formatRCDay(date);
+                data.rcdate = Timestamp.fromDate(date);
+                data.creationDate = data.rcdate;
+            } else {
+                data.creationDate = Timestamp.now();
+            }
+
+            // Stable IDs mean re-importing the same sheet overwrites items instead of duplicating them.
+            const base = date
+                ? `${date.toISOString().slice(0, 10)}_${(data.displayNumber || `row${sheet.headerRow + r + 2}`).replace(/[^A-Za-z0-9]/g, '')}`
+                : `${sheet.name.replace(/[^A-Za-z0-9]/g, '')}_row${sheet.headerRow + r + 2}`;
+            let id = base;
+            for (let n = 2; usedIds.has(id); n++) id = `${base}_${n}`;
+            usedIds.add(id);
+
+            docs.push({ id, data });
+        });
+
+        return { docs, skipped };
+    }
+
+    async importRepairDocs(collectionName: string, docs: { id: string; data: any }[], onProgress?: (msg: string) => void): Promise<number> {
+        const importedAt = Timestamp.now();
+        for (let i = 0; i < docs.length; i += 450) {
+            onProgress?.(`Saving items ${i + 1}–${Math.min(i + 450, docs.length)} of ${docs.length}...`);
+            const batch = writeBatch(this.firestore);
+            docs.slice(i, i + 450).forEach(d => batch.set(doc(this.firestore, collectionName, d.id), { ...d.data, importedAt }));
+            await batch.commit();
+        }
+
+        if (docs.length > 0 && collectionName !== 'repairItems') {
+            await setDoc(doc(this.firestore, 'sys_collections', collectionName), {
+                name: collectionName,
+                lastImportAt: Timestamp.now()
+            }, { merge: true });
+        }
+        return docs.length;
+    }
+
+    /** Excel serial dates and UK-style text dates (e.g. "19/9/26") are returned as UTC midnight. */
+    private parseSheetDate(value: any): Date | null {
+        if (typeof value === 'number' && value > 20000 && value < 80000) {
+            return new Date(Math.round((value - 25569) * 86400) * 1000);
+        }
+        const m = String(value).trim().match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{2}|\d{4})$/);
+        if (m) {
+            const year = m[3].length === 2 ? 2000 + Number(m[3]) : Number(m[3]);
+            const date = new Date(Date.UTC(year, Number(m[2]) - 1, Number(m[1])));
+            return isNaN(date.getTime()) ? null : date;
+        }
+        return null;
+    }
+
+    // Same "Saturday, 17, 05, 2025" format as RepairService.generateRCDay, so imported items group by session.
+    private formatRCDay(date: Date): string {
+        const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+        const dd = String(date.getUTCDate()).padStart(2, '0');
+        const mm = String(date.getUTCMonth() + 1).padStart(2, '0');
+        return `${days[date.getUTCDay()]}, ${dd}, ${mm}, ${date.getUTCFullYear()}`;
+    }
+
+    // "PAT Test" -> "patTest"; a column with no heading becomes e.g. "columnL".
+    private extraFieldName(header: string, index: number): string {
+        const words = header.replace(/[^A-Za-z0-9 ]/g, ' ').trim().split(/\s+/).filter(w => w);
+        if (words.length === 0) return `column${XLSX.utils.encode_col(index)}`;
+        return words.map((w, i) => i === 0 ? w.toLowerCase() : w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join('');
+    }
+
+    private displayCell(value: any): string {
+        const date = typeof value === 'number' ? this.parseSheetDate(value) : null;
+        // Show plausible Excel dates as dates so the user recognises the column.
+        if (date && value > 40000) return date.toISOString().slice(0, 10) + ` (${value})`;
+        return String(value);
     }
 
     async importToFirestore(collectionName: string, data: any[][], mapping?: { [key: string]: string }): Promise<number> {

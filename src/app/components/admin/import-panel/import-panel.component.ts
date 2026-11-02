@@ -2,9 +2,8 @@ import { Component, inject, ElementRef, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { AuthService } from '../../../services/auth.service';
-import { ImportService } from '../../../services/import.service';
+import { ImportService, REPAIR_COLUMN_TARGETS, SheetPreview } from '../../../services/import.service';
 import { RepairService } from '../../../services/repair.service';
-import * as XLSX from 'xlsx';
 
 @Component({
   selector: 'app-import-panel',
@@ -39,49 +38,61 @@ import * as XLSX from 'xlsx';
         </div>
       </div>
 
-      <!-- Reuse the same mapping + import UI for local files -->
-      <ng-container *ngIf="localFileName">
+      <div class="import-status" *ngIf="isReadingFile">
+        <div class="status-card">Reading workbook...</div>
+      </div>
+
+      <ng-container *ngIf="localSheets.length > 0">
         <div class="form-group" style="margin-top:1rem">
+          <label>Sheets to import</label>
+          <p class="mapping-instruction">Sheets that look like repair item lists are ticked. Rows without a description, category or repairer are skipped.</p>
+          <label class="sheet-option" *ngFor="let sheet of localSheets">
+            <input type="checkbox" [(ngModel)]="sheetSelected[sheet.name]" [disabled]="isImporting">
+            <span class="sheet-name">{{ sheet.name }}</span>
+            <span class="sheet-meta">{{ sheet.rowsWithData }} item rows · headings on row {{ sheet.headerRow + 1 }}</span>
+          </label>
+        </div>
+
+        <div class="form-group">
           <label for="localCollectionName">Target Collection Name</label>
           <input
             type="text"
             id="localCollectionName"
             [(ngModel)]="collectionName"
-            placeholder="e.g. ImportedTestData"
+            placeholder="e.g. HistoricRepairs"
             [disabled]="isImporting">
+          <p class="mapping-instruction">Use <strong>repairItems</strong> to add the items to the main repair list, or any other name to keep them in a separate collection (viewable in Admin Explorer). Re-importing the same sheet updates items instead of duplicating them.</p>
         </div>
 
-        <div class="mapper-section" *ngIf="collectionName">
-          <button class="btn-secondary" (click)="analyzeLocalFile()" *ngIf="fileHeaders.length === 0" [disabled]="isImporting">
-            Analyze File &amp; Map Columns
-          </button>
-
-          <div class="mapping-grid" *ngIf="fileHeaders.length > 0">
-            <p class="mapping-instruction">Map your spreadsheet columns to Repair Attributes:</p>
-            <div class="mapping-row header-row">
-              <span>Spreadsheet Column</span>
-              <span>Target Attribute</span>
-            </div>
-            <div class="mapping-row" *ngFor="let header of fileHeaders; let i = index">
-              <div class="col-info">
-                <span class="badger">{{ header }}</span>
-                <span class="sample-val" *ngIf="sampleRow[i]">{{ sampleRow[i] | slice:0:40 }}{{ sampleRow[i].length > 40 ? '…' : '' }}</span>
+        <div class="mapper-section" *ngFor="let sheet of selectedSheets()">
+          <details class="sheet-mapping">
+            <summary>Columns for "{{ sheet.name }}"</summary>
+            <div class="mapping-grid">
+              <div class="mapping-row header-row">
+                <span>Spreadsheet Column</span>
+                <span>Imported As</span>
               </div>
-              <select [(ngModel)]="columnMapping[header]" [disabled]="isImporting">
-                <option *ngFor="let attr of availableAttributes" [value]="attr.key">
-                  {{ attr.label }}
-                </option>
-              </select>
+              <ng-container *ngFor="let header of sheet.headers; let i = index">
+                <div class="mapping-row" *ngIf="header || sheet.sample[i]">
+                  <div class="col-info">
+                    <span class="badger">{{ header || '(no heading, column ' + (i + 1) + ')' }}</span>
+                    <span class="sample-val" *ngIf="sheet.sample[i]">{{ sheet.sample[i] | slice:0:40 }}{{ sheet.sample[i].length > 40 ? '…' : '' }}</span>
+                  </div>
+                  <select [(ngModel)]="sheetTargets[sheet.name][i]" [disabled]="isImporting">
+                    <option *ngFor="let t of repairTargets" [value]="t.key">{{ t.label }}</option>
+                  </select>
+                </div>
+              </ng-container>
             </div>
-          </div>
+          </details>
         </div>
 
-        <div class="button-group" style="margin-top:1rem" *ngIf="fileHeaders.length > 0">
+        <div class="button-group" style="margin-top:1rem">
           <button
             class="btn-import"
             (click)="startLocalImport()"
-            [disabled]="isImporting || !collectionName">
-            <span *ngIf="!isImporting">Import "{{ localFileName }}"</span>
+            [disabled]="isImporting || !collectionName.trim() || selectedSheets().length === 0">
+            <span *ngIf="!isImporting">Import {{ selectedSheets().length }} sheet(s)</span>
             <span *ngIf="isImporting" class="spinner-small"></span>
             <span *ngIf="isImporting">Importing...</span>
           </button>
@@ -654,6 +665,28 @@ import * as XLSX from 'xlsx';
       border-color: #00ff7f;
       color: #00ff7f;
     }
+    .sheet-option {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      gap: 0.5rem;
+      padding: 0.35rem 0;
+      cursor: pointer;
+    }
+    .sheet-name {
+      font-weight: 600;
+      color: rgba(255, 255, 255, 0.9);
+    }
+    .sheet-meta {
+      font-size: 0.8rem;
+      color: rgba(255, 255, 255, 0.45);
+    }
+    .sheet-mapping summary {
+      cursor: pointer;
+      font-weight: 600;
+      color: var(--accent-color);
+      padding: 0.5rem 0;
+    }
     .mapper-section {
       margin-top: 1rem;
       padding: 1rem;
@@ -731,8 +764,12 @@ export class ImportPanelComponent {
 
   // Local file state
   localFileName = '';
-  localFileData: any[][] = [];
+  localSheets: SheetPreview[] = [];
+  sheetSelected: { [sheet: string]: boolean } = {};
+  sheetTargets: { [sheet: string]: string[] } = {};
+  isReadingFile = false;
   isDragOver = false;
+  readonly repairTargets = REPAIR_COLUMN_TARGETS;
 
   accessToken = '';
   directories: { id: string, name: string, mimeType?: string }[] = [];
@@ -799,61 +836,69 @@ export class ImportPanelComponent {
     if (file) this.loadLocalFile(file);
   }
 
-  private loadLocalFile(file: File) {
+  private async loadLocalFile(file: File) {
     this.clearLocalFile();
     this.localFileName = file.name;
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const data = new Uint8Array(e.target!.result as ArrayBuffer);
-      const workbook = XLSX.read(data, { type: 'array' });
-      const sheet = workbook.Sheets[workbook.SheetNames[0]];
-      this.localFileData = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' }) as any[][];
-    };
-    reader.readAsArrayBuffer(file);
+    this.isReadingFile = true;
+    try {
+      this.localSheets = await this.importService.readWorkbook(file);
+      this.sheetSelected = Object.fromEntries(this.localSheets.map(s => [s.name, s.looksLikeRepairData]));
+      this.sheetTargets = Object.fromEntries(this.localSheets.map(s => [s.name, this.importService.autoMapColumns(s.headers)]));
+      if (this.localSheets.length === 0) {
+        this.statusMessage = '❌ No data found in this file.';
+        this.isError = true;
+      }
+    } catch (error: any) {
+      console.error('Failed to read workbook:', error);
+      this.statusMessage = '❌ Could not read file: ' + (error?.message || 'Unknown error');
+      this.isError = true;
+    } finally {
+      this.isReadingFile = false;
+    }
   }
 
   clearLocalFile() {
     this.localFileName = '';
-    this.localFileData = [];
-    this.fileHeaders = [];
-    this.sampleRow = [];
-    this.columnMapping = {};
+    this.localSheets = [];
+    this.sheetSelected = {};
+    this.sheetTargets = {};
     this.statusMessage = '';
+    this.isError = false;
+    this.isSuccess = false;
   }
 
-  analyzeLocalFile() {
-    if (!this.localFileData || this.localFileData.length === 0) return;
-    this.fileHeaders = this.localFileData[0].map((h: any) => h.toString().trim());
-    this.sampleRow = this.localFileData.length > 1 ? this.localFileData[1].map((v: any) => v?.toString() ?? '') : [];
-    this.columnMapping = {};
-    this.fileHeaders.forEach(header => {
-      const lowerHeader = header.toLowerCase();
-      const match = this.availableAttributes.find(attr => attr.label.toLowerCase() === lowerHeader || attr.key.toLowerCase() === lowerHeader);
-      this.columnMapping[header] = match ? match.key : 'ignore';
-    });
+  selectedSheets(): SheetPreview[] {
+    return this.localSheets.filter(s => this.sheetSelected[s.name]);
   }
 
   async startLocalImport() {
-    if (!this.localFileData || this.localFileData.length < 2) return;
-    this.isImporting = true;
-    this.statusMessage = `Importing ${this.localFileData.length - 1} records to "${this.collectionName}"...`;
+    const sheets = this.selectedSheets();
+    const target = this.collectionName.trim();
     this.isError = false;
     this.isSuccess = false;
 
+    const unmapped = sheets.filter(s => !this.sheetTargets[s.name].includes('itemDescription'));
+    if (unmapped.length) {
+      this.statusMessage = `❌ Map a column to "Item description" for: ${unmapped.map(s => s.name).join(', ')}`;
+      this.isError = true;
+      return;
+    }
+
+    const usedIds = new Set<string>();
+    const built = sheets.map(s => ({ sheet: s.name, ...this.importService.buildRepairDocs(s, this.sheetTargets[s.name], usedIds) }));
+    const docs = built.flatMap(b => b.docs);
+    const skipped = built.reduce((sum, b) => sum + b.skipped, 0);
+
+    if (!confirm(`Import ${docs.length} repair items from ${sheets.length} sheet(s) into "${target}"?`)) return;
+
+    this.isImporting = true;
     try {
-      const mappedValues = Object.values(this.columnMapping);
-      if (!mappedValues.includes('itemDescription')) {
-        throw new Error('You must map a column to "Description".');
-      }
-
-      const importedCount = await this.importService.importToFirestore(this.collectionName, this.localFileData, this.columnMapping);
-      await this.repairService.trackCollection(this.collectionName);
-
-      this.statusMessage = `✅ Successfully imported ${importedCount} records to "${this.collectionName}".`;
+      const count = await this.importService.importRepairDocs(target, docs, msg => this.statusMessage = msg);
+      const perSheet = built.map(b => `${b.sheet}: ${b.docs.length}`).join(', ');
+      this.statusMessage = `✅ Imported ${count} items into "${target}" (${perSheet}).` + (skipped ? ` Skipped ${skipped} rows with no description, category or repairer.` : '');
       this.isSuccess = true;
-      this.fileHeaders = [];
-      this.sampleRow = [];
     } catch (error: any) {
+      console.error('Local import failed:', error);
       this.statusMessage = '❌ Import Failed: ' + (error?.message || 'Unknown error');
       this.isError = true;
     } finally {
