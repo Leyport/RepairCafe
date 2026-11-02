@@ -37,6 +37,7 @@ export interface RepairItem {
   ownerSatisfied?: boolean;
   donationAmount?: number;
   investigationNotes?: string;
+  importSource?: string; // Set on items imported from a spreadsheet, e.g. "Repair_Data 2025 row 3"
   aiReportUrl?: string;
 }
 

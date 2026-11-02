@@ -479,17 +479,23 @@ export class AnalyticsDashboardComponent implements OnInit, OnDestroy {
   }
 
   private mergeDataSources(items: RepairItem[], importedDocs: any[]): Session[] {
-    // Sessions derived from live app data
-    const appSessions = this.itemsToSessions(items);
-    const appDateKeys = new Set(appSessions.map(s => s.dateKey));
+    // Sessions derived from items entered in the app
+    const appSessions = this.itemsToSessions(items.filter(i => !i.importSource));
+    const coveredKeys = new Set(appSessions.map(s => s.dateKey));
 
-    // Imported sessions — only include dates not already covered by app data
+    // Imported monthly totals — only include dates not already covered by app data.
+    // These carry volunteer/visitor counts, so they win over sessions rebuilt from imported items.
     const importedSessions = importedDocs
-      .filter(d => d.dateKey && !appDateKeys.has(d.dateKey))
+      .filter(d => d.dateKey && !coveredKeys.has(d.dateKey))
       .map(d => this.docToSession(d))
       .filter((s): s is Session => s !== null);
+    importedSessions.forEach(s => coveredKeys.add(s.dateKey));
 
-    return [...appSessions, ...importedSessions]
+    // Sessions rebuilt from spreadsheet-imported items, for dates with no other source
+    const historicSessions = this.itemsToSessions(items.filter(i => i.importSource))
+      .filter(s => !coveredKeys.has(s.dateKey));
+
+    return [...appSessions, ...importedSessions, ...historicSessions]
       .sort((a, b) => a.date.getTime() - b.date.getTime());
   }
 

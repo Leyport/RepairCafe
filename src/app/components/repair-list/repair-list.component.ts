@@ -1167,7 +1167,8 @@ export class RepairListComponent implements OnInit {
       // Completion filter
       let filtered = items.filter(item => {
         const isDone = COMPLETED_STATUSES.has(item.status || '');
-        if (completionFilter === 'active') return !isDone;
+        // Imported historic items are past records, never open work, even without a final outcome.
+        if (completionFilter === 'active') return !isDone && !item.importSource;
         if (completionFilter === 'completed') return isDone;
         return true;
       });
