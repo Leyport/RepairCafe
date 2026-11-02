@@ -48,6 +48,14 @@ import { ExportService } from '../../../services/export.service';
           </div>
         </a>
 
+        <a routerLink="backup" routerLinkActive="active" class="nav-card">
+          <div class="card-icon">💾</div>
+          <div class="card-content">
+            <h3>Backup &amp; Restore</h3>
+            <p>Download the whole app to a spreadsheet, or restore from one.</p>
+          </div>
+        </a>
+
         <a routerLink="version" routerLinkActive="active" class="nav-card">
           <div class="card-icon">🏷️</div>
           <div class="card-content">
