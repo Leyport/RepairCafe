@@ -97,6 +97,7 @@ import { RepairService } from '../../../services/repair.service';
             <span *ngIf="isImporting">Importing...</span>
           </button>
         </div>
+        <p class="mapping-instruction" *ngIf="!isImporting && localImportBlocker()">⚠️ {{ localImportBlocker() }}</p>
       </ng-container>
 
       <div class="import-status" *ngIf="statusMessage && !accessToken">
@@ -844,6 +845,7 @@ export class ImportPanelComponent {
       this.localSheets = await this.importService.readWorkbook(file);
       this.sheetSelected = Object.fromEntries(this.localSheets.map(s => [s.name, s.looksLikeRepairData]));
       this.sheetTargets = Object.fromEntries(this.localSheets.map(s => [s.name, this.importService.autoMapColumns(s.headers)]));
+      if (!this.collectionName.trim()) this.collectionName = 'HistoricRepairs';
       if (this.localSheets.length === 0) {
         this.statusMessage = '❌ No data found in this file.';
         this.isError = true;
@@ -865,6 +867,13 @@ export class ImportPanelComponent {
     this.statusMessage = '';
     this.isError = false;
     this.isSuccess = false;
+  }
+
+  /** Explains why the import button is disabled, if it is. */
+  localImportBlocker(): string {
+    if (this.selectedSheets().length === 0) return 'Tick at least one sheet to import.';
+    if (!this.collectionName.trim()) return 'Enter a Target Collection Name above.';
+    return '';
   }
 
   selectedSheets(): SheetPreview[] {
