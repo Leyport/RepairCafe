@@ -1,13 +1,14 @@
-import { Component, inject } from '@angular/core';
+import { Component, inject, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { RouterLink, RouterOutlet } from '@angular/router';
+import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { filter, Subscription } from 'rxjs';
 import { AuthService } from '../../../services/auth.service';
 import { ExportService } from '../../../services/export.service';
 
 @Component({
   selector: 'app-admin-panel',
   standalone: true,
-  imports: [CommonModule, RouterLink, RouterOutlet],
+  imports: [CommonModule, RouterLink, RouterLinkActive, RouterOutlet],
   template: `
     <div class="admin-container glass">
       <div class="admin-header">
@@ -15,52 +16,21 @@ import { ExportService } from '../../../services/export.service';
         <p>Manage your Repair Cafe settings and volunteers.</p>
       </div>
       
-      <nav class="admin-nav">
-        <a routerLink="repairers" routerLinkActive="active" class="nav-card">
-          <div class="card-icon">👥</div>
-          <div class="card-content">
-            <h3>Manage Repairers</h3>
-            <p>Add or remove volunteer repairers from the system.</p>
-          </div>
+      <!-- Section open: compact tab strip so the chosen section appears right below it -->
+      <nav class="admin-tabs" *ngIf="sectionOpen">
+        <a routerLink="/admin" class="tab back-tab">← All tools</a>
+        <a *ngFor="let s of sections" [routerLink]="s.path" routerLinkActive="active" class="tab">
+          <span class="tab-icon">{{ s.icon }}</span>{{ s.title }}
         </a>
+      </nav>
 
-        <a routerLink="import" routerLinkActive="active" class="nav-card">
-          <div class="card-icon">📥</div>
+      <!-- No section open: full menu of cards -->
+      <nav class="admin-nav" *ngIf="!sectionOpen">
+        <a *ngFor="let s of sections" [routerLink]="s.path" class="nav-card">
+          <div class="card-icon">{{ s.icon }}</div>
           <div class="card-content">
-            <h3>Import Data</h3>
-            <p>Load repair data from a Google Sheet into a new collection.</p>
-          </div>
-        </a>
-
-        <a routerLink="database" routerLinkActive="active" class="nav-card">
-          <div class="card-icon">🗄️</div>
-          <div class="card-content">
-            <h3>Admin Explorer</h3>
-            <p>Browse Firestore collections and view raw records.</p>
-          </div>
-        </a>
-        
-        <a routerLink="users" routerLinkActive="active" class="nav-card">
-          <div class="card-icon">👤</div>
-          <div class="card-content">
-            <h3>Manage Users</h3>
-            <p>View logged-in users and assign admin roles.</p>
-          </div>
-        </a>
-
-        <a routerLink="backup" routerLinkActive="active" class="nav-card">
-          <div class="card-icon">💾</div>
-          <div class="card-content">
-            <h3>Backup &amp; Restore</h3>
-            <p>Download the whole app to a spreadsheet, or restore from one.</p>
-          </div>
-        </a>
-
-        <a routerLink="version" routerLinkActive="active" class="nav-card">
-          <div class="card-icon">🏷️</div>
-          <div class="card-content">
-            <h3>App Version</h3>
-            <p>Update the app version number and change description.</p>
+            <h3>{{ s.title }}</h3>
+            <p>{{ s.description }}</p>
           </div>
         </a>
 
@@ -77,7 +47,7 @@ import { ExportService } from '../../../services/export.service';
         </div>
       </nav>
 
-      <div class="admin-content">
+      <div class="admin-content" *ngIf="sectionOpen">
         <router-outlet></router-outlet>
       </div>
     </div>
@@ -183,14 +153,76 @@ import { ExportService } from '../../../services/export.service';
       color: rgba(255, 255, 255, 0.6);
     }
     .admin-content {
-      padding-top: 2rem;
-      border-top: 1px solid rgba(255, 255, 255, 0.1);
+      padding-top: 1.5rem;
+    }
+    .admin-tabs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      padding-bottom: 1rem;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    .tab {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.45rem 0.85rem;
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      background: rgba(255, 255, 255, 0.04);
+      color: rgba(255, 255, 255, 0.75);
+      text-decoration: none;
+      font-size: 0.85rem;
+      font-weight: 600;
+      white-space: nowrap;
+      transition: all 0.2s;
+    }
+    .tab:hover {
+      background: rgba(0, 242, 255, 0.1);
+      border-color: rgba(0, 242, 255, 0.4);
+    }
+    .tab.active {
+      background: rgba(0, 242, 255, 0.15);
+      border-color: var(--accent-color);
+      color: var(--accent-color);
+    }
+    .back-tab {
+      color: rgba(255, 255, 255, 0.55);
+      border-style: dashed;
     }
   `]
 })
-export class AdminPanelComponent {
+export class AdminPanelComponent implements OnDestroy {
   private authService = inject(AuthService);
   private exportService = inject(ExportService);
+  private router = inject(Router);
+
+  sections = [
+    { path: 'repairers', icon: '👥', title: 'Manage Repairers', description: 'Add or remove volunteer repairers from the system.' },
+    { path: 'import', icon: '📥', title: 'Import Data', description: 'Load repair data from a Google Sheet into a new collection.' },
+    { path: 'database', icon: '🗄️', title: 'Admin Explorer', description: 'Browse Firestore collections and view raw records.' },
+    { path: 'users', icon: '👤', title: 'Manage Users', description: 'View logged-in users and assign admin roles.' },
+    { path: 'backup', icon: '💾', title: 'Backup & Restore', description: 'Download the whole app to a spreadsheet, or restore from one.' },
+    { path: 'version', icon: '🏷️', title: 'App Version', description: 'Update the app version number and change description.' }
+  ];
+
+  // True when a child section (e.g. /admin/users) is showing rather than the bare menu.
+  sectionOpen = this.isSectionUrl(this.router.url);
+
+  private routerSub: Subscription = this.router.events
+    .pipe(filter((e): e is NavigationEnd => e instanceof NavigationEnd))
+    .subscribe(e => {
+      this.sectionOpen = this.isSectionUrl(e.urlAfterRedirects);
+      window.scrollTo({ top: 0 });
+    });
+
+  ngOnDestroy() {
+    this.routerSub.unsubscribe();
+  }
+
+  private isSectionUrl(url: string): boolean {
+    return url.split(/[?#]/)[0].replace(/\/+$/, '') !== '/admin';
+  }
 
   isExporting = false;
   exportStatus = '';
