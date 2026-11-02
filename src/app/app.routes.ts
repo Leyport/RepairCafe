@@ -37,6 +37,10 @@ export const routes: Routes = [
         loadComponent: () => import('./components/admin/backup-manager/backup-manager.component').then(m => m.BackupManagerComponent)
       },
       {
+        path: 'clear',
+        loadComponent: () => import('./components/admin/clear-data/clear-data.component').then(m => m.ClearDataComponent)
+      },
+      {
         path: 'version',
         loadComponent: () => import('./components/admin/version-manager/version-manager.component').then(m => m.VersionManagerComponent)
       }

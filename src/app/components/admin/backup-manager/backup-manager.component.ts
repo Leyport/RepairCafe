@@ -91,10 +91,10 @@ const SENSITIVE_COLLECTIONS = ['admins', 'users', 'sys_settings'];
             </thead>
             <tbody>
               <tr *ngFor="let e of log$ | async">
-                <td><span class="badge" [class.up]="e.type === 'upload'">{{ e.type === 'upload' ? 'Upload' : 'Download' }}</span></td>
+                <td><span class="badge" [class.up]="e.type === 'upload'" [class.clear]="e.type === 'clear'">{{ e.type === 'upload' ? 'Upload' : e.type === 'clear' ? 'Cleared' : 'Download' }}</span></td>
                 <td>{{ e.name }}<div class="sub">{{ e.fileName }}</div></td>
                 <td>{{ e.downloadedAt ? (e.downloadedAt.toDate() | date:'medium') : '—' }}</td>
-                <td>{{ e.uploadedAt ? (e.uploadedAt.toDate() | date:'medium') : '—' }}<div class="sub" *ngIf="e.mode">{{ e.mode }}</div></td>
+                <td>{{ e.uploadedAt ? (e.uploadedAt.toDate() | date:'medium') : (e.type === 'clear' && e.loggedAt ? 'Cleared ' + (e.loggedAt.toDate() | date:'medium') : '—') }}<div class="sub" *ngIf="e.mode">{{ e.mode }}</div></td>
                 <td>{{ e.performedBy }}</td>
                 <td>{{ total(e.collections) }}</td>
               </tr>
@@ -163,6 +163,7 @@ const SENSITIVE_COLLECTIONS = ['admins', 'users', 'sys_settings'];
       font-size: 0.7rem; font-weight: 600; padding: 0.15rem 0.55rem; border-radius: 20px; text-transform: uppercase;
       background: rgba(0, 242, 255, 0.15); color: var(--accent-color, #00f2ff); border: 1px solid rgba(0, 242, 255, 0.3);
     }
+    .badge.clear { background: rgba(255, 89, 89, 0.15); color: #ff5959; border-color: rgba(255, 89, 89, 0.3); }
     .badge.up { background: rgba(255, 179, 71, 0.15); color: #ffb347; border-color: rgba(255, 179, 71, 0.3); }
     .empty-state {
       text-align: center; padding: 2rem; color: rgba(255, 255, 255, 0.4);

@@ -43,13 +43,14 @@ export interface ParsedBackup {
 
 export interface BackupLogEntry {
     id?: string;
-    type: 'download' | 'upload';
+    type: 'download' | 'upload' | 'clear';
     name: string;
     fileName: string;
     downloadedAt: any;
     uploadedAt?: any;
     performedBy: string;
     mode?: 'replace' | 'merge';
+    loggedAt?: any;
     collections: { [name: string]: number };
 }
 
@@ -201,6 +202,41 @@ export class BackupService {
         };
         await addDoc(collection(this.firestore, BACKUP_LOG_COLLECTION), { ...entry, loggedAt: Timestamp.now() });
         return entry;
+    }
+
+    /** Deletes every document in the given collections and logs it. Callers must take a backup first. */
+    async clearCollections(
+        clearName: string,
+        backupFileName: string,
+        collectionNames: string[],
+        onProgress?: (msg: string) => void
+    ): Promise<BackupLogEntry> {
+        const counts: { [name: string]: number } = {};
+        for (const name of collectionNames.filter(n => n !== BACKUP_LOG_COLLECTION)) {
+            const snapshot = await getDocs(collection(this.firestore, name));
+            counts[name] = snapshot.size;
+            for (let i = 0; i < snapshot.docs.length; i += 450) {
+                onProgress?.(`Deleting ${name} (${Math.min(i + 450, snapshot.size)}/${snapshot.size})...`);
+                const batch = writeBatch(this.firestore);
+                snapshot.docs.slice(i, i + 450).forEach(d => batch.delete(d.ref));
+                await batch.commit();
+            }
+        }
+
+        const entry: BackupLogEntry = {
+            type: 'clear',
+            name: clearName,
+            fileName: backupFileName,
+            downloadedAt: null,
+            performedBy: this.currentUserLabel(),
+            collections: counts
+        };
+        await addDoc(collection(this.firestore, BACKUP_LOG_COLLECTION), { ...entry, loggedAt: Timestamp.now() });
+        return entry;
+    }
+
+    async countCollection(name: string): Promise<number> {
+        return (await getDocs(collection(this.firestore, name))).size;
     }
 
     // --- Spreadsheet <-> Firestore conversion ---

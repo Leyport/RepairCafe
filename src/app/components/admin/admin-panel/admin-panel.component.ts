@@ -203,6 +203,7 @@ export class AdminPanelComponent implements OnDestroy {
     { path: 'database', icon: '🗄️', title: 'Admin Explorer', description: 'Browse Firestore collections and view raw records.' },
     { path: 'users', icon: '👤', title: 'Manage Users', description: 'View logged-in users and assign admin roles.' },
     { path: 'backup', icon: '💾', title: 'Backup & Restore', description: 'Download the whole app to a spreadsheet, or restore from one.' },
+    { path: 'clear', icon: '🗑️', title: 'Clear Data', description: 'Back up the whole app, then delete the data from selected collections.' },
     { path: 'version', icon: '🏷️', title: 'App Version', description: 'Update the app version number and change description.' }
   ];
 
