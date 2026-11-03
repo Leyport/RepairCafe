@@ -24,9 +24,11 @@ import { Subscription } from 'rxjs';
           </div>
 
           <p class="hero-desc">
-            We're a community of volunteers who repair broken and damaged items for free.
+            We're a community of volunteers who repair broken and damaged items.
             Bring your broken belongings along and we'll do our best to fix them — saving
             money, reducing waste and sharing skills along the way.
+            We're a charity and rely on donations, so if we fix something for you,
+            please consider giving what you can.
           </p>
 
           <!-- Sign-in card -->
@@ -94,6 +96,11 @@ import { Subscription } from 'rxjs';
           <div class="info-icon">📍</div>
           <h3>Find us</h3>
           <p>We hold regular sessions in Shrewsbury. Check the session schedule for upcoming dates and bring your items along — no booking needed.</p>
+        </div>
+        <div class="info-card glass info-card-wide">
+          <div class="info-icon">💷</div>
+          <h3>Supporting us</h3>
+          <p>Shrewsbury Repair Cafe is a charity run by volunteers. We don't charge for repairs, but we depend on donations to pay for things like the rent of our space and our insurance. If we've repaired something for you, a donation of whatever you can afford helps keep the Repair Cafe running for everyone.</p>
         </div>
       </section>
 
@@ -375,6 +382,7 @@ import { Subscription } from 'rxjs';
       .hero { padding: 2rem 1rem 2.5rem; }
     }
 
+    .info-card-wide { grid-column: 1 / -1; }
     .info-card {
       padding: 1.5rem;
       border-radius: 14px;
