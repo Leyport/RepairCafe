@@ -5,6 +5,7 @@ import { Router, RouterLink } from '@angular/router';
 import { RepairService } from '../../services/repair.service';
 import { Observable, BehaviorSubject, combineLatest, startWith, map, shareReplay } from 'rxjs';
 import { RepairItem, Owner, toRepairPhoto } from '../../models/repair-item.model';
+import { rcDayKey, createdMonthKey, buildSessionFilterOptions, matchesSessionFilter } from '../../utils/rc-day';
 
 type SortColumn = 'number' | 'description' | 'owner' | 'category' | 'repairer' | 'session' | 'created' | 'status';
 type SortDir = 'asc' | 'desc';
@@ -21,7 +22,6 @@ interface ColumnFilters {
 
 const EMPTY_FILTERS: ColumnFilters = { description: '', owner: '', category: '', repairer: '', session: '', created: '', status: '' };
 const STATUSES = ['New', 'Assigned', 'Repaired', 'Advice Given', 'Partially Repaired', 'Not Repaired'];
-const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 // Dates sort newest-first on the first click; text columns A–Z.
 const DEFAULT_DIR: Record<SortColumn, SortDir> = {
   number: 'asc', description: 'asc', owner: 'asc', category: 'asc',
@@ -34,24 +34,6 @@ const SORT_LABELS: Record<SortColumn, string> = {
   repairer: 'Repairer', session: 'RC Session', created: 'Created', status: 'Status'
 };
 
-/** "Saturday, 17, 05, 2025" → "2025-05-17" (sortable), or '' if unparseable. */
-function rcDayKey(rcDay: string | undefined): string {
-  const parts = (rcDay || '').split(',').map(p => p.trim());
-  if (parts.length < 4) return '';
-  const [d, m, y] = [parts[1], parts[2], parts[3]];
-  if (!/^\d{1,2}$/.test(d) || !/^\d{1,2}$/.test(m) || !/^\d{4}$/.test(y)) return '';
-  return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
-}
-
-function monthLabel(key: string): string {
-  const [y, m] = key.split('-');
-  return `${MONTH_NAMES[parseInt(m, 10) - 1]} ${y}`;
-}
-
-function createdMonthKey(item: RepairItem): string {
-  const d = item.creationDate?.toDate?.();
-  return d ? `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}` : '';
-}
 type CompletionFilter = 'all' | 'active' | 'completed';
 
 const COMPLETED_STATUSES = new Set(['Repaired', 'Advice Given', 'Partially Repaired', 'Not Repaired']);
@@ -1327,25 +1309,10 @@ export class RepairListComponent implements OnInit {
     const distinct = (values: (string | undefined)[]) =>
       [...new Set(values.map(v => (v || '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b));
 
-    const sessionKeys = new Set<string>();
-    for (const item of items) {
-      const key = rcDayKey(item.RCDay);
-      if (key) sessionKeys.add(key);
-    }
-    const sortedSessions = [...sessionKeys].sort().reverse();
-    const monthKeys = [...new Set(sortedSessions.map(k => k.slice(0, 7)))];
-    const createdKeys = [...new Set(items.map(createdMonthKey).filter(Boolean))].sort().reverse();
-
     this.filterOptions = {
       owners: distinct(items.map(i => i.owner)),
       repairers: distinct(items.flatMap(i => [i.repairer, ...(i.additionalRepairers || [])])),
-      years: [...new Set(sortedSessions.map(k => k.slice(0, 4)))],
-      months: monthKeys.map(key => ({ key, label: monthLabel(key) })),
-      sessions: sortedSessions.map(key => {
-        const [y, m, d] = key.split('-');
-        return { key, label: `${parseInt(d, 10)} ${monthLabel(`${y}-${m}`)}` };
-      }),
-      createdMonths: createdKeys.map(key => ({ key, label: monthLabel(key) })),
+      ...buildSessionFilterOptions(items),
     };
   }
 
@@ -1469,13 +1436,7 @@ export class RepairListComponent implements OnInit {
       if (f.repairer === '__none') { if (item.repairer) return false; }
       else if (item.repairer !== f.repairer && !(item.additionalRepairers || []).includes(f.repairer)) return false;
     }
-    if (f.session) {
-      const key = rcDayKey(item.RCDay);
-      const [kind, value] = [f.session.slice(0, 1), f.session.slice(2)];
-      if (kind === 'y' && key.slice(0, 4) !== value) return false;
-      if (kind === 'm' && key.slice(0, 7) !== value) return false;
-      if (kind === 'd' && key !== value) return false;
-    }
+    if (!matchesSessionFilter(item.RCDay, f.session)) return false;
     if (f.created && createdMonthKey(item) !== f.created) return false;
     if (f.status && (item.status || 'New') !== f.status) return false;
     return true;

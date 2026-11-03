@@ -9,6 +9,26 @@ import { map, catchError } from 'rxjs/operators';
 import { RepairItem } from '../../../models/repair-item.model';
 import { Repairer } from '../../../models/repairer.model';
 import { RepairerFormComponent } from '../repairer-form/repairer-form.component';
+import { environment } from '../../../../environments/environment';
+import { rcDayKey, createdMonthKey, buildSessionFilterOptions, matchesSessionFilter, monthLabel, SessionFilterOptions } from '../../../utils/rc-day';
+
+interface ExplorerFilters {
+  number: string;
+  description: string;
+  owner: string;       // '' = any, '__none' = blank
+  repairItem: string;
+  repairer: string;
+  session: string;     // '', '__none', 'y:2026', 'm:2026-09', 'd:2026-09-19'
+  created: string;     // '2026-09'
+  status: string;
+}
+
+const EMPTY_FILTERS: ExplorerFilters = {
+  number: '', description: '', owner: '', repairItem: '', repairer: '', session: '', created: '', status: ''
+};
+const STATUSES = ['New', 'Assigned', 'Repaired', 'Advice Given', 'Partially Repaired', 'Not Repaired'];
+// Date columns sort newest-first on the first click.
+const DATE_COLUMNS = new Set(['RCDay', 'creationDate', 'createdAt', 'firstSeen']);
 
 @Component({
   selector: 'app-database-explorer',
@@ -123,7 +143,7 @@ import { RepairerFormComponent } from '../repairer-form/repairer-form.component'
                     title="Delete Selected Records">
                     🗑️ ({{ selectedCount }})
                 </button>
-                <span class="count" *ngIf="data$ | async as data">{{ data.length }} records</span>
+                <span class="count" *ngIf="data$ | async as data">{{ data.length }}<span *ngIf="isFiltering()"> of {{ rawCount }}</span> records</span>
                 <div class="gdpr-menu-wrapper">
                     <button class="btn-gdpr" (click)="toggleGdprMenu($event)" title="GDPR Options">
                         🔒 GDPR
@@ -157,6 +177,21 @@ import { RepairerFormComponent } from '../repairer-form/repairer-form.component'
                     {{ viewMode === 'table' ? '📝' : '{}' }}
                 </button>
             </div>
+          </div>
+
+          <div class="explorer-filters">
+            <div class="search-all">
+              <span class="search-all-icon">🔍</span>
+              <input type="text" [ngModel]="searchAll" (ngModelChange)="setSearchAll($event)"
+                     placeholder="Search every field (description, ID, notes, outcome…)">
+              <button *ngIf="searchAll" class="search-clear" (click)="setSearchAll('')" title="Clear search">×</button>
+            </div>
+            <button *ngIf="currentSchema === 'repairItems'" class="filter-toggle"
+                    [class.active]="showFilters || columnFilterCount() > 0"
+                    (click)="showFilters = !showFilters">
+              ⚲ Column filters<span *ngIf="columnFilterCount() > 0"> ({{ columnFilterCount() }})</span>
+            </button>
+            <button *ngIf="isFiltering()" class="link-btn" (click)="clearFilters()">Clear all filters</button>
           </div>
 
           <div class="records-container custom-scrollbar" *ngIf="data$ | async as data; else loading">
@@ -201,6 +236,57 @@ import { RepairerFormComponent } from '../repairer-form/repairer-form.component'
                             
                             <th [title]="schema === 'owners' ? 'Delete Visitor' : 'Actions'">{{ schema === 'owners' ? '🗑️' : 'Actions' }}</th>
                         </tr>
+                        <tr class="filter-row" *ngIf="schema === 'repairItems' && showFilters">
+                            <th></th>
+                            <th></th>
+                            <th><input class="filter-input" type="text" placeholder="No." [class.set]="colFilters.number"
+                                       [ngModel]="colFilters.number" (ngModelChange)="setColFilter('number', $event)"></th>
+                            <th><input class="filter-input" type="text" placeholder="Contains…" [class.set]="colFilters.description"
+                                       [ngModel]="colFilters.description" (ngModelChange)="setColFilter('description', $event)"></th>
+                            <th><select class="filter-select" [class.set]="colFilters.owner"
+                                        [ngModel]="colFilters.owner" (ngModelChange)="setColFilter('owner', $event)">
+                                  <option value="">All</option>
+                                  <option value="__none">— Blank —</option>
+                                  <option *ngFor="let o of filterOptions.owners" [value]="o">{{ o }}</option>
+                                </select></th>
+                            <th><select class="filter-select" [class.set]="colFilters.repairItem"
+                                        [ngModel]="colFilters.repairItem" (ngModelChange)="setColFilter('repairItem', $event)">
+                                  <option value="">All</option>
+                                  <option value="__none">— Blank —</option>
+                                  <option *ngFor="let t of filterOptions.types" [value]="t">{{ t }}</option>
+                                </select></th>
+                            <th><select class="filter-select" [class.set]="colFilters.repairer"
+                                        [ngModel]="colFilters.repairer" (ngModelChange)="setColFilter('repairer', $event)">
+                                  <option value="">All</option>
+                                  <option value="__none">— Unassigned —</option>
+                                  <option *ngFor="let r of filterOptions.repairers" [value]="r">{{ r }}</option>
+                                </select></th>
+                            <th><select class="filter-select" [class.set]="colFilters.session"
+                                        [ngModel]="colFilters.session" (ngModelChange)="setColFilter('session', $event)">
+                                  <option value="">All sessions</option>
+                                  <option value="__none">— Missing date —</option>
+                                  <optgroup label="By year">
+                                    <option *ngFor="let y of filterOptions.years" [value]="'y:' + y">{{ y }}</option>
+                                  </optgroup>
+                                  <optgroup label="By month">
+                                    <option *ngFor="let m of filterOptions.months" [value]="'m:' + m.key">{{ m.label }}</option>
+                                  </optgroup>
+                                  <optgroup label="By session">
+                                    <option *ngFor="let d of filterOptions.sessions" [value]="'d:' + d.key">{{ d.label }}</option>
+                                  </optgroup>
+                                </select></th>
+                            <th><select class="filter-select" [class.set]="colFilters.created"
+                                        [ngModel]="colFilters.created" (ngModelChange)="setColFilter('created', $event)">
+                                  <option value="">Any</option>
+                                  <option *ngFor="let m of filterOptions.createdMonths" [value]="m.key">{{ m.label }}</option>
+                                </select></th>
+                            <th><select class="filter-select" [class.set]="colFilters.status"
+                                        [ngModel]="colFilters.status" (ngModelChange)="setColFilter('status', $event)">
+                                  <option value="">All</option>
+                                  <option *ngFor="let st of statuses" [value]="st">{{ st }}</option>
+                                </select></th>
+                            <th><button *ngIf="columnFilterCount() > 0" class="clear-filters" (click)="clearColFilters()" title="Clear column filters">✕</button></th>
+                        </tr>
                         </thead>
                         <tbody>
                         <tr *ngFor="let record of data" (dblclick)="onRowDoubleClick(record, schema)" class="clickable-row">
@@ -230,7 +316,7 @@ import { RepairerFormComponent } from '../repairer-form/repairer-form.component'
                                     <span *ngIf="uploadingPhotoId === record.id" class="photo-spinner"></span>
                                 </label>
                             </td>
-                            <td [title]="record.displayNumber || record.itemNumber">{{ record.displayNumber || record.itemNumber }}</td>
+                            <td [title]="'Document ID: ' + record.id">{{ record.displayNumber || record.itemNumber }}</td>
                             <td class="description-col">
                                 <input 
                                     [ngModel]="record.itemDescription" 
@@ -322,6 +408,7 @@ import { RepairerFormComponent } from '../repairer-form/repairer-form.component'
                                    [title]="record.RCDay || 'MISSING DATE'"
                                    (click)="$event.stopPropagation()">
                                    <option value="" disabled>{{ record.RCDay ? 'Change Date...' : '⚠️ MISSING DATE' }}</option>
+                                   <option *ngIf="record.RCDay && !availableRCDayValues.has(record.RCDay)" [value]="record.RCDay">{{ formatSessionLabel(record.RCDay) }}</option>
                                    <option *ngFor="let d of availableRCDates" [value]="d.value">{{ d.label }}</option>
                                  </select>
                                  <button
@@ -460,6 +547,7 @@ import { RepairerFormComponent } from '../repairer-form/repairer-form.component'
                                           [value]="''">
                                     <option value="" disabled>Actions</option>
                                     <option value="additional">Additional Details</option>
+                                    <option value="firebase">Open in Firebase console</option>
                                     <option value="complete">Complete</option>
                                     <option value="delete">Delete</option>
                                   </select>
@@ -476,6 +564,8 @@ import { RepairerFormComponent } from '../repairer-form/repairer-form.component'
                                   </svg>
                                 </button>
                                 <button *ngIf="schema === 'owners'" (click)="deleteOwner(record.id, record.name, $event)" class="btn-icon" title="Delete Visitor">🗑️</button>
+                                <a *ngIf="schema !== 'repairItems'" class="btn-icon firebase-link" [href]="firebaseConsoleUrl(record.id)"
+                                   target="_blank" rel="noopener" (click)="$event.stopPropagation()" title="Open in Firebase console">🔥</a>
                             </td>
                         </tr>
                         </tbody>
@@ -487,7 +577,9 @@ import { RepairerFormComponent } from '../repairer-form/repairer-form.component'
                             No table schema found for this data. Showing raw records.
                         </div>
                         <div class="record-card" *ngFor="let record of data">
-                            <div class="record-id">ID: {{ record.id }}</div>
+                            <div class="record-id">ID: {{ record.id }}
+                              <a class="firebase-link" [href]="firebaseConsoleUrl(record.id)" target="_blank" rel="noopener">🔥 Edit in Firebase console</a>
+                            </div>
                             <pre class="record-data">{{ record | json }}</pre>
                         </div>
                     </div>
@@ -497,7 +589,9 @@ import { RepairerFormComponent } from '../repairer-form/repairer-form.component'
               <!-- JSON View -->
               <div class="json-list" *ngIf="viewMode === 'json'">
                 <div class="record-card" *ngFor="let record of data">
-                  <div class="record-id">ID: {{ record.id }}</div>
+                  <div class="record-id">ID: {{ record.id }}
+                              <a class="firebase-link" [href]="firebaseConsoleUrl(record.id)" target="_blank" rel="noopener">🔥 Edit in Firebase console</a>
+                            </div>
                   <pre class="record-data">{{ record | json }}</pre>
                 </div>
               </div>
@@ -506,7 +600,8 @@ import { RepairerFormComponent } from '../repairer-form/repairer-form.component'
             
             <ng-template #noData>
               <div class="empty-state">
-                <p>No records found in this collection.</p>
+                <p *ngIf="!isFiltering()">No records found in this collection.</p>
+                <p *ngIf="isFiltering()">No records match your filters. <button class="link-btn" (click)="clearFilters()">Clear all filters</button></p>
               </div>
             </ng-template>
           </div>
@@ -767,6 +862,66 @@ import { RepairerFormComponent } from '../repairer-form/repairer-form.component'
       flex-direction: column;
     }
 
+    .explorer-filters {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      align-items: center;
+      margin: -0.75rem 0 1rem;
+    }
+    .search-all {
+      flex: 1 1 280px;
+      max-width: 520px;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.4rem 0.75rem;
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+    }
+    .search-all input { flex: 1; min-width: 0; background: transparent; border: none; outline: none; color: white; font-size: 0.9rem; }
+    .search-all-icon { opacity: 0.5; font-size: 0.85rem; }
+    .search-clear { background: none; border: none; color: rgba(255, 255, 255, 0.5); cursor: pointer; font-size: 1.1rem; line-height: 1; }
+    .filter-toggle {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      color: rgba(255, 255, 255, 0.7);
+      border-radius: 8px;
+      padding: 0.45rem 0.9rem;
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .filter-toggle.active { background: rgba(99, 102, 241, 0.25); color: var(--accent-color); border-color: rgba(0, 242, 255, 0.3); }
+    .link-btn { background: none; border: none; padding: 0; color: var(--accent-color); cursor: pointer; font-size: 0.85rem; text-decoration: underline; }
+    .data-table .filter-row th { padding-top: 0.25rem; padding-bottom: 0.5rem; text-transform: none; letter-spacing: 0; }
+    .filter-input, .filter-select {
+      width: 100%;
+      min-width: 70px;
+      background: rgba(0, 0, 0, 0.25);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      color: rgba(255, 255, 255, 0.85);
+      padding: 0.3rem 0.4rem;
+      border-radius: 4px;
+      font-size: 0.78rem;
+      font-weight: normal;
+    }
+    .filter-input:focus, .filter-select:focus { outline: none; border-color: var(--accent-color); }
+    .filter-input.set, .filter-select.set { border-color: var(--accent-color); color: var(--accent-color); }
+    .filter-select option, .filter-select optgroup { background: #1a2236; color: white; }
+    .clear-filters {
+      background: rgba(255, 89, 89, 0.1);
+      border: 1px solid rgba(255, 89, 89, 0.35);
+      color: #ff8a8a;
+      border-radius: 4px;
+      padding: 0.25rem 0.5rem;
+      cursor: pointer;
+      font-size: 0.8rem;
+    }
+    .firebase-link { margin-left: 0.75rem; font-size: 0.8rem; color: #ffb347; text-decoration: none; }
+    .firebase-link:hover { text-decoration: underline; }
     .data-header {
       display: flex;
       justify-content: space-between;
@@ -1471,9 +1626,23 @@ export class DatabaseExplorerComponent implements OnInit {
   sortState$ = new BehaviorSubject<{ column: string, direction: 'asc' | 'desc' }>({ column: '', direction: 'asc' });
 
   availableRCDates: { label: string, value: string, date: Date }[] = [];
+  availableRCDayValues = new Set<string>();
+
+  // Searching and column filters
+  readonly statuses = STATUSES;
+  searchAll = '';
+  colFilters: ExplorerFilters = { ...EMPTY_FILTERS };
+  showFilters = false;
+  rawCount = 0;
+  currentSchema: string = 'unknown';
+  filterOptions: SessionFilterOptions & { owners: string[]; types: string[]; repairers: string[] } = {
+    owners: [], types: [], repairers: [], years: [], months: [], sessions: [], createdMonths: []
+  };
+  private filters$ = new BehaviorSubject<{ search: string; cols: ExplorerFilters }>({ search: '', cols: this.colFilters });
 
   ngOnInit() {
     this.availableRCDates = this.repairService.getAvailableRCDates();
+    this.availableRCDayValues = new Set(this.availableRCDates.map(d => d.value));
     this.repairers$ = this.repairService.getRepairers();
     this.collections$ = this.repairService.getTrackedCollections().pipe(
       map(cols => cols.sort((a, b) => {
@@ -1635,35 +1804,40 @@ export class DatabaseExplorerComponent implements OnInit {
     }
 
     this.data$ = combineLatest([
-      this.repairService.getCollectionData(colName),
-      this.sortState$
+      this.repairService.getCollectionData(colName).pipe(
+        map(data => {
+          // Work out the schema and filter choices once per data change, not per keystroke.
+          this.rawCount = data.length;
+          this.currentSchema = this.getSchemaType(colName, data);
+          if (this.currentSchema === 'repairItems') this.buildFilterOptions(data);
+          return data.map(record => ({ record, text: this.searchableText(record) }));
+        })
+      ),
+      this.sortState$,
+      this.filters$
     ]).pipe(
-      map(([data, sort]) => {
+      map(([rows, sort, filters]) => {
+        const search = filters.search.trim().toLowerCase();
+        const useCols = this.currentSchema === 'repairItems';
+        const data = rows
+          .filter(r => !search || search.split(/\s+/).every(word => r.text.includes(word)))
+          .map(r => r.record)
+          .filter(record => !useCols || this.matchesColFilters(record, filters.cols));
+
         if (!sort.column) return data;
-
+        const sign = sort.direction === 'asc' ? 1 : -1;
         return data.sort((a, b) => {
-          let valA = a[sort.column];
-          let valB = b[sort.column];
-
-          // Handle undefined/null
-          if (valA === undefined || valA === null) valA = '';
-          if (valB === undefined || valB === null) valB = '';
-
-          // Handle dates (Firestore Timestamps)
-          if (valA && typeof valA.toMillis === 'function') valA = valA.toMillis();
-          if (valB && typeof valB.toMillis === 'function') valB = valB.toMillis();
-
-          // Handle dates (JS Date objects if any)
-          if (valA instanceof Date) valA = valA.getTime();
-          if (valB instanceof Date) valB = valB.getTime();
-
-          // Handle strings (case insensitive)
-          if (typeof valA === 'string') valA = valA.toLowerCase();
-          if (typeof valB === 'string') valB = valB.toLowerCase();
-
-          // Comparison
-          if (valA < valB) return sort.direction === 'asc' ? -1 : 1;
-          if (valA > valB) return sort.direction === 'asc' ? 1 : -1;
+          const valA = this.sortValue(a, sort.column);
+          const valB = this.sortValue(b, sort.column);
+          // Blanks always go last, whichever direction.
+          if (valA === '' && valB === '') return 0;
+          if (valA === '') return 1;
+          if (valB === '') return -1;
+          if (typeof valA === 'string' && typeof valB === 'string') {
+            return valA.localeCompare(valB, undefined, { sensitivity: 'base', numeric: true }) * sign;
+          }
+          if (valA < valB) return -1 * sign;
+          if (valA > valB) return 1 * sign;
           return 0;
         });
       }),
@@ -1672,6 +1846,107 @@ export class DatabaseExplorerComponent implements OnInit {
         return of([]);
       })
     );
+  }
+
+  private sortValue(record: any, column: string): any {
+    if (column === 'RCDay') return rcDayKey(record.RCDay);
+    if (column === 'itemNumber') {
+      // Session first, then item number within it.
+      const key = rcDayKey(record.RCDay);
+      const n = Number(record.itemNumber);
+      return key || !isNaN(n) ? `${key}#${String(isNaN(n) ? 0 : n).padStart(5, '0')}` : '';
+    }
+    let v = record[column];
+    if (v === undefined || v === null) return '';
+    if (typeof v.toMillis === 'function') return v.toMillis();
+    if (v instanceof Date) return v.getTime();
+    if (typeof v === 'boolean') return v ? 1 : 0;
+    return v;
+  }
+
+  /** Lower-cased text of the ID and every field, for "search every field". */
+  private searchableText(record: any): string {
+    const parts: string[] = [record.id || ''];
+    const walk = (v: any) => {
+      if (v === null || v === undefined) return;
+      if (typeof v.toDate === 'function') { parts.push(v.toDate().toISOString().slice(0, 10)); return; }
+      if (Array.isArray(v)) { v.forEach(walk); return; }
+      if (typeof v === 'object') { Object.values(v).forEach(walk); return; }
+      parts.push(String(v));
+    };
+    Object.entries(record).forEach(([k, v]) => { if (k !== 'id' && k !== 'photos') walk(v); });
+    return parts.join(' \u0001 ').toLowerCase();
+  }
+
+  private buildFilterOptions(items: any[]) {
+    const distinct = (values: any[]) =>
+      [...new Set(values.map(v => (typeof v === 'string' ? v.trim() : '')).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+    this.filterOptions = {
+      owners: distinct(items.map(i => i.owner)),
+      types: distinct(items.map(i => i.repairItem)),
+      repairers: distinct(items.flatMap(i => [i.repairer, ...(i.additionalRepairers || [])])),
+      ...buildSessionFilterOptions(items),
+    };
+  }
+
+  private matchesColFilters(item: any, f: ExplorerFilters): boolean {
+    const pick = (filter: string, value: any) => !filter || (filter === '__none' ? !value : value === filter);
+    if (f.number) {
+      const num = String(item.displayNumber || item.itemNumber || '').toLowerCase();
+      if (!num.includes(f.number.trim().toLowerCase())) return false;
+    }
+    if (f.description && !String(item.itemDescription || '').toLowerCase().includes(f.description.toLowerCase())) return false;
+    if (!pick(f.owner, item.owner)) return false;
+    if (!pick(f.repairItem, item.repairItem)) return false;
+    if (f.repairer) {
+      if (f.repairer === '__none') { if (item.repairer) return false; }
+      else if (item.repairer !== f.repairer && !(item.additionalRepairers || []).includes(f.repairer)) return false;
+    }
+    if (f.session === '__none') { if (rcDayKey(item.RCDay)) return false; }
+    else if (!matchesSessionFilter(item.RCDay, f.session)) return false;
+    if (f.created && createdMonthKey(item) !== f.created) return false;
+    if (f.status && (item.status || 'New') !== f.status) return false;
+    return true;
+  }
+
+  setSearchAll(value: string) {
+    this.searchAll = value || '';
+    this.filters$.next({ search: this.searchAll, cols: this.colFilters });
+  }
+
+  setColFilter(field: keyof ExplorerFilters, value: string) {
+    this.colFilters = { ...this.colFilters, [field]: value || '' };
+    this.filters$.next({ search: this.searchAll, cols: this.colFilters });
+  }
+
+  clearColFilters() {
+    this.colFilters = { ...EMPTY_FILTERS };
+    this.filters$.next({ search: this.searchAll, cols: this.colFilters });
+  }
+
+  clearFilters() {
+    this.searchAll = '';
+    this.clearColFilters();
+  }
+
+  columnFilterCount(): number {
+    return this.currentSchema === 'repairItems' ? Object.values(this.colFilters).filter(v => !!v).length : 0;
+  }
+
+  isFiltering(): boolean {
+    return !!this.searchAll.trim() || this.columnFilterCount() > 0;
+  }
+
+  /** "Saturday, 17, 05, 2025" → "17 May 2025" */
+  formatSessionLabel(rcDay: string): string {
+    const key = rcDayKey(rcDay);
+    if (!key) return rcDay;
+    return `${parseInt(key.slice(8), 10)} ${monthLabel(key.slice(0, 7))}`;
+  }
+
+  firebaseConsoleUrl(id: string): string {
+    const path = encodeURIComponent(`/${this.selectedCollection}/${id}`).replace(/%2F/g, '~2F');
+    return `https://console.firebase.google.com/project/${environment.firebase.projectId}/firestore/databases/-default-/data/${path}`;
   }
 
   onSort(column: string) {
@@ -1683,10 +1958,10 @@ export class DatabaseExplorerComponent implements OnInit {
         direction: current.direction === 'asc' ? 'desc' : 'asc'
       });
     } else {
-      // New column, default asc (except maybe dates? but consistent is better)
+      // New column: dates start newest-first, everything else A–Z.
       this.sortState$.next({
         column,
-        direction: 'asc'
+        direction: DATE_COLUMNS.has(column) ? 'desc' : 'asc'
       });
     }
   }
@@ -2054,6 +2329,7 @@ export class DatabaseExplorerComponent implements OnInit {
     select.value = '';
     if (!record.id) return;
     if (action === 'additional') this.router.navigate(['/edit', record.id], { queryParams: { additional: '1' } });
+    else if (action === 'firebase') window.open(this.firebaseConsoleUrl(record.id), '_blank', 'noopener');
     else if (action === 'complete') this.completeRepairItem(record.id, event);
     else if (action === 'delete') this.deleteRepairItem(record.id, record.displayNumber || record.itemNumber, event);
   }
