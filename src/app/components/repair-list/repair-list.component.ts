@@ -3,10 +3,55 @@ import { CommonModule } from '@angular/common';
 import { FormControl, ReactiveFormsModule, FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { RepairService } from '../../services/repair.service';
-import { Observable, combineLatest, startWith, map } from 'rxjs';
+import { Observable, BehaviorSubject, combineLatest, startWith, map, shareReplay } from 'rxjs';
 import { RepairItem, Owner, toRepairPhoto } from '../../models/repair-item.model';
 
-type SortOption = 'newest' | 'oldest' | 'number';
+type SortColumn = 'number' | 'description' | 'owner' | 'category' | 'repairer' | 'session' | 'created' | 'status';
+type SortDir = 'asc' | 'desc';
+
+interface ColumnFilters {
+  description: string;
+  owner: string;      // '' = any, '__none' = blank
+  category: string;
+  repairer: string;
+  session: string;    // 'y:2026', 'm:2026-09' or 'd:2026-09-19'
+  created: string;    // '2026-09'
+  status: string;
+}
+
+const EMPTY_FILTERS: ColumnFilters = { description: '', owner: '', category: '', repairer: '', session: '', created: '', status: '' };
+const STATUSES = ['New', 'Assigned', 'Repaired', 'Advice Given', 'Partially Repaired', 'Not Repaired'];
+const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+// Dates sort newest-first on the first click; text columns A–Z.
+const DEFAULT_DIR: Record<SortColumn, SortDir> = {
+  number: 'asc', description: 'asc', owner: 'asc', category: 'asc',
+  repairer: 'asc', session: 'desc', created: 'desc', status: 'asc'
+};
+const PRESET_SORTS = ['created:desc', 'created:asc', 'session:desc', 'session:asc', 'number:asc',
+  'description:asc', 'owner:asc', 'category:asc', 'repairer:asc', 'status:asc'];
+const SORT_LABELS: Record<SortColumn, string> = {
+  number: 'Item No.', description: 'Description', owner: 'Owner', category: 'Category',
+  repairer: 'Repairer', session: 'RC Session', created: 'Created', status: 'Status'
+};
+
+/** "Saturday, 17, 05, 2025" → "2025-05-17" (sortable), or '' if unparseable. */
+function rcDayKey(rcDay: string | undefined): string {
+  const parts = (rcDay || '').split(',').map(p => p.trim());
+  if (parts.length < 4) return '';
+  const [d, m, y] = [parts[1], parts[2], parts[3]];
+  if (!/^\d{1,2}$/.test(d) || !/^\d{1,2}$/.test(m) || !/^\d{4}$/.test(y)) return '';
+  return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+}
+
+function monthLabel(key: string): string {
+  const [y, m] = key.split('-');
+  return `${MONTH_NAMES[parseInt(m, 10) - 1]} ${y}`;
+}
+
+function createdMonthKey(item: RepairItem): string {
+  const d = item.creationDate?.toDate?.();
+  return d ? `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}` : '';
+}
 type CompletionFilter = 'all' | 'active' | 'completed';
 
 const COMPLETED_STATUSES = new Set(['Repaired', 'Advice Given', 'Partially Repaired', 'Not Repaired']);
@@ -39,11 +84,23 @@ interface RepairerGroup {
           </div>
           <div class="sort-container glass">
              <select [formControl]="sortControl" class="sort-select">
-               <option value="newest">Newest First</option>
-               <option value="oldest">Oldest First</option>
-               <option value="number">By Item No.</option>
+               <option value="created:desc">Newest First</option>
+               <option value="created:asc">Oldest First</option>
+               <option value="session:desc">RC Session (latest)</option>
+               <option value="session:asc">RC Session (earliest)</option>
+               <option value="number:asc">By Item No.</option>
+               <option value="description:asc">Description A–Z</option>
+               <option value="owner:asc">Owner A–Z</option>
+               <option value="category:asc">Category A–Z</option>
+               <option value="repairer:asc">Repairer A–Z</option>
+               <option value="status:asc">Status</option>
+               <option *ngIf="!isPresetSort()" [value]="sortControl.value">{{ sortLabel() }}</option>
              </select>
           </div>
+          <button class="filter-toggle" [class.active]="showFilters || activeFilterCount() > 0"
+                  (click)="showFilters = !showFilters">
+            ⚲ Filters<span *ngIf="activeFilterCount() > 0"> ({{ activeFilterCount() }})</span>
+          </button>
           <div class="search-container glass">
             <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="search-icon">
               <circle cx="11" cy="11" r="8"></circle>
@@ -59,18 +116,75 @@ interface RepairerGroup {
         </div>
       </div>
       
+      <div class="filter-summary" *ngIf="activeFilterCount() > 0">
+        Showing {{ (filteredItems$ | async)?.length ?? 0 }} item(s) matching {{ activeFilterCount() }} column filter(s)
+        <span *ngIf="completionControl.value !== 'all'"> in <strong>{{ completionControl.value }}</strong> items</span>
+        · <button class="link-btn" (click)="clearFilters()">Clear filters</button>
+      </div>
+
       <div class="compact-list glass" #compactList (mousedown)="onListMouseDown($event, compactList)">
         <div class="list-header">
           <span class="col-photo"></span>
-          <span class="col-code pointer" (click)="setSort('number')"># {{ getSortIcon('number') }}</span>
-          <span class="col-desc">Description</span>
-          <span class="col-owner">Owner</span>
-          <span class="col-category">Category</span>
-          <span class="col-repairer">Repairer</span>
-          <span class="col-session">RC Session</span>
-          <span class="col-created pointer" (click)="setSort('newest')">Created {{ getSortIcon('newest') }}</span>
-          <span class="col-status">Status</span>
+          <span class="col-code pointer" [class.sorted]="sortCol === 'number'" (click)="toggleSort('number')"># {{ getSortIcon('number') }}</span>
+          <span class="col-desc pointer" [class.sorted]="sortCol === 'description'" (click)="toggleSort('description')">Description {{ getSortIcon('description') }}</span>
+          <span class="col-owner pointer" [class.sorted]="sortCol === 'owner'" (click)="toggleSort('owner')">Owner {{ getSortIcon('owner') }}</span>
+          <span class="col-category pointer" [class.sorted]="sortCol === 'category'" (click)="toggleSort('category')">Category {{ getSortIcon('category') }}</span>
+          <span class="col-repairer pointer" [class.sorted]="sortCol === 'repairer'" (click)="toggleSort('repairer')">Repairer {{ getSortIcon('repairer') }}</span>
+          <span class="col-session pointer" [class.sorted]="sortCol === 'session'" (click)="toggleSort('session')">RC Session {{ getSortIcon('session') }}</span>
+          <span class="col-created pointer" [class.sorted]="sortCol === 'created'" (click)="toggleSort('created')">Created {{ getSortIcon('created') }}</span>
+          <span class="col-status pointer" [class.sorted]="sortCol === 'status'" (click)="toggleSort('status')">Status {{ getSortIcon('status') }}</span>
           <span class="col-actions"></span>
+        </div>
+
+        <!-- Column filters -->
+        <div class="filter-row" [class.open]="showFilters">
+          <span class="col-photo"></span>
+          <span class="col-code"></span>
+          <input class="col-desc filter-input" type="text" [class.set]="filters.description" placeholder="Description contains…"
+                 [ngModel]="filters.description" (ngModelChange)="setFilter('description', $event)">
+          <select class="col-owner filter-select" [class.set]="filters.owner"
+                  [ngModel]="filters.owner" (ngModelChange)="setFilter('owner', $event)">
+            <option value="">All owners</option>
+            <option value="__none">— Visitor —</option>
+            <option *ngFor="let o of filterOptions.owners" [value]="o">{{ o }}</option>
+          </select>
+          <select class="col-category filter-select" [class.set]="filters.category"
+                  [ngModel]="filters.category" (ngModelChange)="setFilter('category', $event)">
+            <option value="">All categories</option>
+            <option *ngFor="let c of categories" [value]="c.value">{{ c.emoji }} {{ c.label }}</option>
+            <option value="__none">— None —</option>
+          </select>
+          <select class="col-repairer filter-select" [class.set]="filters.repairer"
+                  [ngModel]="filters.repairer" (ngModelChange)="setFilter('repairer', $event)">
+            <option value="">All repairers</option>
+            <option value="__none">— Unassigned —</option>
+            <option *ngFor="let r of filterOptions.repairers" [value]="r">{{ r }}</option>
+          </select>
+          <select class="col-session filter-select" [class.set]="filters.session"
+                  [ngModel]="filters.session" (ngModelChange)="setFilter('session', $event)">
+            <option value="">All sessions</option>
+            <optgroup label="By year">
+              <option *ngFor="let y of filterOptions.years" [value]="'y:' + y">{{ y }}</option>
+            </optgroup>
+            <optgroup label="By month">
+              <option *ngFor="let m of filterOptions.months" [value]="'m:' + m.key">{{ m.label }}</option>
+            </optgroup>
+            <optgroup label="By session">
+              <option *ngFor="let s of filterOptions.sessions" [value]="'d:' + s.key">{{ s.label }}</option>
+            </optgroup>
+          </select>
+          <select class="col-created filter-select" [class.set]="filters.created"
+                  [ngModel]="filters.created" (ngModelChange)="setFilter('created', $event)">
+            <option value="">Any date</option>
+            <option *ngFor="let m of filterOptions.createdMonths" [value]="m.key">{{ m.label }}</option>
+          </select>
+          <select class="col-status filter-select" [class.set]="filters.status"
+                  [ngModel]="filters.status" (ngModelChange)="setFilter('status', $event)">
+            <option value="">All</option>
+            <option *ngFor="let s of statuses" [value]="s">{{ s }}</option>
+          </select>
+          <button class="col-actions clear-filters" *ngIf="activeFilterCount() > 0"
+                  (click)="clearFilters()" title="Clear column filters">✕</button>
         </div>
         <div *ngFor="let item of filteredItems$ | async"
              class="list-row"
@@ -155,6 +269,7 @@ interface RepairerGroup {
                     [ngModel]="item.RCDay || ''"
                     (ngModelChange)="updateItem(item, 'RCDay', $event)">
               <option value="" disabled>— Date —</option>
+              <option *ngIf="item.RCDay && !availableRCDayValues.has(item.RCDay)" [value]="item.RCDay">{{ formatRCDay(item.RCDay) }}</option>
               <option *ngFor="let d of availableRCDates" [value]="d.value">{{ d.label }}</option>
             </select>
           </div>
@@ -404,8 +519,71 @@ interface RepairerGroup {
       text-transform: uppercase;
       letter-spacing: 0.05em;
     }
-    .pointer { cursor: pointer; }
+    .pointer { cursor: pointer; user-select: none; }
     .pointer:hover { color: var(--accent-color); }
+    .list-header .sorted { color: var(--accent-color); }
+
+    .filter-row {
+      display: none;
+      grid-template-columns: 48px 70px 1fr 110px 120px 120px 130px 95px 90px 60px;
+      gap: 0.5rem;
+      padding: 0.5rem 1rem;
+      min-width: 1100px;
+      align-items: center;
+      background: rgba(255, 255, 255, 0.04);
+      border-top: 1px solid rgba(255, 255, 255, 0.05);
+    }
+    .filter-row.open { display: grid; }
+    .filter-input, .filter-select {
+      width: 100%;
+      min-width: 0;
+      background: rgba(0, 0, 0, 0.25);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      color: rgba(255, 255, 255, 0.85);
+      padding: 0.3rem 0.4rem;
+      border-radius: 4px;
+      font-size: 0.78rem;
+      cursor: pointer;
+    }
+    .filter-input { cursor: text; }
+    .filter-input:focus, .filter-select:focus { outline: none; border-color: var(--accent-color); }
+    .filter-select.set, .filter-input.set { border-color: var(--accent-color); color: var(--accent-color); }
+    .filter-select option, .filter-select optgroup { background: #1a2236; color: white; }
+    .clear-filters {
+      background: rgba(255, 89, 89, 0.1);
+      border: 1px solid rgba(255, 89, 89, 0.35);
+      color: #ff8a8a;
+      border-radius: 4px;
+      padding: 0.25rem 0.5rem;
+      cursor: pointer;
+      font-size: 0.8rem;
+    }
+    .filter-toggle {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      color: rgba(255, 255, 255, 0.7);
+      border-radius: 8px;
+      padding: 0.5rem 0.9rem;
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .filter-toggle.active { background: rgba(99, 102, 241, 0.25); color: var(--accent-color); border-color: rgba(0, 242, 255, 0.3); }
+    .filter-summary {
+      margin: -1rem 0 0.75rem;
+      font-size: 0.85rem;
+      color: rgba(255, 255, 255, 0.6);
+    }
+    .link-btn {
+      background: none;
+      border: none;
+      padding: 0;
+      color: var(--accent-color);
+      cursor: pointer;
+      font-size: inherit;
+      text-decoration: underline;
+    }
     .list-row {
       border-top: 1px solid rgba(255, 255, 255, 0.05);
       cursor: pointer;
@@ -428,7 +606,14 @@ interface RepairerGroup {
       .col-desc { grid-area: desc; }
       .col-actions { grid-area: actions; }
       .col-status { grid-area: status; }
-      .col-owner, .col-category, .col-repairer, .col-session, .col-created { display: none; }
+      .list-row .col-owner, .list-row .col-category, .list-row .col-repairer, .list-row .col-session, .list-row .col-created { display: none; }
+
+      /* Filters become a stacked panel on narrow screens */
+      .filter-row { min-width: unset; }
+      .filter-row.open { display: flex; flex-wrap: wrap; }
+      .filter-row > span { display: none; }
+      .filter-row > .filter-input, .filter-row > .filter-select { flex: 1 1 140px; font-size: 0.85rem; padding: 0.45rem; }
+      .filter-row > .filter-input { flex-basis: 100%; }
     }
 
     .list-row:hover {
@@ -968,12 +1153,26 @@ export class RepairListComponent implements OnInit {
   private router = inject(Router);
 
   searchControl = new FormControl('');
-  sortControl = new FormControl<SortOption>('newest');
+  sortControl = new FormControl<string>('created:desc', { nonNullable: true });
+  readonly statuses = STATUSES;
+
+  showFilters = false;
+  filters: ColumnFilters = { ...EMPTY_FILTERS };
+  private filters$ = new BehaviorSubject<ColumnFilters>(this.filters);
+  filterOptions = {
+    owners: [] as string[],
+    repairers: [] as string[],
+    years: [] as string[],
+    months: [] as { key: string; label: string }[],
+    sessions: [] as { key: string; label: string }[],
+    createdMonths: [] as { key: string; label: string }[],
+  };
   completionControl = new FormControl<CompletionFilter>('active');
 
   owners: Owner[] = [];
   primaryRepairers: any[] = [];
   availableRCDates: { label: string, value: string, date: Date }[] = [];
+  availableRCDayValues = new Set<string>();
 
   readonly categories = [
     { value: 'electrical', emoji: '⚡', label: 'Electrical' },
@@ -989,6 +1188,7 @@ export class RepairListComponent implements OnInit {
 
   ngOnInit() {
     this.availableRCDates = this.repairService.getAvailableRCDates();
+    this.availableRCDayValues = new Set(this.availableRCDates.map(d => d.value));
     this.repairService.getOwners().subscribe(o => this.owners = o);
     this.repairService.getPrimaryRepairers().subscribe(r => this.primaryRepairers = r);
   }
@@ -1113,10 +1313,40 @@ export class RepairListComponent implements OnInit {
     }
   }
 
-  private allItems$ = this.repairService.getRepairItems();
+  private allItems$ = this.repairService.getRepairItems().pipe(shareReplay({ bufferSize: 1, refCount: true }));
 
   constructor() {
-    this.allItems$.subscribe(items => { this.allItems = items; });
+    this.allItems$.subscribe(items => {
+      this.allItems = items;
+      this.buildFilterOptions(items);
+    });
+  }
+
+  /** Dropdown choices for the column filters, taken from the values actually present. */
+  private buildFilterOptions(items: RepairItem[]) {
+    const distinct = (values: (string | undefined)[]) =>
+      [...new Set(values.map(v => (v || '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+
+    const sessionKeys = new Set<string>();
+    for (const item of items) {
+      const key = rcDayKey(item.RCDay);
+      if (key) sessionKeys.add(key);
+    }
+    const sortedSessions = [...sessionKeys].sort().reverse();
+    const monthKeys = [...new Set(sortedSessions.map(k => k.slice(0, 7)))];
+    const createdKeys = [...new Set(items.map(createdMonthKey).filter(Boolean))].sort().reverse();
+
+    this.filterOptions = {
+      owners: distinct(items.map(i => i.owner)),
+      repairers: distinct(items.flatMap(i => [i.repairer, ...(i.additionalRepairers || [])])),
+      years: [...new Set(sortedSessions.map(k => k.slice(0, 4)))],
+      months: monthKeys.map(key => ({ key, label: monthLabel(key) })),
+      sessions: sortedSessions.map(key => {
+        const [y, m, d] = key.split('-');
+        return { key, label: `${parseInt(d, 10)} ${monthLabel(`${y}-${m}`)}` };
+      }),
+      createdMonths: createdKeys.map(key => ({ key, label: monthLabel(key) })),
+    };
   }
 
   openRepairerPanel(name: string, event: Event) {
@@ -1158,12 +1388,13 @@ export class RepairListComponent implements OnInit {
   }
 
   filteredItems$: Observable<RepairItem[]> = combineLatest([
-    this.repairService.getRepairItems(),
+    this.allItems$,
     this.searchControl.valueChanges.pipe(startWith('')),
-    this.sortControl.valueChanges.pipe(startWith('newest' as SortOption)),
-    this.completionControl.valueChanges.pipe(startWith('active' as CompletionFilter))
+    this.sortControl.valueChanges.pipe(startWith(this.sortControl.value)),
+    this.completionControl.valueChanges.pipe(startWith('active' as CompletionFilter)),
+    this.filters$
   ]).pipe(
-    map(([items, searchTerm, sortOrder, completionFilter]) => {
+    map(([items, searchTerm, sortValue, completionFilter, filters]) => {
       // Completion filter
       let filtered = items.filter(item => {
         const isDone = COMPLETED_STATUSES.has(item.status || '');
@@ -1172,6 +1403,9 @@ export class RepairListComponent implements OnInit {
         if (completionFilter === 'completed') return isDone;
         return true;
       });
+
+      // Column filters
+      filtered = filtered.filter(item => this.matchesFilters(item, filters));
 
       // Text search filter
       const term = (searchTerm || '').toLowerCase();
@@ -1190,33 +1424,100 @@ export class RepairListComponent implements OnInit {
       }
 
       // Sort
+      const [col, dir] = sortValue.split(':') as [SortColumn, SortDir];
+      const sign = dir === 'desc' ? -1 : 1;
       return [...filtered].sort((a, b) => {
-        switch (sortOrder) {
-          case 'newest':
-            return (b.creationDate?.toMillis() || 0) - (a.creationDate?.toMillis() || 0);
-          case 'oldest':
-            return (a.creationDate?.toMillis() || 0) - (b.creationDate?.toMillis() || 0);
-          case 'number':
-            if (a.rcDayNumber !== b.rcDayNumber) {
-              return a.rcDayNumber - b.rcDayNumber;
-            }
-            return a.itemNumber - b.itemNumber;
-          default:
-            return 0;
-        }
+        const primary = this.compareBy(col, a, b);
+        if (primary !== 0) return primary * sign;
+        // Ties fall back to session then item number, so groups stay in a sensible order.
+        return rcDayKey(a.RCDay).localeCompare(rcDayKey(b.RCDay)) || (a.itemNumber || 0) - (b.itemNumber || 0);
       });
-    })
+    }),
+    shareReplay({ bufferSize: 1, refCount: true })
   );
 
-  setSort(option: SortOption) {
-    this.sortControl.setValue(option);
+  private compareBy(col: SortColumn, a: RepairItem, b: RepairItem): number {
+    const text = (x?: string, y?: string) => {
+      // Blanks always sort after real values, whichever direction.
+      if (!x && !y) return 0;
+      if (!x) return 1;
+      if (!y) return -1;
+      return x.localeCompare(y, undefined, { sensitivity: 'base', numeric: true });
+    };
+    switch (col) {
+      case 'number':
+        return (a.rcDayNumber || 0) - (b.rcDayNumber || 0) || (a.itemNumber || 0) - (b.itemNumber || 0);
+      case 'description': return text(a.itemDescription, b.itemDescription);
+      case 'owner':       return text(a.owner, b.owner);
+      case 'category':    return text(a.category, b.category);
+      case 'repairer':    return text(a.repairer, b.repairer);
+      case 'session':     return rcDayKey(a.RCDay).localeCompare(rcDayKey(b.RCDay));
+      case 'created':     return (a.creationDate?.toMillis() || 0) - (b.creationDate?.toMillis() || 0);
+      case 'status':      return STATUSES.indexOf(a.status || 'New') - STATUSES.indexOf(b.status || 'New');
+      default:            return 0;
+    }
   }
 
-  getSortIcon(option: SortOption): string {
-    if (this.sortControl.value === option) {
-      return '↓';
+  private matchesFilters(item: RepairItem, f: ColumnFilters): boolean {
+    const pick = (filter: string, value: string | undefined) =>
+      !filter || (filter === '__none' ? !value : value === filter);
+
+    if (f.description && !(item.itemDescription || '').toLowerCase().includes(f.description.toLowerCase())) return false;
+    if (!pick(f.owner, item.owner)) return false;
+    if (!pick(f.category, item.category)) return false;
+    if (f.repairer) {
+      if (f.repairer === '__none') { if (item.repairer) return false; }
+      else if (item.repairer !== f.repairer && !(item.additionalRepairers || []).includes(f.repairer)) return false;
     }
-    return '';
+    if (f.session) {
+      const key = rcDayKey(item.RCDay);
+      const [kind, value] = [f.session.slice(0, 1), f.session.slice(2)];
+      if (kind === 'y' && key.slice(0, 4) !== value) return false;
+      if (kind === 'm' && key.slice(0, 7) !== value) return false;
+      if (kind === 'd' && key !== value) return false;
+    }
+    if (f.created && createdMonthKey(item) !== f.created) return false;
+    if (f.status && (item.status || 'New') !== f.status) return false;
+    return true;
+  }
+
+  setFilter(field: keyof ColumnFilters, value: string) {
+    this.filters = { ...this.filters, [field]: value || '' };
+    this.filters$.next(this.filters);
+  }
+
+  clearFilters() {
+    this.filters = { ...EMPTY_FILTERS };
+    this.filters$.next(this.filters);
+  }
+
+  activeFilterCount(): number {
+    return Object.values(this.filters).filter(v => !!v).length;
+  }
+
+  get sortCol(): SortColumn {
+    return this.sortControl.value.split(':')[0] as SortColumn;
+  }
+
+  toggleSort(col: SortColumn) {
+    const [current, dir] = this.sortControl.value.split(':');
+    const next = current === col ? (dir === 'asc' ? 'desc' : 'asc') : DEFAULT_DIR[col];
+    this.sortControl.setValue(`${col}:${next}`);
+  }
+
+  getSortIcon(col: SortColumn): string {
+    const [current, dir] = this.sortControl.value.split(':');
+    if (current !== col) return '';
+    return dir === 'asc' ? '↑' : '↓';
+  }
+
+  isPresetSort(): boolean {
+    return PRESET_SORTS.includes(this.sortControl.value);
+  }
+
+  sortLabel(): string {
+    const [col, dir] = this.sortControl.value.split(':') as [SortColumn, SortDir];
+    return `${SORT_LABELS[col]} (${dir === 'asc' ? 'ascending' : 'descending'})`;
   }
 
   getFirstTagEmoji(tags: string[]): string {
