@@ -38,8 +38,12 @@ import { RepairItem, toRepairPhoto } from '../../models/repair-item.model';
               <span>{{ item.RCDay }}</span>
             </div>
             <div class="info-item">
-              <label>Sequence Number</label>
+              <label>Item No. (this session)</label>
               <span>{{ item.displayNumber }}</span>
+            </div>
+            <div class="info-item" *ngIf="item.sequenceNumber">
+              <label>Reference No.</label>
+              <span>{{ item.sequenceNumber }}</span>
             </div>
             <div class="info-item">
               <label>Created</label>

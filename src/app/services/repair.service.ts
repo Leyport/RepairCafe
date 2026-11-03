@@ -10,6 +10,7 @@ import { RepairItem, Owner } from '../models/repair-item.model';
 import { Tag } from '../models/tag.model';
 import { Repairer } from '../models/repairer.model';
 import { Issue } from '../models/issue.model';
+import { SequenceService, SEQUENCE_FIELD } from './sequence.service';
 
 const TAG_EMOJI_MAP: { [key: string]: string } = {
     'electrical': '⚡',
@@ -38,6 +39,7 @@ const TAG_EMOJI_MAP: { [key: string]: string } = {
 })
 export class RepairService {
     private firestore: Firestore = inject(Firestore);
+    private sequence = inject(SequenceService);
     private storage: Storage = inject(Storage);
     private http: HttpClient = inject(HttpClient);
     private repairCollection = collection(this.firestore, 'repairItems');
@@ -251,7 +253,8 @@ export class RepairService {
             creationDate: Timestamp.fromDate(now),
             displayNumber: displayNumber,
             RCDay: rcDay,
-            status: item.repairer ? 'Assigned' : 'New'
+            status: item.repairer ? 'Assigned' : 'New',
+            sequenceNumber: await this.sequence.reserve(1)
         };
 
         // Ensure all tags exist in the master collection
@@ -384,6 +387,8 @@ export class RepairService {
         }
         const itemDoc = doc(this.firestore, `repairItems/${id}`);
         const updateData = { ...item };
+        // The reference number is permanent once assigned.
+        delete (updateData as any)[SEQUENCE_FIELD];
 
         // Guard against blank RCDay in updates
         if ('RCDay' in updateData && (!updateData.RCDay || updateData.RCDay.trim() === '')) {

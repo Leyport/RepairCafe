@@ -37,6 +37,7 @@ export interface RepairItem {
   ownerSatisfied?: boolean;
   donationAmount?: number;
   investigationNotes?: string;
+  sequenceNumber?: number; // Permanent reference number, assigned once and never changed or reused
   importSource?: string; // Set on items imported from a spreadsheet, e.g. "Repair_Data 2025 row 3"
   aiReportUrl?: string;
 }

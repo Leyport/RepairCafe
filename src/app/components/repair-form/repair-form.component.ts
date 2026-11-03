@@ -75,6 +75,7 @@ interface ImageResult {
                 <label for="itemNumber">Sequence Number (Suggested)</label>
                 <input id="itemNumber" type="text" formControlName="displayNumber" placeholder="e.g., 1">
                 <small class="hint">Leave as is or override. The system will auto-assign if left blank.</small>
+                <small class="hint" *ngIf="sequenceNumber">Permanent reference no. <strong>{{ sequenceNumber }}</strong> (never changes)</small>
               </div>
 
             </div>
@@ -840,6 +841,7 @@ export class RepairFormComponent implements OnInit, OnDestroy {
 
   repairForm: FormGroup;
   isEdit = false;
+  sequenceNumber: number | null = null;
   editItemId: string | null = null;
   isUploading = false;
   uploadError: string | null = null;
@@ -1040,6 +1042,7 @@ export class RepairFormComponent implements OnInit, OnDestroy {
       this.repairService.getRepairItems().subscribe(items => {
         const item = items.find(i => i.id === id);
         if (item) {
+          this.sequenceNumber = item.sequenceNumber ?? null;
           const updates: any = {
             displayNumber: item.displayNumber,
             category: item.category || '',

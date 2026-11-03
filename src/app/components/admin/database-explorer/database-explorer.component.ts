@@ -10,6 +10,7 @@ import { RepairItem } from '../../../models/repair-item.model';
 import { Repairer } from '../../../models/repairer.model';
 import { RepairerFormComponent } from '../repairer-form/repairer-form.component';
 import { environment } from '../../../../environments/environment';
+import { SequenceService, SEQUENCE_FIELD } from '../../../services/sequence.service';
 import { rcDayKey, createdMonthKey, buildSessionFilterOptions, matchesSessionFilter, monthLabel, SessionFilterOptions } from '../../../utils/rc-day';
 
 interface ExplorerFilters {
@@ -192,6 +193,10 @@ const DATE_COLUMNS = new Set(['RCDay', 'creationDate', 'createdAt', 'firstSeen']
               ⚲ Column filters<span *ngIf="columnFilterCount() > 0"> ({{ columnFilterCount() }})</span>
             </button>
             <button *ngIf="isFiltering()" class="link-btn" (click)="clearFilters()">Clear all filters</button>
+            <button *ngIf="missingSeqCount > 0" class="filter-toggle seq-btn" [disabled]="numbering" (click)="assignReferenceNumbers()"
+                    title="Give each item without one a permanent reference number, oldest session first">
+              🔢 {{ numbering ? numberingStatus : 'Give ' + missingSeqCount + ' item(s) a reference number' }}
+            </button>
           </div>
 
           <div class="records-container custom-scrollbar" *ngIf="data$ | async as data; else loading">
@@ -316,7 +321,7 @@ const DATE_COLUMNS = new Set(['RCDay', 'creationDate', 'createdAt', 'firstSeen']
                                     <span *ngIf="uploadingPhotoId === record.id" class="photo-spinner"></span>
                                 </label>
                             </td>
-                            <td [title]="'Document ID: ' + record.id">{{ record.displayNumber || record.itemNumber }}</td>
+                            <td [title]="'Document ID: ' + record.id">{{ record.displayNumber || record.itemNumber }}<span class="ref-no" *ngIf="record.sequenceNumber" title="Permanent reference number">Ref {{ record.sequenceNumber }}</span></td>
                             <td class="description-col">
                                 <input 
                                     [ngModel]="record.itemDescription" 
@@ -920,6 +925,8 @@ const DATE_COLUMNS = new Set(['RCDay', 'creationDate', 'createdAt', 'firstSeen']
       cursor: pointer;
       font-size: 0.8rem;
     }
+    .ref-no { display: block; font-size: 0.68rem; color: rgba(255, 255, 255, 0.4); white-space: nowrap; }
+    .seq-btn:disabled { opacity: 0.6; cursor: wait; }
     .firebase-link { margin-left: 0.75rem; font-size: 0.8rem; color: #ffb347; text-decoration: none; }
     .firebase-link:hover { text-decoration: underline; }
     .data-header {
@@ -1638,6 +1645,27 @@ export class DatabaseExplorerComponent implements OnInit {
   filterOptions: SessionFilterOptions & { owners: string[]; types: string[]; repairers: string[] } = {
     owners: [], types: [], repairers: [], years: [], months: [], sessions: [], createdMonths: []
   };
+  missingSeqCount = 0;
+  numbering = false;
+  numberingStatus = '';
+  private sequenceService = inject(SequenceService);
+
+  async assignReferenceNumbers() {
+    if (!confirm(`Give ${this.missingSeqCount} repair item(s) a permanent reference number?\n\n` +
+      'Numbers follow the order items were brought in (oldest session first) and never change afterwards.')) return;
+    this.numbering = true;
+    try {
+      const count = await this.sequenceService.assignMissing(msg => this.numberingStatus = msg);
+      alert(`Done: ${count} item(s) numbered.`);
+    } catch (error: any) {
+      console.error('Assigning reference numbers failed:', error);
+      alert('Failed: ' + (error.message || 'Unknown error'));
+    } finally {
+      this.numbering = false;
+      this.numberingStatus = '';
+    }
+  }
+
   private filters$ = new BehaviorSubject<{ search: string; cols: ExplorerFilters }>({ search: '', cols: this.colFilters });
 
   ngOnInit() {
@@ -1809,6 +1837,8 @@ export class DatabaseExplorerComponent implements OnInit {
           // Work out the schema and filter choices once per data change, not per keystroke.
           this.rawCount = data.length;
           this.currentSchema = this.getSchemaType(colName, data);
+          this.missingSeqCount = colName === 'repairItems'
+            ? data.filter(d => typeof d[SEQUENCE_FIELD] !== 'number').length : 0;
           if (this.currentSchema === 'repairItems') this.buildFilterOptions(data);
           return data.map(record => ({ record, text: this.searchableText(record) }));
         })

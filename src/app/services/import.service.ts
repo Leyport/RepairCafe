@@ -1,5 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
+import { SequenceService, SEQUENCE_FIELD } from './sequence.service';
 import { Firestore, collection, addDoc, writeBatch, doc, Timestamp, setDoc, query, where, getDocs } from '@angular/fire/firestore';
 import { firstValueFrom } from 'rxjs';
 import * as XLSX from 'xlsx';
@@ -81,6 +82,7 @@ const OUTCOME_RULES: [RegExp, string][] = [
 export class ImportService {
     private http = inject(HttpClient);
     private firestore = inject(Firestore);
+    private sequence = inject(SequenceService);
 
     async listFolders(token: string, parentId: string = 'root'): Promise<{ id: string, name: string, mimeType: string }[]> {
         const headers = new HttpHeaders({
@@ -452,6 +454,17 @@ export class ImportService {
 
     async importRepairDocs(collectionName: string, docs: { id: string; data: any }[], onProgress?: (msg: string) => void): Promise<number> {
         const importedAt = Timestamp.now();
+        if (collectionName === 'repairItems') {
+            // Re-importing the same rows keeps their reference numbers; new rows get new ones.
+            onProgress?.('Assigning reference numbers...');
+            const existing = await this.sequence.existingNumbers(collectionName);
+            const needNew = docs.filter(d => !existing.has(d.id));
+            let next = await this.sequence.reserve(needNew.length);
+            docs = docs.map(d => ({
+                id: d.id,
+                data: { ...d.data, [SEQUENCE_FIELD]: existing.get(d.id) ?? next++ }
+            }));
+        }
         for (let i = 0; i < docs.length; i += 450) {
             onProgress?.(`Saving items ${i + 1}–${Math.min(i + 450, docs.length)} of ${docs.length}...`);
             const batch = writeBatch(this.firestore);
