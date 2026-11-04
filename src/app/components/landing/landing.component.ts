@@ -69,6 +69,18 @@ import { Subscription } from 'rxjs';
 
             <div class="error-msg" *ngIf="error">{{ error }}</div>
 
+            <div class="link-msg" *ngIf="authService.pendingLinkEmail !== null">
+              <strong>Link your Facebook account</strong>
+              <span>
+                <ng-container *ngIf="authService.pendingLinkEmail">{{ authService.pendingLinkEmail }}</ng-container>
+                <ng-container *ngIf="!authService.pendingLinkEmail">Your email address</ng-container>
+                is already used by an account here. Sign in the way you did before — with
+                <strong>Google</strong> or your <strong>email and password</strong> above — and Facebook will be
+                added to that account, so you can use either in future.
+              </span>
+              <button class="link-cancel" (click)="authService.cancelPendingLink()">Not now</button>
+            </div>
+
             <p class="privacy-note">
               By signing in you agree to our <a routerLink="/privacy">privacy policy</a>.
             </p>
@@ -443,6 +455,29 @@ import { Subscription } from 'rxjs';
       text-decoration: none;
     }
     .maps-link:hover { text-decoration: underline; }
+    .link-msg {
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+      margin-top: 0.9rem;
+      padding: 0.75rem 0.9rem;
+      border-radius: 8px;
+      background: rgba(24, 119, 242, 0.12);
+      border: 1px solid rgba(24, 119, 242, 0.45);
+      font-size: 0.85rem;
+      line-height: 1.5;
+      color: rgba(255,255,255,0.85);
+      text-align: left;
+    }
+    .link-cancel {
+      align-self: flex-end;
+      background: none;
+      border: none;
+      color: rgba(255,255,255,0.5);
+      font-size: 0.8rem;
+      cursor: pointer;
+      text-decoration: underline;
+    }
     .privacy-note { margin: 0.75rem 0 0; font-size: 0.75rem; color: rgba(255,255,255,0.4); text-align: center; }
     .privacy-note a { color: rgba(255,255,255,0.6); }
     .info-card p {
@@ -454,7 +489,7 @@ import { Subscription } from 'rxjs';
   `]
 })
 export class LandingComponent implements OnInit, OnDestroy {
-  private authService = inject(AuthService);
+  authService = inject(AuthService);
   private router = inject(Router);
   private repairService = inject(RepairService);
   private sub: Subscription | null = null;
@@ -500,7 +535,7 @@ export class LandingComponent implements OnInit, OnDestroy {
       case 'auth/operation-not-allowed':
         return `${name} sign-in isn't available yet. Please use another sign-in option.`;
       case 'auth/account-exists-with-different-credential':
-        return `You've already signed in with this email address another way (for example Google or email). Please sign in that way instead.`;
+        return '';   // explained by the "Link your Facebook account" box
       case 'auth/popup-blocked':
         return 'Your browser blocked the sign-in window. Please allow pop-ups for this site and try again.';
       case 'auth/unauthorized-domain':
