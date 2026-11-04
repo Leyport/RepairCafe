@@ -63,6 +63,14 @@ export const routes: Routes = [
     loadComponent: () => import('./components/repairer-dashboard/repairer-dashboard.component').then(m => m.RepairerDashboardComponent)
   },
   {
+    path: 'privacy',
+    loadComponent: () => import('./components/legal/privacy-policy.component').then(m => m.PrivacyPolicyComponent)
+  },
+  {
+    path: 'data-deletion',
+    loadComponent: () => import('./components/legal/data-deletion.component').then(m => m.DataDeletionComponent)
+  },
+  {
     path: 'analytics',
     loadComponent: () => import('./components/analytics-dashboard/analytics-dashboard.component').then(m => m.AnalyticsDashboardComponent)
   }

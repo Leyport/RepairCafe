@@ -1,7 +1,7 @@
 import { Component, inject, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Router } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { AuthService } from '../../services/auth.service';
 import { RepairService } from '../../services/repair.service';
 import { VENUE, VENUE_MAPS_URL } from '../../constants/venue';
@@ -10,7 +10,7 @@ import { Subscription } from 'rxjs';
 @Component({
   selector: 'app-landing',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, RouterLink],
   template: `
     <div class="landing">
 
@@ -68,6 +68,10 @@ import { Subscription } from 'rxjs';
             </div>
 
             <div class="error-msg" *ngIf="error">{{ error }}</div>
+
+            <p class="privacy-note">
+              By signing in you agree to our <a routerLink="/privacy">privacy policy</a>.
+            </p>
 
             <div class="loading-row" *ngIf="loading">
               <span class="spinner"></span>
@@ -439,6 +443,8 @@ import { Subscription } from 'rxjs';
       text-decoration: none;
     }
     .maps-link:hover { text-decoration: underline; }
+    .privacy-note { margin: 0.75rem 0 0; font-size: 0.75rem; color: rgba(255,255,255,0.4); text-align: center; }
+    .privacy-note a { color: rgba(255,255,255,0.6); }
     .info-card p {
       margin: 0;
       font-size: 0.87rem;
@@ -485,6 +491,27 @@ export class LandingComponent implements OnInit, OnDestroy {
     }
   }
 
+  private describeSignInError(code: string, provider: 'google' | 'facebook'): string {
+    const name = provider === 'google' ? 'Google' : 'Facebook';
+    switch (code) {
+      case 'auth/popup-closed-by-user':
+      case 'auth/cancelled-popup-request':
+        return '';
+      case 'auth/operation-not-allowed':
+        return `${name} sign-in isn't available yet. Please use another sign-in option.`;
+      case 'auth/account-exists-with-different-credential':
+        return `You've already signed in with this email address another way (for example Google or email). Please sign in that way instead.`;
+      case 'auth/popup-blocked':
+        return 'Your browser blocked the sign-in window. Please allow pop-ups for this site and try again.';
+      case 'auth/unauthorized-domain':
+        return 'Sign-in is not allowed from this web address.';
+      case 'auth/network-request-failed':
+        return 'Could not connect. Check your internet connection and try again.';
+      default:
+        return 'Sign in failed. Please try again.';
+    }
+  }
+
   ngOnDestroy() {
     this.sub?.unsubscribe();
   }
@@ -497,9 +524,7 @@ export class LandingComponent implements OnInit, OnDestroy {
       else await this.authService.loginWithFacebook();
     } catch (e: any) {
       const code = e?.code || '';
-      if (code !== 'auth/popup-closed-by-user' && code !== 'auth/cancelled-popup-request') {
-        this.error = 'Sign in failed. Please try again.';
-      }
+      this.error = this.describeSignInError(code, provider);
     } finally {
       this.loading = false;
     }

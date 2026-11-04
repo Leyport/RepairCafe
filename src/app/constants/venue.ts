@@ -10,3 +10,7 @@ export const VENUE = {
 
 export const VENUE_MAPS_URL =
   'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(VENUE.mapsQuery);
+
+// Shown on the privacy policy and data deletion pages. Check this is the right inbox.
+export const CONTACT_EMAIL = 'admin@shrewsburyrepaircafe.org.uk';
+export const ORGANISATION_NAME = 'Shrewsbury Repair Cafe';
