@@ -1,6 +1,6 @@
 import { Component, OnDestroy, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { RouterOutlet, RouterLink, Router } from '@angular/router';
+import { RouterOutlet, RouterLink } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
 import { RepairService } from './services/repair.service';
 import { map } from 'rxjs/operators';
@@ -41,7 +41,6 @@ export class AppComponent implements OnInit, OnDestroy {
   );
 
   user$ = this.authService.user$;
-  private router = inject(Router);
 
   ngOnInit() {
     // Actively tells you when a newer build has been deployed, rather than
@@ -86,8 +85,10 @@ export class AppComponent implements OnInit, OnDestroy {
 
   async logout() {
     await this.authService.logout();
-    // Back to the welcome page, which has the sign-in options.
-    await this.router.navigateByUrl('/');
+    // Load the welcome page (with the sign-in options) fresh. A full page load always shows it,
+    // even if sign-out finished outside Angular's change detection, and clears anything the
+    // previous user had open, which matters on shared laptops at sessions.
+    window.location.assign('/');
   }
 
 }
