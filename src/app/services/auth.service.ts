@@ -58,22 +58,6 @@ export class AuthService {
         }
     }
 
-    async loginWithApple(): Promise<any> {
-        const provider = new OAuthProvider('apple.com');
-        provider.addScope('email');
-        provider.addScope('name');
-
-        try {
-            const result = await signInWithPopup(this.auth, provider);
-            const credential = OAuthProvider.credentialFromResult(result);
-            await this.saveUserProfile(result.user);
-            return { user: result.user, token: credential?.accessToken };
-        } catch (error) {
-            console.error('Apple Login error:', error);
-            throw error;
-        }
-    }
-
     async loginWithMicrosoft(): Promise<any> {
         const provider = new OAuthProvider('microsoft.com');
         provider.addScope('email');

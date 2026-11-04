@@ -20,7 +20,7 @@ import { LEGAL_PAGE_STYLES } from './legal-page.styles';
       </p>
 
       <h2>Volunteers who sign in</h2>
-      <p>When you sign in with Google, Facebook, Apple or an email address and password, we receive and store:</p>
+      <p>When you sign in with Google, Facebook or an email address and password, we receive and store:</p>
       <ul>
         <li>your name, email address and profile picture (if your account has one)</li>
         <li>when you last signed in</li>

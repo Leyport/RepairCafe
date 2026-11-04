@@ -82,13 +82,6 @@ export class AppComponent implements OnInit, OnDestroy {
     }
   }
 
-  async loginApple() {
-    try {
-      await this.authService.loginWithApple();
-    } catch (e) {
-      alert('Login failed');
-    }
-  }
 
   async logout() {
     await this.authService.logout();

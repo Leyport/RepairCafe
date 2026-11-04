@@ -14,7 +14,7 @@ import { LEGAL_PAGE_STYLES } from './legal-page.styles';
 
       <p>
         You can ask {{ org }} to delete the personal information we hold about you at any time.
-        This applies whether you signed in with Facebook, Google, Apple or an email address, and to
+        This applies whether you signed in with Facebook, Google or an email address, and to
         visitors whose details were recorded when they brought an item for repair.
       </p>
 
@@ -25,7 +25,7 @@ import { LEGAL_PAGE_STYLES } from './legal-page.styles';
         </li>
         <li>
           Tell us the name and the email address (or telephone number) you used, and whether you signed
-          in with Facebook, Google, Apple or email, so we can find your records.
+          in with Facebook, Google or email, so we can find your records.
         </li>
         <li>
           We will delete your account and personal details and email you to confirm when it has been done.
