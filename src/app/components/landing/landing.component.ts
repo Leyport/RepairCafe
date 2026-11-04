@@ -3,6 +3,8 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { AuthService } from '../../services/auth.service';
+import { RepairService } from '../../services/repair.service';
+import { VENUE, VENUE_MAPS_URL } from '../../constants/venue';
 import { Subscription } from 'rxjs';
 
 @Component({
@@ -95,7 +97,13 @@ import { Subscription } from 'rxjs';
         <div class="info-card glass">
           <div class="info-icon">📍</div>
           <h3>Find us</h3>
-          <p>We hold regular sessions in Shrewsbury. Check the session schedule for upcoming dates and bring your items along — no booking needed.</p>
+          <p>We hold sessions on the third Saturday of every month at the {{ venue.name }}, {{ venue.address }}. Bring your items along — no booking needed.</p>
+          <div class="next-session">
+            <span class="next-label">{{ nextSessionIsToday ? 'Today' : 'Next session' }}</span>
+            <span class="next-date">{{ nextSession | date:'EEEE d MMMM y':'UTC' }}</span>
+            <span class="next-time">{{ venue.times }}</span>
+          </div>
+          <a class="maps-link" [href]="mapsUrl" target="_blank" rel="noopener">📍 Open in Google Maps</a>
         </div>
         <div class="info-card glass info-card-wide">
           <div class="info-icon">💷</div>
@@ -409,6 +417,28 @@ import { Subscription } from 'rxjs';
       color: white;
     }
 
+    .next-session {
+      display: flex;
+      flex-direction: column;
+      gap: 0.1rem;
+      margin-top: 0.9rem;
+      padding: 0.6rem 0.75rem;
+      border-radius: 8px;
+      background: rgba(0, 242, 255, 0.06);
+      border: 1px solid rgba(0, 242, 255, 0.2);
+    }
+    .next-label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--accent-color); font-weight: 700; }
+    .next-date { font-size: 0.95rem; color: white; font-weight: 600; }
+    .next-time { font-size: 0.8rem; color: rgba(255,255,255,0.6); }
+    .maps-link {
+      display: inline-block;
+      margin-top: 0.75rem;
+      font-size: 0.87rem;
+      font-weight: 600;
+      color: var(--accent-color);
+      text-decoration: none;
+    }
+    .maps-link:hover { text-decoration: underline; }
     .info-card p {
       margin: 0;
       font-size: 0.87rem;
@@ -420,7 +450,13 @@ import { Subscription } from 'rxjs';
 export class LandingComponent implements OnInit, OnDestroy {
   private authService = inject(AuthService);
   private router = inject(Router);
+  private repairService = inject(RepairService);
   private sub: Subscription | null = null;
+
+  readonly venue = VENUE;
+  readonly mapsUrl = VENUE_MAPS_URL;
+  nextSession!: Date;          // UTC midnight of the session day
+  nextSessionIsToday = false;
 
   loading = false;
   error = '';
@@ -428,9 +464,25 @@ export class LandingComponent implements OnInit, OnDestroy {
   passwordValue = '';
 
   ngOnInit() {
+    this.findNextSession();
     this.sub = this.authService.user$.subscribe(user => {
       if (user) this.router.navigate(['/repairs']);
     });
+  }
+
+  /** Next third-Saturday session that hasn't finished yet (today counts until closing time). */
+  private findNextSession() {
+    const now = new Date();
+    for (let i = 0; i < 3; i++) {
+      const day = this.repairService.getThirdSaturday(now.getFullYear(), now.getMonth() + i);
+      const closes = new Date(day.getUTCFullYear(), day.getUTCMonth(), day.getUTCDate(), VENUE.endHour);
+      if (closes > now) {
+        this.nextSession = day;
+        this.nextSessionIsToday = day.getUTCFullYear() === now.getFullYear()
+          && day.getUTCMonth() === now.getMonth() && day.getUTCDate() === now.getDate();
+        return;
+      }
+    }
   }
 
   ngOnDestroy() {
