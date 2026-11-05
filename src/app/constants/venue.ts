@@ -14,6 +14,3 @@ export const VENUE_MAPS_URL =
 // Shown on the privacy policy and data deletion pages. Check this is the right inbox.
 export const CONTACT_EMAIL = 'admin@shrewsburyrepaircafe.org.uk';
 export const ORGANISATION_NAME = 'Shrewsbury Repair Cafe';
-
-/** The charity's main website, where the app's Home button goes. */
-export const WEBSITE_URL = 'https://shrewsburyrepaircafe.org.uk/';

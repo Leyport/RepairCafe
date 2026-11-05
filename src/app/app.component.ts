@@ -10,7 +10,6 @@ import { AuthService } from './services/auth.service';
 import { PublicStatsService } from './services/public-stats.service';
 import { LoginComponent } from './components/auth/login/login.component';
 import { APP_VERSION } from './constants/version';
-import { WEBSITE_URL } from './constants/venue';
 
 // Pages anyone can see without signing in or being approved.
 const PUBLIC_PATHS = new Set(['', 'stats', 'privacy', 'data-deletion']);
@@ -26,7 +25,6 @@ const UPDATE_CHECK_INTERVAL_MS = 5 * 60 * 1000;
 })
 export class AppComponent implements OnInit, OnDestroy {
   title = 'RepairCafe';
-  readonly websiteUrl = WEBSITE_URL;
   showLogin = false;
   updateAvailable = false;
 

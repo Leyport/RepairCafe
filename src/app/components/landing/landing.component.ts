@@ -33,7 +33,18 @@ import { Subscription } from 'rxjs';
             please consider giving what you can.
           </p>
 
+          <!-- Already signed in (e.g. came back via the Home button) -->
+          <div class="signin-card glass" *ngIf="authService.user$ | async as user; else signInCard">
+            <p class="signin-title">You're signed in</p>
+            <p class="signed-in-as">{{ user.displayName || user.email }}</p>
+            <div class="email-btns">
+              <a routerLink="/repairs" class="btn-email-signin go-repairs">Go to the repairs list</a>
+              <button class="btn-email-register" (click)="signOut()">Sign out</button>
+            </div>
+          </div>
+
           <!-- Sign-in card -->
+          <ng-template #signInCard>
           <div class="signin-card glass">
             <p class="signin-title">Volunteer sign in</p>
 
@@ -90,6 +101,7 @@ import { Subscription } from 'rxjs';
               <span>Signing in…</span>
             </div>
           </div>
+          </ng-template>
         </div>
       </section>
 
@@ -206,6 +218,8 @@ import { Subscription } from 'rxjs';
       border: 1px solid rgba(255,255,255,0.1);
     }
 
+    .signed-in-as { margin: 0 0 1rem; color: rgba(255,255,255,0.75); font-weight: 600; }
+    .go-repairs { text-decoration: none; text-align: center; }
     .signin-title {
       margin: 0 0 0.3rem;
       font-size: 1.05rem;
@@ -506,9 +520,19 @@ export class LandingComponent implements OnInit, OnDestroy {
 
   ngOnInit() {
     this.findNextSession();
+    // Go to the repairs list straight after signing in here, but not when someone who is
+    // already signed in comes back to this page (e.g. with the Home button).
+    let seenSignedOut = false;
     this.sub = this.authService.user$.subscribe(user => {
-      if (user) this.router.navigate(['/repairs']);
+      if (!user) seenSignedOut = true;
+      else if (seenSignedOut) this.router.navigate(['/repairs']);
     });
+  }
+
+  async signOut() {
+    await this.authService.logout();
+    // Same as the header's logout: a fresh load reliably shows the sign-in options.
+    window.location.assign('/');
   }
 
   /** Next third-Saturday session that hasn't finished yet (today counts until closing time). */
