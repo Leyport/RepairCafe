@@ -71,6 +71,10 @@ export const routes: Routes = [
     loadComponent: () => import('./components/legal/data-deletion.component').then(m => m.DataDeletionComponent)
   },
   {
+    path: 'stats',
+    loadComponent: () => import('./components/public-stats/public-stats.component').then(m => m.PublicStatsComponent)
+  },
+  {
     path: 'analytics',
     loadComponent: () => import('./components/analytics-dashboard/analytics-dashboard.component').then(m => m.AnalyticsDashboardComponent)
   }

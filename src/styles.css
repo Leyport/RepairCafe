@@ -253,3 +253,7 @@ footer {
     text-align: center;
   }
 }
+/* Public /stats page embedded in another website (?embed=1, optionally &theme=light) */
+body.embed { background-image: none; }
+body.embed .container { padding: 0.75rem; max-width: none; }
+body.embed-light { background-color: #ffffff; color: #1e293b; }

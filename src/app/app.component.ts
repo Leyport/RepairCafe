@@ -4,9 +4,10 @@ import { RouterOutlet, RouterLink } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
 import { RepairService } from './services/repair.service';
 import { map } from 'rxjs/operators';
-import { firstValueFrom } from 'rxjs';
+import { firstValueFrom, Subscription } from 'rxjs';
 
 import { AuthService } from './services/auth.service';
+import { PublicStatsService } from './services/public-stats.service';
 import { LoginComponent } from './components/auth/login/login.component';
 import { APP_VERSION } from './constants/version';
 
@@ -27,6 +28,11 @@ export class AppComponent implements OnInit, OnDestroy {
   private repairService = inject(RepairService);
   private authService = inject(AuthService);
   private http = inject(HttpClient);
+  private publicStats = inject(PublicStatsService);
+  private statsSub: Subscription | null = null;
+
+  /** Embedded in another website (e.g. /stats?embed=1): show just the page, no header or footer. */
+  readonly embedded = new URLSearchParams(window.location.search).get('embed') === '1';
 
   private readonly bootVersion = APP_VERSION.version;
   private updateCheckTimer: ReturnType<typeof setInterval> | null = null;
@@ -48,11 +54,14 @@ export class AppComponent implements OnInit, OnDestroy {
     // you're looking at stale cached code.
     this.updateCheckTimer = setInterval(() => this.checkForUpdate(), UPDATE_CHECK_INTERVAL_MS);
     document.addEventListener('visibilitychange', this.onVisibilityChange);
+    // Keep the anonymous public statistics (/stats) up to date while a volunteer is signed in.
+    if (!this.embedded) this.statsSub = this.publicStats.startAutoPublish();
   }
 
   ngOnDestroy() {
     if (this.updateCheckTimer) clearInterval(this.updateCheckTimer);
     document.removeEventListener('visibilitychange', this.onVisibilityChange);
+    this.statsSub?.unsubscribe();
   }
 
   private async checkForUpdate() {
