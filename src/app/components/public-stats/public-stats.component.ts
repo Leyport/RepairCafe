@@ -90,7 +90,7 @@ const OUTCOMES: { key: keyof PublicSessionStats; label: string }[] = [
 
         <p class="foot">
           <ng-container *ngIf="v.updated">Updated {{ v.updated }} · </ng-container>
-          <a href="https://repaircafe-6792c.web.app/" target="_blank" rel="noopener">{{ org }}</a>
+          <a href="https://rc.leyport.io/" target="_blank" rel="noopener">{{ org }}</a>
         </p>
 
         <details class="embed-help" *ngIf="!embed && (signedIn$ | async)">
@@ -159,7 +159,7 @@ export class PublicStatsComponent implements OnDestroy {
   readonly light = this.route.snapshot.queryParamMap.get('theme') === 'light';
   readonly signedIn$ = this.authService.user$.pipe(map(u => !!u));
   readonly embedCode =
-    `<iframe src="https://repaircafe-6792c.web.app/stats?embed=1&theme=light&limit=6"\n` +
+    `<iframe src="https://rc.leyport.io/stats?embed=1&theme=light&limit=6"\n` +
     `        title="${ORGANISATION_NAME} statistics" width="100%" height="900"\n` +
     `        style="border:0" loading="lazy"></iframe>`;
 
