@@ -4,7 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { BackupService } from '../../../services/backup.service';
 
 // Clearing these could lock admins out, wipe login records or restart reference numbers, so they start unticked.
-const SENSITIVE_COLLECTIONS = ['admins', 'users', 'sys_settings', 'sys_counters'];
+const SENSITIVE_COLLECTIONS = ['admins', 'volunteers', 'users', 'sys_settings', 'sys_counters'];
 const CONFIRM_WORD = 'DELETE';
 
 @Component({

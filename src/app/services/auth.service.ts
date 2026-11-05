@@ -1,7 +1,10 @@
 import { Injectable, inject } from '@angular/core';
 import { Auth, GoogleAuthProvider, OAuthProvider, FacebookAuthProvider, signInWithPopup, signOut, user, User, signInWithEmailAndPassword, createUserWithEmailAndPassword, linkWithCredential, AuthCredential, UserCredential } from '@angular/fire/auth';
-import { Firestore, doc, getDoc, setDoc, Timestamp } from '@angular/fire/firestore';
-import { Observable, from, map, of, switchMap, catchError } from 'rxjs';
+import { Firestore, doc, docData, getDoc, setDoc, Timestamp } from '@angular/fire/firestore';
+import { Observable, from, map, of, switchMap, catchError, combineLatest, shareReplay } from 'rxjs';
+
+/** 'loading' until known; 'pending' = signed in but not yet approved by an admin. */
+export type AccessState = 'loading' | 'signed-out' | 'pending' | 'approved';
 
 @Injectable({
     providedIn: 'root'
@@ -10,6 +13,25 @@ export class AuthService {
     private auth: Auth = inject(Auth);
     private firestore: Firestore = inject(Firestore);
     user$: Observable<User | null> = user(this.auth);
+
+    /**
+     * Whether the signed-in person may use the repair data. Admins and accounts an admin has
+     * approved (volunteers/{uid}) are approved; the database rules enforce the same thing.
+     * Updates live, so a waiting volunteer gets in as soon as they're approved.
+     */
+    access$: Observable<AccessState> = this.user$.pipe(
+        switchMap(u => {
+            if (!u) return of<AccessState>('signed-out');
+            const exists = (path: string) => docData(doc(this.firestore, path, u.uid)).pipe(
+                map(d => d !== undefined),
+                catchError(() => of(false))
+            );
+            return combineLatest([exists('admins'), exists('volunteers')]).pipe(
+                map(([admin, volunteer]): AccessState => (admin || volunteer ? 'approved' : 'pending'))
+            );
+        }),
+        shareReplay({ bufferSize: 1, refCount: true })
+    );
 
     /**
      * Facebook sign-in that was refused because the email already belongs to an account made

@@ -1,15 +1,18 @@
 import { Component, OnDestroy, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { RouterOutlet, RouterLink } from '@angular/router';
+import { RouterOutlet, RouterLink, Router, NavigationEnd } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
 import { RepairService } from './services/repair.service';
-import { map } from 'rxjs/operators';
-import { firstValueFrom, Subscription } from 'rxjs';
+import { filter, map, startWith, switchMap } from 'rxjs/operators';
+import { combineLatest, firstValueFrom, of, Subscription } from 'rxjs';
 
 import { AuthService } from './services/auth.service';
 import { PublicStatsService } from './services/public-stats.service';
 import { LoginComponent } from './components/auth/login/login.component';
 import { APP_VERSION } from './constants/version';
+
+// Pages anyone can see without signing in or being approved.
+const PUBLIC_PATHS = new Set(['', 'stats', 'privacy', 'data-deletion']);
 
 const UPDATE_CHECK_INTERVAL_MS = 5 * 60 * 1000;
 
@@ -27,6 +30,7 @@ export class AppComponent implements OnInit, OnDestroy {
 
   private repairService = inject(RepairService);
   private authService = inject(AuthService);
+  private router = inject(Router);
   private http = inject(HttpClient);
   private publicStats = inject(PublicStatsService);
   private statsSub: Subscription | null = null;
@@ -42,11 +46,29 @@ export class AppComponent implements OnInit, OnDestroy {
 
   appVersion$ = this.repairService.getAppVersion();
 
-  issueCount$ = this.repairService.getIssues().pipe(
+  user$ = this.authService.user$;
+  access$ = this.authService.access$;
+
+  // Only approved volunteers can read the issues log.
+  issueCount$ = this.access$.pipe(
+    switchMap(a => (a === 'approved' ? this.repairService.getIssues() : of([]))),
     map(issues => issues.length)
   );
 
-  user$ = this.authService.user$;
+  private isPublicPage$ = this.router.events.pipe(
+    filter((e): e is NavigationEnd => e instanceof NavigationEnd),
+    map(e => e.urlAfterRedirects),
+    startWith(window.location.pathname),
+    map(url => PUBLIC_PATHS.has(url.split(/[?#]/)[0].replace(/^\/+|\/+$/g, '').split('/')[0]))
+  );
+
+  /** What the main area shows: the page itself, or a sign-in / waiting-for-approval message. */
+  gate$ = combineLatest([this.access$.pipe(startWith('loading' as const)), this.isPublicPage$]).pipe(
+    map(([access, isPublic]) => {
+      if (isPublic || access === 'approved') return 'page';
+      return access; // 'loading' | 'signed-out' | 'pending'
+    })
+  );
 
   ngOnInit() {
     // Actively tells you when a newer build has been deployed, rather than

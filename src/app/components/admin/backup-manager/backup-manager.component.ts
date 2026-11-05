@@ -4,7 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { BackupService, ParsedBackup } from '../../../services/backup.service';
 
 // Restoring these could lock admins out or overwrite login records, so they start unticked.
-const SENSITIVE_COLLECTIONS = ['admins', 'users', 'sys_settings'];
+const SENSITIVE_COLLECTIONS = ['admins', 'volunteers', 'users', 'sys_settings'];
 
 @Component({
   selector: 'app-backup-manager',

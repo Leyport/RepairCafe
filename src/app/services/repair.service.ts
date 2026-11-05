@@ -599,6 +599,22 @@ export class RepairService {
         );
     }
 
+    getVolunteers(): Observable<string[]> {
+        return collectionData(collection(this.firestore, 'volunteers'), { idField: 'id' }).pipe(
+            map((docs: any[]) => docs.map(d => d.id))
+        );
+    }
+
+    /** Approve (or remove approval for) a signed-in account to use the repair data. */
+    async setVolunteerStatus(uid: string, approved: boolean, approvedBy?: string): Promise<void> {
+        const ref = doc(this.firestore, 'volunteers', uid);
+        if (approved) {
+            await setDoc(ref, { uid, approvedAt: Timestamp.now(), approvedBy: approvedBy || null });
+        } else {
+            await deleteDoc(ref);
+        }
+    }
+
     async setAdminStatus(uid: string, isAdmin: boolean): Promise<void> {
         const adminRef = doc(this.firestore, 'admins', uid);
         if (isAdmin) {

@@ -1,24 +1,60 @@
 rules_version = '2';
 
+// Who can do what:
+//   - Anyone (even signed out): read the anonymous counts on the public /stats page.
+//   - Signed in, not yet approved: read and update their own profile, check whether they're
+//     approved, and nothing else.
+//   - Approved volunteers (a volunteers/{uid} document, added by an admin in Admin → Users):
+//     read and edit the repair data.
+//   - Admins (an admins/{uid} document): everything, including approving volunteers and
+//     making other admins.
+
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // This rule allows anyone with your Firestore database reference to view, edit,
-    // and delete all data in your Firestore database. It is useful for getting
-    // started, but it is configured to expire after 30 days because it
-    // leaves your app open to attackers. At that time, all client
-    // requests to your Firestore database will be denied.
-    //
-    // Make sure to write security rules for your app before that time, or else
-    // all client requests to your Firestore database will be denied until you Update
-    // your rules
+    function signedIn() {
+      return request.auth != null;
+    }
+    function isSelf(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+    function isAdmin() {
+      return signedIn() && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+    function isVolunteer() {
+      return isAdmin()
+        || (signedIn() && exists(/databases/$(database)/documents/volunteers/$(request.auth.uid)));
+    }
+
+    // Admins can do anything.
+    match /{document=**} {
+      allow read, write: if isAdmin();
+    }
+
+    // Repair data and app settings: approved volunteers. Access-control collections are
+    // excluded here and handled below, so volunteers can't approve themselves or others.
+    match /{collectionName}/{document=**} {
+      allow read, write: if isVolunteer()
+        && !(collectionName in ['admins', 'volunteers', 'users', 'public_stats']);
+    }
+
+    match /admins/{uid} {
+      allow read: if isSelf(uid);
+    }
+
+    match /volunteers/{uid} {
+      allow read: if isSelf(uid);
+    }
+
+    // Each person's own sign-in profile (name, email, photo, last seen).
+    match /users/{uid} {
+      allow read, create, update: if isSelf(uid);
+    }
+
     // Anonymous per-session counts shown on the public /stats page and embedded on other websites.
     match /public_stats/{doc} {
       allow read: if true;
-    }
-
-    match /{document=**} {
-      allow read, write: if request.time < timestamp.date(2027, 2, 25);
+      allow write: if isVolunteer();
     }
   }
 }

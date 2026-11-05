@@ -17,7 +17,7 @@
       </div>
       <div class="header-controls">
         <div class="header-actions">
-          <ng-container *ngIf="user$ | async">
+          <ng-container *ngIf="(access$ | async) === 'approved'">
             <a routerLink="/admin" class="btn-admin" title="Admin Dashboard">
               <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"
                 stroke-linecap="round" stroke-linejoin="round">
@@ -95,7 +95,25 @@
   </header>
 
   <main>
-    <router-outlet></router-outlet>
+    <ng-container [ngSwitch]="gate$ | async">
+      <div *ngSwitchCase="'pending'" class="gate-msg glass">
+        <h2>Waiting for approval</h2>
+        <p>
+          Thanks for signing in<ng-container *ngIf="(user$ | async)?.displayName as name">, {{ name }}</ng-container>.
+          To protect our visitors' details, an admin needs to approve your account before you can see
+          the repair records.
+        </p>
+        <p>Please ask a Repair Cafe organiser to approve you in <strong>Admin → Users</strong>. This page will open by itself as soon as they do.</p>
+        <p class="gate-small">Signed in as {{ (user$ | async)?.email }} · <a href="#" (click)="$event.preventDefault(); logout()">Sign out</a></p>
+      </div>
+      <div *ngSwitchCase="'signed-out'" class="gate-msg glass">
+        <h2>Please sign in</h2>
+        <p>This page is for Repair Cafe volunteers. Sign in to see it.</p>
+        <p><a routerLink="/" class="gate-btn">Go to the sign-in page</a></p>
+      </div>
+      <p *ngSwitchCase="'loading'" class="gate-loading">Loading…</p>
+      <router-outlet *ngSwitchDefault></router-outlet>
+    </ng-container>
   </main>
 
   <footer *ngIf="!embedded">

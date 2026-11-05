@@ -8,7 +8,7 @@ import { APP_VERSION } from '../constants/version';
 // Collections the app always uses. Imported collections are discovered via sys_collections.
 const CORE_COLLECTIONS = [
     'repairItems', 'repairers', 'tags', 'owners', 'issues',
-    'users', 'admins', 'sys_collections', 'sys_settings', 'sys_counters', 'imported_sessions'
+    'users', 'admins', 'volunteers', 'sys_collections', 'sys_settings', 'sys_counters', 'imported_sessions'
 ];
 
 // The backup log itself is never backed up or restored, so restoring can't wipe the history.

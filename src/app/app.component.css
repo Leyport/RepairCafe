@@ -170,3 +170,26 @@
 .manual-link:hover {
     color: var(--accent-color, #00f2ff);
 }
+
+.gate-msg {
+    max-width: 560px;
+    margin: 2rem auto;
+    padding: 1.75rem 2rem;
+    border-radius: 14px;
+    line-height: 1.6;
+    color: rgba(255, 255, 255, 0.8);
+}
+.gate-msg h2 { margin: 0 0 0.75rem; color: white; }
+.gate-msg strong { color: white; }
+.gate-msg a { color: var(--accent-color, #00f2ff); }
+.gate-small { font-size: 0.85rem; color: rgba(255, 255, 255, 0.5); }
+.gate-btn {
+    display: inline-block;
+    padding: 0.55rem 1.2rem;
+    border-radius: 8px;
+    border: 1px solid rgba(0, 242, 255, 0.4);
+    background: rgba(0, 242, 255, 0.1);
+    text-decoration: none;
+    font-weight: 600;
+}
+.gate-loading { text-align: center; color: rgba(255, 255, 255, 0.4); margin: 3rem 0; }

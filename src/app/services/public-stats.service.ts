@@ -91,12 +91,12 @@ export class PublicStatsService {
   }
 
   /**
-   * While a volunteer is signed in, keep the published summary in step with the repair items.
+   * While an approved volunteer is signed in, keep the published summary in step with the repair items.
    * Only writes when the numbers actually change.
    */
   startAutoPublish(): Subscription {
-    return this.authService.user$.pipe(
-      switchMap(u => (u ? this.repairService.getRepairItems() : of(null))),
+    return this.authService.access$.pipe(
+      switchMap(a => (a === 'approved' ? this.repairService.getRepairItems() : of(null))),
       filter((items): items is RepairItem[] => items !== null),
       debounceTime(3000),
     ).subscribe(items => this.publish(items).catch(err => console.warn('Could not publish stats', err)));
