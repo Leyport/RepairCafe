@@ -24,7 +24,7 @@ interface UserRow {
         <h3>👤 Users</h3>
       </div>
       <p class="intro">
-        Anyone can sign in with Google, Facebook or email, but they can't see or change any repair
+        Anyone can sign in with Google or email, but they can't see or change any repair
         data until you <strong>approve</strong> them here. Admins are always approved.
       </p>
 
