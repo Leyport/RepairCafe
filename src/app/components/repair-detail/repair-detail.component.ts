@@ -62,6 +62,11 @@ import { RepairItem, toRepairPhoto } from '../../models/repair-item.model';
               </div>
             </div>
           </section>
+
+          <section class="detail-section description-section" *ngIf="item.completionNotes">
+            <label>Completion Notes</label>
+            <p class="description-text">{{ item.completionNotes }}</p>
+          </section>
         </div>
 
         <footer class="detail-actions">
