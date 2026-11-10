@@ -275,17 +275,18 @@ export class RepairerManagerComponent {
     this.selectedRepairer = null;
   }
 
-  async onSave(event: { id?: string, name: string, photoUrl?: string, isPrimary: boolean, email: string }) {
+  async onSave(event: { id?: string, name: string, photoUrl?: string, isPrimary: boolean, email: string, telephone: string }) {
     try {
       if (event.id) {
         await this.repairService.updateRepairer(event.id, {
           name: event.name,
           photoUrl: event.photoUrl,
           isPrimary: event.isPrimary,
-          email: event.email
+          email: event.email,
+          telephone: event.telephone
         });
       } else {
-        await this.repairService.addRepairer(event.name, event.photoUrl, event.isPrimary);
+        await this.repairService.addRepairer(event.name, event.photoUrl, event.isPrimary, event.telephone);
       }
       this.closeForm();
     } catch (error) {

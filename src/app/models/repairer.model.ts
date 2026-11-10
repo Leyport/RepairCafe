@@ -5,4 +5,5 @@ export interface Repairer {
     photoUrl?: string;
     isPrimary?: boolean;
     email?: string;
+    telephone?: string;
 }

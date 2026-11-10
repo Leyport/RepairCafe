@@ -84,6 +84,13 @@ import { inject, OnChanges, OnDestroy } from '@angular/core';
             [(ngModel)]="email"
             placeholder="Enter email address">
 
+          <label for="repairerTelephone">Telephone</label>
+          <input
+            type="tel"
+            id="repairerTelephone"
+            [(ngModel)]="telephone"
+            placeholder="07xxx xxxxxx">
+
           <div class="primary-toggle" *ngIf="isAdmin">
             <label class="checkbox-label">
               <input type="checkbox" [(ngModel)]="isPrimary">
@@ -169,7 +176,7 @@ import { inject, OnChanges, OnDestroy } from '@angular/core';
       color: rgba(255, 255, 255, 0.7);
     }
 
-    input[type="text"] {
+    input[type="text"], input[type="email"], input[type="tel"] {
       width: 100%;
       padding: 0.8rem;
       background: rgba(255, 255, 255, 0.05);
@@ -177,6 +184,8 @@ import { inject, OnChanges, OnDestroy } from '@angular/core';
       border-radius: 6px;
       color: white;
       font-size: 1rem;
+      box-sizing: border-box;
+      margin-bottom: 1rem;
     }
 
     input:focus {
@@ -556,11 +565,12 @@ export class RepairerFormComponent implements OnChanges, OnDestroy {
   @Input() repairer: Repairer | null = null;
   @Input() isAdmin = false;
   @Output() closeEvent = new EventEmitter<void>();
-  @Output() saveEvent = new EventEmitter<{ id?: string, name: string, photoUrl?: string, isPrimary: boolean, email: string }>();
+  @Output() saveEvent = new EventEmitter<{ id?: string, name: string, photoUrl?: string, isPrimary: boolean, email: string, telephone: string }>();
   @Output() deleteEvent = new EventEmitter<string>();
 
   name = '';
   email = '';
+  telephone = '';
   isPrimary = false;
   photoUrl: string | null = null;
   photoPreview: string | null = null;
@@ -691,12 +701,14 @@ export class RepairerFormComponent implements OnChanges, OnDestroy {
     if (this.repairer) {
       this.name = this.repairer.name;
       this.email = this.repairer.email || '';
+      this.telephone = this.repairer.telephone || '';
       this.photoUrl = this.repairer.photoUrl || null;
       this.photoPreview = null;
       this.isPrimary = this.repairer.isPrimary || false;
     } else {
       this.name = '';
       this.email = '';
+      this.telephone = '';
       this.photoUrl = null;
       this.photoPreview = null;
       this.isPrimary = false;
@@ -906,6 +918,7 @@ export class RepairerFormComponent implements OnChanges, OnDestroy {
         id: this.repairer?.id,
         name: this.name,
         email: this.email,
+        telephone: this.telephone,
         photoUrl: finalPhotoUrl,
         isPrimary: this.isPrimary
       });
