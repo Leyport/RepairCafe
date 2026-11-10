@@ -25,6 +25,10 @@ export interface RepairItem {
   status?: string; // Status: "New", "Assigned", "Completed"
   telephone?: string; // Contact telephone number
   owner?: string; // Name of the owner
+  postcode?: string; // Postcode AREA only (outward code, e.g. "SW1A") — never the full
+  // postcode. Collected for area-coverage reporting, not to identify an individual;
+  // see normalizePostcode() in intake.component.ts, which strips any full postcode
+  // down to just the outward part before it's ever saved.
   category?: string;
   tags?: string[];
   photos?: RepairPhoto[];

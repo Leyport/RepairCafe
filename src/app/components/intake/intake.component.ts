@@ -45,7 +45,13 @@ interface PendingPhoto {
               <label>Phone</label>
               <input type="tel" class="text-input" placeholder="07xxx xxxxxx" [(ngModel)]="ownerPhone">
             </div>
+            <div class="field">
+              <label>Postcode area <span class="optional-label">(optional)</span></label>
+              <input type="text" class="text-input" placeholder="e.g. SW1A" maxlength="8" [(ngModel)]="ownerPostcode">
+            </div>
           </div>
+          <p class="field-hint">First part of the postcode only, e.g. "SW1A" — this is just for reporting
+            on the areas we cover, so please don't enter the full postcode.</p>
         </div>
 
         <div class="divider"></div>
@@ -160,6 +166,7 @@ interface PendingPhoto {
     label { font-size: .82rem; font-weight: 600; color: #ffffff8c; }
     .req { color: #f1948a; }
     .optional-label { font-size: .75rem; font-weight: 400; color: #ffffff4d; text-transform: none; letter-spacing: 0; }
+    .field-hint { margin: -.3rem 0 0; font-size: .78rem; color: #ffffff59; }
     .text-input, .select-input, .textarea-input { background: #ffffff0d; border: 1px solid rgba(255,255,255,.12); color: #ffffffe6; border-radius: 8px; padding: .6rem .8rem; font-size: .92rem; outline: none; font-family: inherit; transition: border-color .15s; box-sizing: border-box; width: 100%; }
     .text-input:focus, .select-input:focus, .textarea-input:focus { border-color: var(--accent-color); }
     .text-input::placeholder, .textarea-input::placeholder { color: #ffffff40; }
@@ -211,6 +218,7 @@ export class IntakeComponent {
 
   ownerName = '';
   ownerPhone = '';
+  ownerPostcode = '';
   itemDescription = '';
   fault = '';
   category = '';
@@ -331,6 +339,7 @@ export class IntakeComponent {
         status: 'Registered'
       };
       if (this.ownerPhone.trim()) item.telephone = this.ownerPhone.trim();
+      if (this.ownerPostcode.trim()) item.postcode = normalizePostcode(this.ownerPostcode);
       if (this.category) item.category = this.category;
       if (uploaded.length) item.photos = uploaded;
       await this.repairService.addRepairItem(item);
@@ -341,4 +350,23 @@ export class IntakeComponent {
       this.saving = false;
     }
   }
+}
+
+/**
+ * Keeps only the postcode's outward code (area + district, e.g. "SW1A") — this is
+ * deliberately a safety net, not just UI copy: if someone pastes a full postcode
+ * anyway (outward + a 3-character inward code, e.g. "SW1A 1AA"), the inward part is
+ * stripped before it's ever saved, since that's specific enough to identify an
+ * individual household and we only want area-level data for reporting.
+ */
+function normalizePostcode(raw: string): string {
+  const cleaned = raw.trim().toUpperCase().replace(/\s+/g, '');
+  if (cleaned.length > 4) {
+    const outward = cleaned.slice(0, -3);
+    const inward = cleaned.slice(-3);
+    if (/^\d[A-Z]{2}$/.test(inward) && /^[A-Z]{1,2}\d[A-Z\d]?$/.test(outward)) {
+      return outward;
+    }
+  }
+  return cleaned;
 }
