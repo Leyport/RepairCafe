@@ -53,6 +53,9 @@ import { RepairService } from '../../services/repair.service';
           <!-- Item Count Badge -->
           <div class="item-count-badge" *ngIf="getStats(date) > 0" title="Items created for this date">
             🛠️ {{ getStats(date) }}
+            <span class="repaired-pct" title="Repaired, as a percentage of items received">
+              · {{ getRepairedPercent(date) }}% repaired
+            </span>
           </div>
 
           <!-- Mini Status Donut -->
@@ -271,7 +274,14 @@ import { RepairService } from '../../services/repair.service';
         color: rgba(255, 255, 255, 0.9);
         display: flex;
         align-items: center;
+        flex-wrap: wrap;
+        justify-content: center;
         gap: 0.3rem;
+    }
+
+    .repaired-pct {
+        color: #81c784;
+        font-weight: 600;
     }
 
     .mini-donut {
@@ -366,6 +376,15 @@ export class ScheduleComponent implements OnInit {
     const breakdown = this.dateStatusMap.get(key);
     if (!breakdown) return 0;
     return Object.values(breakdown).reduce((sum, n) => sum + n, 0);
+  }
+
+  /** Items with status "Repaired", as a percentage of all items received for that date. */
+  getRepairedPercent(date: Date | null): number {
+    const total = this.getStats(date);
+    if (!date || total === 0) return 0;
+    const key = this.repairService.generateRCDay(date);
+    const repaired = this.dateStatusMap.get(key)?.['Repaired'] || 0;
+    return Math.round((repaired / total) * 100);
   }
 
   getSessionSlices(date: Date) {
