@@ -29,6 +29,13 @@ body {
   padding: 2rem;
 }
 
+/* Pages with wide content (e.g. the repair items table) get more room on
+   screens that can spare it, instead of being capped at reading-width and
+   forced to horizontally scroll. */
+.container.wide {
+  max-width: 1600px;
+}
+
 @media (max-width: 768px) {
   .container {
     padding: 1rem;

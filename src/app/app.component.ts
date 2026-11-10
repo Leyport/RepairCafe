@@ -14,6 +14,10 @@ import { APP_VERSION } from './constants/version';
 // Pages anyone can see without signing in or being approved.
 const PUBLIC_PATHS = new Set(['', 'stats', 'privacy', 'data-deletion']);
 
+// Pages whose content (e.g. a wide data table) benefits from more than the
+// usual reading-width .container, on screens big enough to make use of it.
+const WIDE_PATHS = new Set(['repairs']);
+
 const UPDATE_CHECK_INTERVAL_MS = 5 * 60 * 1000;
 
 @Component({
@@ -60,6 +64,13 @@ export class AppComponent implements OnInit, OnDestroy {
     map(e => e.urlAfterRedirects),
     startWith(window.location.pathname),
     map(url => PUBLIC_PATHS.has(url.split(/[?#]/)[0].replace(/^\/+|\/+$/g, '').split('/')[0]))
+  );
+
+  isWidePage$ = this.router.events.pipe(
+    filter((e): e is NavigationEnd => e instanceof NavigationEnd),
+    map(e => e.urlAfterRedirects),
+    startWith(window.location.pathname),
+    map(url => WIDE_PATHS.has(url.split(/[?#]/)[0].replace(/^\/+|\/+$/g, '').split('/')[0]))
   );
 
   /** What the main area shows: the page itself, or a sign-in / waiting-for-approval message. */

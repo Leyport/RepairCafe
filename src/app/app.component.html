@@ -2,7 +2,7 @@
   A new version of this app has been deployed.
   <button (click)="reloadApp()">Refresh now</button>
 </div>
-<div class="container">
+<div class="container" [class.wide]="isWidePage$ | async">
   <header *ngIf="!embedded">
     <div class="header-top">
       <div class="home-area">
