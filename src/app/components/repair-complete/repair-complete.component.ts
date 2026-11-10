@@ -514,6 +514,9 @@ export class RepairCompleteComponent implements OnInit {
         if (this.item.donationAmount !== undefined) {
           this.donationAmount = this.item.donationAmount;
         }
+        if (this.item.completionNotes !== undefined) {
+          this.completionNotes = this.item.completionNotes;
+        }
       }
       this.loading = false;
     });
@@ -542,6 +545,7 @@ export class RepairCompleteComponent implements OnInit {
       status: this.completionStatus,
       ownerSatisfied: this.ownerSatisfied,
       donationAmount: (this.donationAmount && this.donationAmount > 0) ? this.donationAmount : 0,
+      completionNotes: this.completionNotes.trim(),
     };
 
     try {
