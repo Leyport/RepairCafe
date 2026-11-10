@@ -1,7 +1,9 @@
 import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { firstValueFrom } from 'rxjs';
 import { BackupService } from '../../../services/backup.service';
+import { AuthService } from '../../../services/auth.service';
 
 // Clearing these could lock admins out, wipe login records or restart reference numbers, so they start unticked.
 const SENSITIVE_COLLECTIONS = ['admins', 'volunteers', 'users', 'sys_settings', 'sys_counters'];
@@ -17,7 +19,14 @@ const CONFIRM_WORD = 'DELETE';
         <h3>🗑️ Clear Data</h3>
       </div>
 
-      <div class="panel">
+      <div class="empty-state" *ngIf="checkingAdmin">Checking access...</div>
+
+      <p class="denied" *ngIf="!checkingAdmin && !isAdmin">
+        Only admins can clear data. Ask an existing admin to grant you admin access first
+        (Admin → Manage Users).
+      </p>
+
+      <div class="panel" *ngIf="!checkingAdmin && isAdmin">
         <p class="hint">
           Deletes every record in the selected collections. A full backup spreadsheet of the whole app is
           always downloaded first, so the data can be put back later with <strong>Backup &amp; Restore</strong>.
@@ -59,6 +68,15 @@ const CONFIRM_WORD = 'DELETE';
   styles: [`
     .manager-section { max-width: 900px; }
     .section-header h3 { margin: 0 0 1.5rem; color: white; }
+    .denied {
+      padding: 1.25rem 1.5rem;
+      background: rgba(255, 89, 89, 0.08);
+      border: 1px solid rgba(255, 89, 89, 0.25);
+      border-radius: 10px;
+      color: #ff9b9b;
+      font-size: 0.9rem;
+      line-height: 1.5;
+    }
     .panel {
       padding: 1.25rem 1.5rem;
       background: rgba(255, 255, 255, 0.03);
@@ -104,9 +122,12 @@ const CONFIRM_WORD = 'DELETE';
 })
 export class ClearDataComponent implements OnInit {
   private backupService = inject(BackupService);
+  private authService = inject(AuthService);
 
   readonly confirmWord = CONFIRM_WORD;
 
+  checkingAdmin = true;
+  isAdmin = false;
   loading = true;
   busy = false;
   status = '';
@@ -116,7 +137,13 @@ export class ClearDataComponent implements OnInit {
   confirmText = '';
 
   async ngOnInit() {
-    await this.loadCounts();
+    // Checked here too, not just the nav card's visibility, since that alone wouldn't
+    // stop someone navigating straight to this route's URL.
+    this.isAdmin = await firstValueFrom(this.authService.isAdmin$);
+    this.checkingAdmin = false;
+    if (this.isAdmin) {
+      await this.loadCounts();
+    }
   }
 
   isSensitive(name: string): boolean {

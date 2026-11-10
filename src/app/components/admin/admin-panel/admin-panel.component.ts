@@ -19,20 +19,24 @@ import { ExportService } from '../../../services/export.service';
       <!-- Section open: compact tab strip so the chosen section appears right below it -->
       <nav class="admin-tabs" *ngIf="sectionOpen">
         <a routerLink="/admin" class="tab back-tab">← All tools</a>
-        <a *ngFor="let s of sections" [routerLink]="s.path" routerLinkActive="active" class="tab">
-          <span class="tab-icon">{{ s.icon }}</span>{{ s.title }}
-        </a>
+        <ng-container *ngFor="let s of sections">
+          <a *ngIf="!s.adminOnly || (isAdmin$ | async)" [routerLink]="s.path" routerLinkActive="active" class="tab">
+            <span class="tab-icon">{{ s.icon }}</span>{{ s.title }}
+          </a>
+        </ng-container>
       </nav>
 
       <!-- No section open: full menu of cards -->
       <nav class="admin-nav" *ngIf="!sectionOpen">
-        <a *ngFor="let s of sections" [routerLink]="s.path" class="nav-card">
-          <div class="card-icon">{{ s.icon }}</div>
-          <div class="card-content">
-            <h3>{{ s.title }}</h3>
-            <p>{{ s.description }}</p>
-          </div>
-        </a>
+        <ng-container *ngFor="let s of sections">
+          <a *ngIf="!s.adminOnly || (isAdmin$ | async)" [routerLink]="s.path" class="nav-card">
+            <div class="card-icon">{{ s.icon }}</div>
+            <div class="card-content">
+              <h3>{{ s.title }}</h3>
+              <p>{{ s.description }}</p>
+            </div>
+          </a>
+        </ng-container>
 
         <div class="nav-card" (click)="doExport()" [class.disabled]="isExporting">
           <div class="card-icon" *ngIf="!isExporting">📊</div>
@@ -197,13 +201,15 @@ export class AdminPanelComponent implements OnDestroy {
   private exportService = inject(ExportService);
   private router = inject(Router);
 
+  isAdmin$ = this.authService.isAdmin$;
+
   sections = [
     { path: 'repairers', icon: '👥', title: 'Manage Repairers', description: 'Add or remove volunteer repairers from the system.' },
     { path: 'import', icon: '📥', title: 'Import Data', description: 'Load repair data from a Google Sheet into a new collection.' },
     { path: 'database', icon: '🗄️', title: 'Admin Explorer', description: 'Browse Firestore collections and view raw records.' },
     { path: 'users', icon: '👤', title: 'Manage Users', description: 'View logged-in users and assign admin roles.' },
     { path: 'backup', icon: '💾', title: 'Backup & Restore', description: 'Download the whole app to a spreadsheet, or restore from one.' },
-    { path: 'clear', icon: '🗑️', title: 'Clear Data', description: 'Back up the whole app, then delete the data from selected collections.' },
+    { path: 'clear', icon: '🗑️', title: 'Clear Data', description: 'Back up the whole app, then delete the data from selected collections.', adminOnly: true },
     { path: 'version', icon: '🏷️', title: 'App Version', description: 'Update the app version number and change description.' }
   ];
 
