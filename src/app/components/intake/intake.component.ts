@@ -47,10 +47,10 @@ interface PendingPhoto {
             </div>
             <div class="field">
               <label>Postcode area <span class="optional-label">(optional)</span></label>
-              <input type="text" class="text-input" placeholder="e.g. SW1A" maxlength="8" [(ngModel)]="ownerPostcode">
+              <input type="text" class="text-input" placeholder="e.g. SY1" maxlength="8" [(ngModel)]="ownerPostcode">
             </div>
           </div>
-          <p class="field-hint">First part of the postcode only, e.g. "SW1A" — this is just for reporting
+          <p class="field-hint">First part of the postcode only, e.g. "SY1" — this is just for reporting
             on the areas we cover, so please don't enter the full postcode.</p>
         </div>
 
@@ -353,9 +353,9 @@ export class IntakeComponent {
 }
 
 /**
- * Keeps only the postcode's outward code (area + district, e.g. "SW1A") — this is
+ * Keeps only the postcode's outward code (area + district, e.g. "SY1") — this is
  * deliberately a safety net, not just UI copy: if someone pastes a full postcode
- * anyway (outward + a 3-character inward code, e.g. "SW1A 1AA"), the inward part is
+ * anyway (outward + a 3-character inward code, e.g. "SY1 1JA"), the inward part is
  * stripped before it's ever saved, since that's specific enough to identify an
  * individual household and we only want area-level data for reporting.
  */
