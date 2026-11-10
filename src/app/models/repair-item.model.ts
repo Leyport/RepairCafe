@@ -38,7 +38,7 @@ export interface RepairItem {
   serialNumber?: string;
   yearOfManufacture?: string;
   repairVideos?: { url: string; title: string }[];
-  ownerSatisfied?: boolean;
+  ownerSatisfied?: boolean | null; // null = "Neutral", a real selectable outcome, not "unanswered"
   donationAmount?: number;
   investigationNotes?: string;
   sequenceNumber?: number; // Permanent reference number, assigned once and never changed or reused

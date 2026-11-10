@@ -404,6 +404,14 @@ export class RepairService {
             await Promise.all(updateData.tags.map(tag => this.ensureTagExists(tag)));
         }
 
+        // Firestore's updateDoc() rejects the whole write if any field is `undefined`
+        // (it has to be `null` or omitted) — callers build these objects from form state
+        // that's easy to leave as undefined (e.g. a ternary with no else), so this is a
+        // safety net against that whole class of "Failed to save" bug, not just one caller.
+        for (const key of Object.keys(updateData) as (keyof typeof updateData)[]) {
+            if (updateData[key] === undefined) delete updateData[key];
+        }
+
         return updateDoc(itemDoc, updateData);
     }
 

@@ -540,7 +540,7 @@ export class RepairCompleteComponent implements OnInit {
 
     const updates: Partial<RepairItem> = {
       status: this.completionStatus,
-      ownerSatisfied: this.ownerSatisfied === null ? undefined : this.ownerSatisfied,
+      ownerSatisfied: this.ownerSatisfied,
       donationAmount: (this.donationAmount && this.donationAmount > 0) ? this.donationAmount : 0,
     };
 
