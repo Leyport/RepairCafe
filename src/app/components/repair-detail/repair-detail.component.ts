@@ -41,6 +41,10 @@ import { RepairItem, toRepairPhoto } from '../../models/repair-item.model';
               <label>Item No. (this session)</label>
               <span>{{ item.displayNumber }}</span>
             </div>
+            <div class="info-item" *ngIf="item.paperItemNumber">
+              <label>Paper Item No.</label>
+              <span>{{ item.paperItemNumber }}</span>
+            </div>
             <div class="info-item" *ngIf="item.sequenceNumber">
               <label>Reference No.</label>
               <span>{{ item.sequenceNumber }}</span>

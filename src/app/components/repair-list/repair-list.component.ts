@@ -1409,11 +1409,13 @@ export class RepairListComponent implements OnInit {
         filtered = filtered.filter(item => {
           const description = (item.itemDescription || '').toLowerCase();
           const number = (item.displayNumber || '').toLowerCase();
+          const paper = (item.paperItemNumber || '').toLowerCase();
           const day = (item.RCDay || '').toLowerCase();
           const tags = item.tags || [];
 
           return description.includes(term) ||
             number.includes(term) ||
+            paper.includes(term) ||
             day.includes(term) ||
             tags.some(tag => tag.toLowerCase().includes(term));
         });

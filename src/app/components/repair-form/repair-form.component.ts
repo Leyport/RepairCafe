@@ -71,11 +71,19 @@ interface ImageResult {
                 </div>
               </div>
 
-              <div class="form-group">
-                <label for="itemNumber">Sequence Number (Suggested)</label>
-                <input id="itemNumber" type="text" formControlName="displayNumber" placeholder="e.g., 1">
-                <small class="hint">Leave as is or override. The system will auto-assign if left blank.</small>
-                <small class="hint" *ngIf="sequenceNumber">Permanent reference no. <strong>{{ sequenceNumber }}</strong> (never changes)</small>
+              <div class="number-row">
+                <div class="form-group">
+                  <label for="itemNumber">Sequence Number (Suggested)</label>
+                  <input id="itemNumber" type="text" formControlName="displayNumber" placeholder="e.g., 1">
+                  <small class="hint">Leave as is or override. The system will auto-assign if left blank.</small>
+                  <small class="hint" *ngIf="sequenceNumber">Permanent reference no. <strong>{{ sequenceNumber }}</strong> (never changes)</small>
+                </div>
+
+                <div class="form-group">
+                  <label for="paperItemNumber">Paper Item No. <span class="optional-label">(optional)</span></label>
+                  <input id="paperItemNumber" type="text" formControlName="paperItemNumber" placeholder="e.g., 23">
+                  <small class="hint">The number written on the paper form, so the two can be matched up.</small>
+                </div>
               </div>
 
             </div>
@@ -530,6 +538,9 @@ interface ImageResult {
     .section-body .form-group:last-child { margin-bottom: 0; }
 
     .form-group { margin-bottom: 1.5rem; }
+    .number-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+    @media (max-width: 600px) { .number-row { grid-template-columns: 1fr; gap: 0; } }
+    .optional-label { font-weight: 400; opacity: 0.6; }
     label { display: block; margin-bottom: 0.5rem; font-weight: 500; color: rgba(255, 255, 255, 0.8); }
     .required { color: #ff4444; margin-left: 2px; }
     .hint { display: block; font-size: 0.8rem; color: rgba(255, 255, 255, 0.4); margin-top: 0.3rem; }
@@ -959,6 +970,7 @@ export class RepairFormComponent implements OnInit, OnDestroy {
 
     this.repairForm = this.fb.group({
       displayNumber: [''],
+      paperItemNumber: [''],
       category: [''],
       itemDescription: ['', Validators.required],
       fault: [''],
@@ -1045,6 +1057,7 @@ export class RepairFormComponent implements OnInit, OnDestroy {
           this.sequenceNumber = item.sequenceNumber ?? null;
           const updates: any = {
             displayNumber: item.displayNumber,
+            paperItemNumber: item.paperItemNumber || '',
             category: item.category || '',
             itemDescription: item.itemDescription,
             fault: item.fault || '',

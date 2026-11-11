@@ -20,6 +20,7 @@ export interface RepairItem {
   creationDate: any; // Using any for Firestore compatibility (Timestamp)
   rcdate?: any; // RC event date (optional, Timestamp)
   displayNumber: string;
+  paperItemNumber?: string; // Number on the paper ticket/form, while the paper system runs in parallel
   RCDay: string;
   rcDayNumber: number;
   status?: string; // Status: "New", "Assigned", "Completed"
