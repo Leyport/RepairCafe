@@ -70,6 +70,11 @@ interface PendingPhoto {
                 <option *ngFor="let c of categories" [value]="c.value">{{ c.emoji }} {{ c.label }}</option>
               </select>
             </div>
+            <div class="field field-narrow">
+              <label>Paper Item No. <span class="optional-label">(optional)</span></label>
+              <input type="text" class="text-input" placeholder="e.g. 23" [(ngModel)]="paperItemNumber"
+                     title="The number written on the paper form, so the two can be matched up">
+            </div>
           </div>
           <div class="field">
             <label>What's wrong with it? <span class="req">*</span></label>
@@ -222,6 +227,7 @@ export class IntakeComponent {
   itemDescription = '';
   fault = '';
   category = '';
+  paperItemNumber = '';
   saving = false;
   uploadingPhoto = false;
   showWebcam = false;
@@ -341,6 +347,7 @@ export class IntakeComponent {
       if (this.ownerPhone.trim()) item.telephone = this.ownerPhone.trim();
       if (this.ownerPostcode.trim()) item.postcode = normalizePostcode(this.ownerPostcode);
       if (this.category) item.category = this.category;
+      if (this.paperItemNumber.trim()) item.paperItemNumber = this.paperItemNumber.trim();
       if (uploaded.length) item.photos = uploaded;
       await this.repairService.addRepairItem(item);
       this.router.navigate(['/repairs']);
