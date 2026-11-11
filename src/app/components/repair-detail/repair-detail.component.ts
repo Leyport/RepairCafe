@@ -16,7 +16,7 @@ import { RepairItem, toRepairPhoto } from '../../models/repair-item.model';
             <span class="sequence-badge">{{ item.displayNumber }}</span>
             <h1>Repair Details</h1>
           </div>
-          <button class="btn-close" [routerLink]="['/']">×</button>
+          <button class="btn-close" [routerLink]="['/repairs']" [queryParams]="{ recent: item.id }">×</button>
         </header>
 
         <div class="detail-content">

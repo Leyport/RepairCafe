@@ -1,7 +1,7 @@
 import { Component, inject, OnInit, HostListener } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormControl, ReactiveFormsModule, FormsModule } from '@angular/forms';
-import { Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { RepairService } from '../../services/repair.service';
 import { Observable, BehaviorSubject, combineLatest, startWith, map, shareReplay } from 'rxjs';
 import { RepairItem, Owner, toRepairPhoto } from '../../models/repair-item.model';
@@ -170,6 +170,8 @@ interface RepairerGroup {
         </div>
         <div *ngFor="let item of filteredItems$ | async"
              class="list-row"
+             [class.recent]="item.id === recentId"
+             [attr.id]="'row-' + item.id"
              (click)="onRowClick(item)"
              (dblclick)="onRowDblClick(item)">
 
@@ -193,7 +195,11 @@ interface RepairerGroup {
           </div>
 
           <!-- Description -->
-          <span class="col-desc truncate">{{ item.itemDescription }}</span>
+          <span class="col-desc truncate">
+            <span *ngIf="item.id === recentId" class="just-saved">✓ Just saved</span>
+            <span *ngIf="item.completionNotes" class="notes-flag" [title]="'Completion notes: ' + item.completionNotes">📝</span>
+            {{ item.itemDescription }}
+          </span>
 
           <!-- Owner -->
           <div class="col-owner" (click)="$event.stopPropagation()" (dblclick)="$event.stopPropagation()">
@@ -601,6 +607,21 @@ interface RepairerGroup {
     .list-row:hover {
       background: rgba(255, 255, 255, 0.03);
     }
+    .list-row.recent {
+      background: rgba(40, 180, 99, 0.10);
+      box-shadow: inset 3px 0 0 #58d68d;
+    }
+    .just-saved {
+      font-size: 0.7rem;
+      font-weight: 700;
+      color: #58d68d;
+      background: rgba(40, 180, 99, 0.15);
+      border: 1px solid rgba(40, 180, 99, 0.4);
+      border-radius: 10px;
+      padding: 0.1rem 0.45rem;
+      margin-right: 0.35rem;
+    }
+    .notes-flag { margin-right: 0.3rem; cursor: help; }
     .col-code {
       display: flex;
       align-items: center;
@@ -1133,6 +1154,10 @@ interface RepairerGroup {
 export class RepairListComponent implements OnInit {
   private repairService = inject(RepairService);
   private router = inject(Router);
+  private route = inject(ActivatedRoute);
+
+  /** Item just completed/edited elsewhere — kept visible and highlighted so it doesn't "vanish" from the Active view. */
+  recentId: string | null = this.route.snapshot.queryParamMap.get('recent');
 
   searchControl = new FormControl('');
   sortControl = new FormControl<string>('created:desc', { nonNullable: true });
@@ -1173,6 +1198,10 @@ export class RepairListComponent implements OnInit {
     this.availableRCDayValues = new Set(this.availableRCDates.map(d => d.value));
     this.repairService.getOwners().subscribe(o => this.owners = o);
     this.repairService.getPrimaryRepairers().subscribe(r => this.primaryRepairers = r);
+    if (this.recentId) {
+      // Scroll the just-saved row into view once the list has rendered.
+      setTimeout(() => document.getElementById('row-' + this.recentId)?.scrollIntoView({ block: 'center', behavior: 'smooth' }), 400);
+    }
   }
 
   async updateItem(item: RepairItem, field: string, value: any) {
@@ -1366,7 +1395,7 @@ export class RepairListComponent implements OnInit {
       let filtered = items.filter(item => {
         const isDone = COMPLETED_STATUSES.has(item.status || '');
         // Imported historic items are past records, never open work, even without a final outcome.
-        if (completionFilter === 'active') return !isDone && !item.importSource;
+        if (completionFilter === 'active') return (!isDone && !item.importSource) || item.id === this.recentId;
         if (completionFilter === 'completed') return isDone;
         return true;
       });

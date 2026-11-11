@@ -118,13 +118,24 @@ import { RepairItem } from '../../models/repair-item.model';
           </div>
         </div>
 
+        <div *ngIf="saved" class="saved-banner">
+          <div class="saved-text">
+            <strong>✓ Saved</strong> — item {{ item.displayNumber }} is marked <strong>{{ item.status }}</strong>.
+            <span *ngIf="item.completionNotes">Your notes are stored on this item and shown on its details page (and as 📝 in the repair list).</span>
+          </div>
+          <div class="saved-actions">
+            <button class="btn-link" (click)="viewItem()">View item details</button>
+            <button class="btn-link" (click)="goBack()">Back to Repair Items</button>
+          </div>
+        </div>
+
         <div class="form-actions">
-          <button class="btn-cancel" (click)="goBack()">Cancel</button>
+          <button class="btn-cancel" (click)="goBack()">{{ saved ? 'Done' : 'Cancel' }}</button>
           <button
             class="btn-complete"
             [disabled]="saving || !completionStatus"
             (click)="saveCompletion()">
-            <span *ngIf="!saving">Mark as Complete</span>
+            <span *ngIf="!saving">{{ alreadyCompleted ? 'Save Changes' : 'Mark as Complete' }}</span>
             <span *ngIf="saving">Saving...</span>
           </button>
         </div>
@@ -435,6 +446,32 @@ import { RepairItem } from '../../models/repair-item.model';
     .status-partial   { background: rgba(230,126,34,0.12);  color: #f0a055; border: 1px solid rgba(230,126,34,0.3); }
     .status-not       { background: rgba(231,76,60,0.12);   color: #f1948a; border: 1px solid rgba(231,76,60,0.3); }
 
+    /* Saved confirmation */
+    .saved-banner {
+      display: flex;
+      flex-direction: column;
+      gap: 0.6rem;
+      padding: 0.9rem 1.1rem;
+      border-radius: 10px;
+      background: rgba(40,180,99,0.12);
+      border: 1px solid rgba(40,180,99,0.4);
+      color: rgba(255,255,255,0.85);
+      font-size: 0.9rem;
+      line-height: 1.4;
+    }
+    .saved-banner strong { color: #58d68d; }
+    .saved-actions { display: flex; gap: 1.2rem; flex-wrap: wrap; }
+    .btn-link {
+      background: none;
+      border: none;
+      padding: 0;
+      color: var(--accent-color);
+      cursor: pointer;
+      font-size: 0.88rem;
+      font-weight: 600;
+      text-decoration: underline;
+    }
+
     /* Form actions */
     .form-actions {
       display: flex;
@@ -484,6 +521,8 @@ export class RepairCompleteComponent implements OnInit {
   item: RepairItem | null = null;
   loading = true;
   saving = false;
+  saved = false;
+  alreadyCompleted = false;
 
   completionStatus: string = '';
   ownerSatisfied: boolean | null = null;
@@ -507,6 +546,7 @@ export class RepairCompleteComponent implements OnInit {
         // Pre-fill if already has completion data
         if (this.item.status && this.item.status !== 'New' && this.item.status !== 'Assigned') {
           this.completionStatus = this.item.status;
+          this.alreadyCompleted = true;
         }
         if (this.item.ownerSatisfied !== undefined) {
           this.ownerSatisfied = this.item.ownerSatisfied;
@@ -534,7 +574,12 @@ export class RepairCompleteComponent implements OnInit {
   }
 
   goBack() {
-    this.router.navigate(['/repairs']);
+    // Pass the item back so the list keeps it visible and highlighted, even once it's completed.
+    this.router.navigate(['/repairs'], this.item?.id ? { queryParams: { recent: this.item.id } } : {});
+  }
+
+  viewItem() {
+    if (this.item?.id) this.router.navigate(['/item', this.item.id]);
   }
 
   async saveCompletion() {
@@ -550,7 +595,11 @@ export class RepairCompleteComponent implements OnInit {
 
     try {
       await this.repairService.updateRepairItem(this.item.id, updates);
-      this.router.navigate(['/repairs']);
+      // Stay on this page and confirm, rather than jumping away to the list.
+      Object.assign(this.item, updates);
+      this.saved = true;
+      this.alreadyCompleted = true;
+      this.saving = false;
     } catch (err) {
       console.error('Error saving completion:', err);
       alert('Failed to save. Please try again.');
