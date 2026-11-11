@@ -256,8 +256,8 @@ interface ImageResult {
                 <div *ngIf="uploadError" class="error-banner">{{ uploadError }}</div>
               </div>
 
-              <!-- Repair Videos -->
-              <div class="form-group yt-section">
+              <!-- Repair Videos (hidden for now — set showRepairVideos = true to bring back) -->
+              <div class="form-group yt-section" *ngIf="showRepairVideos">
                 <label>Find Repair Videos</label>
                 <div class="yt-search-row">
                   <input type="text" [(ngModel)]="youtubeSearchQuery" [ngModelOptions]="{standalone: true}"
@@ -914,6 +914,8 @@ export class RepairFormComponent implements OnInit, OnDestroy {
   } = { make: '', model: '', colour: '', serialNumber: '', yearOfManufacture: '', repairVideos: [] };
 
   showVideoSearch = false;
+  /** YouTube "Find Repair Videos" section is hidden for now; any saved videos are kept untouched. */
+  readonly showRepairVideos = false;
   videoSearchLoading = false;
   videoSearchError = '';
   videoSearchQuery = '';
