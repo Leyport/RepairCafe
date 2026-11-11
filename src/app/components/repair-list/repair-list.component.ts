@@ -5,7 +5,7 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { RepairService } from '../../services/repair.service';
 import { Observable, BehaviorSubject, combineLatest, startWith, map, shareReplay } from 'rxjs';
 import { RepairItem, Owner, toRepairPhoto } from '../../models/repair-item.model';
-import { rcDayKey, createdMonthKey, buildSessionFilterOptions, matchesSessionFilter } from '../../utils/rc-day';
+import { rcDayKey, createdMonthKey, buildSessionFilterOptions, matchesSessionFilter, monthLabel } from '../../utils/rc-day';
 
 type SortColumn = 'number' | 'description' | 'owner' | 'category' | 'repairer' | 'session' | 'created' | 'status';
 type SortDir = 'asc' | 'desc';
@@ -98,6 +98,11 @@ interface RepairerGroup {
         </div>
       </div>
       
+      <div class="filter-summary" *ngIf="sessionLimited && latestSessionLabel">
+        Showing the <strong>{{ latestSessionLabel }}</strong> repair cafe only
+        · <button class="link-btn" (click)="completionControl.setValue('all')">Show all sessions</button>
+      </div>
+
       <div class="filter-summary" *ngIf="activeFilterCount() > 0">
         Showing {{ (filteredItems$ | async)?.length ?? 0 }} item(s) matching {{ activeFilterCount() }} column filter(s)
         <span *ngIf="completionControl.value !== 'all'"> in <strong>{{ completionControl.value }}</strong> items</span>
@@ -1337,6 +1342,30 @@ export class RepairListComponent implements OnInit {
     }
   }
 
+  /** True while the list is limited to the latest session (Active/Completed, no session filter). */
+  sessionLimited = false;
+  latestSessionLabel = '';
+
+  /**
+   * The most recent repair cafe session that has items, ignoring anything dated beyond
+   * the next upcoming session (so a mistyped far-future date can't hijack the view).
+   */
+  private latestSessionKey(items: RepairItem[]): string {
+    const cap = rcDayKey(this.repairService.getNextRCDay());
+    let latest = '';
+    for (const item of items) {
+      const key = rcDayKey(item.RCDay);
+      if (key && key > latest && (!cap || key <= cap)) latest = key;
+    }
+    return latest;
+  }
+
+  /** "2026-11-21" → "21 Nov 2026" */
+  private sessionLabel(key: string): string {
+    const [y, m, d] = key.split('-');
+    return `${parseInt(d, 10)} ${monthLabel(`${y}-${m}`)}`;
+  }
+
   private allItems$ = this.repairService.getRepairItems().pipe(shareReplay({ bufferSize: 1, refCount: true }));
 
   constructor() {
@@ -1404,6 +1433,15 @@ export class RepairListComponent implements OnInit {
     this.filters$
   ]).pipe(
     map(([items, searchTerm, sortValue, completionFilter, filters]) => {
+      // Active / Completed only show the latest repair cafe session; "All" (or picking
+      // a session in the column filter) goes back further.
+      const latest = this.latestSessionKey(items);
+      this.latestSessionLabel = latest ? this.sessionLabel(latest) : '';
+      this.sessionLimited = !!latest && completionFilter !== 'all' && !filters.session;
+      if (this.sessionLimited) {
+        items = items.filter(item => rcDayKey(item.RCDay) === latest || item.id === this.recentId);
+      }
+
       // Completion filter
       let filtered = items.filter(item => {
         const isDone = COMPLETED_STATUSES.has(item.status || '');
