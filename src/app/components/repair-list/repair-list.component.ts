@@ -192,6 +192,9 @@ interface RepairerGroup {
                   title="Edit item">
               {{ item.displayNumber }}
             </span>
+            <span *ngIf="item.paperItemNumber" class="paper-no" [title]="'Paper item no. ' + item.paperItemNumber">
+              📄 {{ item.paperItemNumber }}
+            </span>
           </div>
 
           <!-- Description -->
@@ -624,7 +627,17 @@ interface RepairerGroup {
     .notes-flag { margin-right: 0.3rem; cursor: help; }
     .col-code {
       display: flex;
-      align-items: center;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 0.2rem;
+    }
+    .paper-no {
+      font-size: 0.72rem;
+      color: rgba(255, 255, 255, 0.55);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 100%;
     }
     .seq-badge {
       font-size: 0.9rem;
