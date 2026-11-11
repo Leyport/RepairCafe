@@ -135,7 +135,6 @@ interface PendingPhoto {
           </div>
           <div class="webcam-body">
             <video #videoEl class="webcam-video" autoplay playsinline></video>
-            <canvas #canvasEl style="display:none"></canvas>
             <div class="webcam-error" *ngIf="webcamError">{{ webcamError }}</div>
           </div>
           <div class="webcam-footer">
@@ -216,7 +215,6 @@ interface PendingPhoto {
 })
 export class IntakeComponent {
   @ViewChild('videoEl') videoEl!: ElementRef<HTMLVideoElement>;
-  @ViewChild('canvasEl') canvasEl!: ElementRef<HTMLCanvasElement>;
 
   router = inject(Router);
   private repairService = inject(RepairService);
@@ -291,17 +289,21 @@ export class IntakeComponent {
   }
 
   capturePhoto() {
+    if (!this.showWebcam) return; // ignore extra taps once a photo has been taken
     const video = this.videoEl.nativeElement;
-    const canvas = this.canvasEl.nativeElement;
+    if (!video.videoWidth) return; // camera not ready yet
+    // Off-screen canvas, so it survives the camera modal being removed below.
+    const canvas = document.createElement('canvas');
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
     canvas.getContext('2d')!.drawImage(video, 0, 0);
+    // Close the camera straight away — one press, one photo. The frame is already on the canvas.
+    this.closeWebcam();
     canvas.toBlob(async (blob) => {
-      if (!blob) return;
+      if (!blob || this.photos.length >= 3) return;
       const file = new File([blob], `photo-${Date.now()}.jpg`, { type: 'image/jpeg' });
       const preview = await this.readAsDataUrl(file);
       this.photos.push({ preview, file });
-      this.closeWebcam();
     }, 'image/jpeg', 0.9);
   }
 

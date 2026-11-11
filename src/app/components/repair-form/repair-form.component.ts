@@ -222,7 +222,6 @@ interface ImageResult {
                     <div class="webcam-container">
                       <p class="webcam-title">Take a photo</p>
                       <video #webcamVideo autoplay playsinline class="webcam-video"></video>
-                      <canvas #webcamCanvas style="display:none"></canvas>
                       <div class="webcam-controls">
                         <button type="button" class="btn-capture" (click)="capturePhoto()">
                           <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
@@ -823,7 +822,6 @@ export class RepairFormComponent implements OnInit, OnDestroy {
 
   @ViewChild('cameraInput') cameraInputRef!: ElementRef<HTMLInputElement>;
   @ViewChild('webcamVideo') webcamVideoRef!: ElementRef<HTMLVideoElement>;
-  @ViewChild('webcamCanvas') webcamCanvasRef!: ElementRef<HTMLCanvasElement>;
   private router = inject(Router);
   private route = inject(ActivatedRoute);
   protected appVersion = APP_VERSION;
@@ -1146,11 +1144,16 @@ export class RepairFormComponent implements OnInit, OnDestroy {
   }
 
   capturePhoto() {
+    if (!this.showWebcamModal) return; // ignore extra taps once a photo has been taken
     const video = this.webcamVideoRef.nativeElement;
-    const canvas = this.webcamCanvasRef.nativeElement;
+    if (!video.videoWidth) return; // camera not ready yet
+    // Off-screen canvas, so it survives the modal being removed below.
+    const canvas = document.createElement('canvas');
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
     canvas.getContext('2d')!.drawImage(video, 0, 0);
+    // Close the camera straight away — one press, one photo. The frame is already on the canvas.
+    this.closeWebcam();
     canvas.toBlob(blob => {
       if (blob) {
         const file = new File([blob], `photo-${Date.now()}.jpg`, { type: 'image/jpeg' });
@@ -1158,7 +1161,6 @@ export class RepairFormComponent implements OnInit, OnDestroy {
         reader.onload = (e: any) => { this.selectedFiles = [...this.selectedFiles, { file, preview: e.target.result, status: 'ready', type: 'before' }]; };
         reader.readAsDataURL(file);
       }
-      this.closeWebcam();
     }, 'image/jpeg', 0.92);
   }
 
