@@ -9,6 +9,7 @@ import { combineLatest, firstValueFrom, of, Subscription } from 'rxjs';
 import { AuthService } from './services/auth.service';
 import { PublicStatsService } from './services/public-stats.service';
 import { LoginComponent } from './components/auth/login/login.component';
+import { ConfirmDialogComponent } from './components/confirm-dialog/confirm-dialog.component';
 import { APP_VERSION } from './constants/version';
 
 // Pages anyone can see without signing in or being approved.
@@ -23,7 +24,7 @@ const UPDATE_CHECK_INTERVAL_MS = 5 * 60 * 1000;
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [CommonModule, RouterOutlet, RouterLink, LoginComponent],
+  imports: [CommonModule, RouterOutlet, RouterLink, LoginComponent, ConfirmDialogComponent],
   templateUrl: './app.component.html',
   styleUrl: './app.component.css'
 })

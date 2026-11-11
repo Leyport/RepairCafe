@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormControl, ReactiveFormsModule, FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { RepairService } from '../../services/repair.service';
+import { DialogService } from '../../services/dialog.service';
 import { Observable, BehaviorSubject, combineLatest, startWith, map, shareReplay } from 'rxjs';
 import { RepairItem, Owner, toRepairPhoto } from '../../models/repair-item.model';
 import { rcDayKey, createdMonthKey, buildSessionFilterOptions, matchesSessionFilter, monthLabel } from '../../utils/rc-day';
@@ -1171,6 +1172,7 @@ interface RepairerGroup {
 })
 export class RepairListComponent implements OnInit {
   private repairService = inject(RepairService);
+  private dialog = inject(DialogService);
   private router = inject(Router);
   private route = inject(ActivatedRoute);
 
@@ -1612,7 +1614,15 @@ export class RepairListComponent implements OnInit {
 
   async onDelete(id: string, event: Event) {
     event.stopPropagation();
-    if (confirm('Are you sure you want to delete this repair item?')) {
+    const item = this.allItems.find(i => i.id === id);
+    const ok = await this.dialog.confirm({
+      title: 'Delete this item?',
+      message: `${item?.displayNumber ? item.displayNumber + ' – ' : ''}${item?.itemDescription || 'Untitled item'}\n\nThis will remove it from the repair list for good.`,
+      confirmText: 'Delete',
+      cancelText: 'Keep it',
+      danger: true,
+    });
+    if (ok) {
       try {
         await this.repairService.deleteRepairItem(id);
       } catch (error) {

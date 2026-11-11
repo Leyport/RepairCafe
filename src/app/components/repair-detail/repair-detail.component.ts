@@ -2,6 +2,7 @@ import { Component, inject, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { RepairService } from '../../services/repair.service';
+import { DialogService } from '../../services/dialog.service';
 import { RepairItem, toRepairPhoto } from '../../models/repair-item.model';
 
 @Component({
@@ -309,6 +310,7 @@ export class RepairDetailComponent implements OnInit {
   private route = inject(ActivatedRoute);
   private router = inject(Router);
   private repairService = inject(RepairService);
+  private dialog = inject(DialogService);
 
   item: RepairItem | null = null;
   selectedPhoto: string | null = null;
@@ -336,9 +338,17 @@ export class RepairDetailComponent implements OnInit {
   }
 
   async onDelete() {
-    if (this.item?.id && confirm('Are you sure you want to delete this repair item?')) {
+    if (!this.item?.id) return;
+    const ok = await this.dialog.confirm({
+      title: 'Delete this item?',
+      message: `${this.item.displayNumber ? this.item.displayNumber + ' – ' : ''}${this.item.itemDescription || 'Untitled item'}\n\nThis will remove it from the repair list for good.`,
+      confirmText: 'Delete',
+      cancelText: 'Keep it',
+      danger: true,
+    });
+    if (ok && this.item?.id) {
       await this.repairService.deleteRepairItem(this.item.id);
-      this.router.navigate(['/']);
+      this.router.navigate(['/repairs']);
     }
   }
 
