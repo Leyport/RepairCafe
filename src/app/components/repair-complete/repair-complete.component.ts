@@ -5,6 +5,7 @@ import { FormsModule } from '@angular/forms';
 import { RepairService } from '../../services/repair.service';
 import { RepairItem } from '../../models/repair-item.model';
 
+import { DialogService } from '../../services/dialog.service';
 @Component({
   selector: 'app-repair-complete',
   standalone: true,
@@ -514,6 +515,7 @@ import { RepairItem } from '../../models/repair-item.model';
   `]
 })
 export class RepairCompleteComponent implements OnInit {
+  private dialog = inject(DialogService);
   private route = inject(ActivatedRoute);
   private router = inject(Router);
   private repairService = inject(RepairService);
@@ -602,7 +604,7 @@ export class RepairCompleteComponent implements OnInit {
       this.saving = false;
     } catch (err) {
       console.error('Error saving completion:', err);
-      alert('Failed to save. Please try again.');
+      this.dialog.error("Couldn't save. Please try again.");
       this.saving = false;
     }
   }

@@ -13,6 +13,7 @@ import { environment } from '../../../../environments/environment';
 import { SequenceService, SEQUENCE_FIELD } from '../../../services/sequence.service';
 import { rcDayKey, createdMonthKey, buildSessionFilterOptions, matchesSessionFilter, monthLabel, SessionFilterOptions } from '../../../utils/rc-day';
 
+import { DialogService } from '../../../services/dialog.service';
 interface ExplorerFilters {
   number: string;
   description: string;
@@ -1596,6 +1597,7 @@ const DATE_COLUMNS = new Set(['RCDay', 'creationDate', 'createdAt', 'firstSeen']
   `]
 })
 export class DatabaseExplorerComponent implements OnInit {
+  private dialog = inject(DialogService);
   private repairService = inject(RepairService);
   private authService = inject(AuthService);
   private router = inject(Router);
@@ -1651,15 +1653,18 @@ export class DatabaseExplorerComponent implements OnInit {
   private sequenceService = inject(SequenceService);
 
   async assignReferenceNumbers() {
-    if (!confirm(`Give ${this.missingSeqCount} repair item(s) a permanent reference number?\n\n` +
-      'Numbers follow the order items were brought in (oldest session first) and never change afterwards.')) return;
+    if (!(await this.dialog.confirm({
+      title: `Give ${this.missingSeqCount} repair item(s) a reference number?`,
+      message: 'Numbers follow the order items were brought in (oldest session first) and never change afterwards.',
+      confirmText: 'Assign numbers',
+    }))) return;
     this.numbering = true;
     try {
       const count = await this.sequenceService.assignMissing(msg => this.numberingStatus = msg);
-      alert(`Done: ${count} item(s) numbered.`);
+      this.dialog.success(`${count} item(s) numbered.`);
     } catch (error: any) {
       console.error('Assigning reference numbers failed:', error);
-      alert('Failed: ' + (error.message || 'Unknown error'));
+      this.dialog.error(`Couldn't assign reference numbers. ${error.message || ''}`.trim());
     } finally {
       this.numbering = false;
       this.numberingStatus = '';
@@ -1815,7 +1820,7 @@ export class DatabaseExplorerComponent implements OnInit {
       this.closeAssignmentModal();
     } catch (error) {
       console.error('Error saving assignment:', error);
-      alert('Failed to save assignment.');
+      this.dialog.error("Couldn't save the assignment. Please try again.");
     }
   }
 
@@ -2034,17 +2039,17 @@ export class DatabaseExplorerComponent implements OnInit {
         };
         await this.repairService.addRepairItem(newItem);
       } else if (this.selectedCollection === 'repairers') {
-        const name = prompt('Enter name for new repairer:');
+        const name = await this.dialog.prompt({ title: 'Add a repairer', placeholder: 'Name', confirmText: 'Add' });
         if (name) {
           await this.repairService.addRepairer(name);
         }
       } else if (this.selectedCollection === 'owners') {
-        const name = prompt('Enter name for new visitor:');
+        const name = await this.dialog.prompt({ title: 'Add a visitor', placeholder: 'Name', confirmText: 'Add' });
         if (name) {
           await this.repairService.ensureOwnerExists(name);
         }
       } else if (this.selectedCollection === 'tags') {
-        const name = prompt('Enter name for new tag:');
+        const name = await this.dialog.prompt({ title: 'Add a tag', placeholder: 'Tag name', confirmText: 'Add' });
         if (name) {
           await this.repairService.ensureTagExists(name);
         }
@@ -2053,14 +2058,18 @@ export class DatabaseExplorerComponent implements OnInit {
       this.selectCollection(this.selectedCollection); // Refresh
     } catch (error) {
       console.error('Error adding record:', error);
-      alert('Failed to add record.');
+      this.dialog.error("Couldn't add it. Please try again.");
     }
   }
-  deleteCol(colName: string, event: Event) {
+  async deleteCol(colName: string, event: Event) {
     event.stopPropagation(); // Prevent tab selection
     if (!colName) return;
 
-    if (confirm(`Are you sure you want to delete the collection "${colName}"? \n\nThis will permanently delete ALL records in this collection. This action cannot be undone.`)) {
+    if (await this.dialog.confirm({
+      title: `Delete all of "${colName}"?`,
+      message: 'Every record in this collection will be permanently deleted. This cannot be undone.',
+      confirmText: 'Delete', cancelText: 'Keep it', danger: true,
+    })) {
       this.repairService.deleteCollection(colName).then(() => {
         // If we deleted the current collection, switch to default
         if (this.selectedCollection === colName) {
@@ -2211,7 +2220,11 @@ export class DatabaseExplorerComponent implements OnInit {
     const count = this.selectedItems.size;
     if (count === 0 || !this.selectedCollection) return;
 
-    const confirmed = confirm(`Are you sure you want to delete ${count} selected record${count > 1 ? 's' : ''} from "${this.getCollectionLabel(this.selectedCollection)}"?\n\nThis action cannot be undone.`);
+    const confirmed = await this.dialog.confirm({
+      title: `Delete ${count} record${count > 1 ? 's' : ''}?`,
+      message: `From "${this.getCollectionLabel(this.selectedCollection)}". This cannot be undone.`,
+      confirmText: 'Delete', cancelText: 'Keep', danger: true,
+    });
     if (!confirmed) return;
 
     try {
@@ -2222,7 +2235,7 @@ export class DatabaseExplorerComponent implements OnInit {
       this.selectCollection(this.selectedCollection);
     } catch (error) {
       console.error('Error deleting records:', error);
-      alert('Failed to delete records. Please try again.');
+      this.dialog.error("Couldn't delete the records. Please try again.");
     }
   }
 
@@ -2269,7 +2282,7 @@ export class DatabaseExplorerComponent implements OnInit {
       this.selectCollection(this.selectedCollection || 'repairItems');
     } catch (error) {
       console.error('Error saving repairer:', error);
-      alert('Failed to save repairer.');
+      this.dialog.error("Couldn't save the repairer. Please try again.");
     }
   }
 
@@ -2280,19 +2293,23 @@ export class DatabaseExplorerComponent implements OnInit {
       this.selectCollection(this.selectedCollection || 'repairItems');
     } catch (error) {
       console.error('Error deleting repairer:', error);
-      alert('Failed to delete repairer.');
+      this.dialog.error("Couldn't delete the repairer. Please try again.");
     }
   }
 
   async deleteOwner(id: string, name: string, event: Event) {
     event.stopPropagation();
-    if (confirm(`Are you sure you want to delete visitor "${name}"? This will not delete their repair records, but they will be removed from the visitors list.`)) {
+    if (await this.dialog.confirm({
+      title: `Delete visitor "${name}"?`,
+      message: 'They will be removed from the visitors list. Their repair records are kept.',
+      confirmText: 'Delete', cancelText: 'Keep', danger: true,
+    })) {
       try {
         await this.repairService.deleteMultipleRecords('owners', [id]);
         this.selectCollection('owners');
       } catch (error) {
         console.error('Error deleting owner:', error);
-        alert('Failed to delete owner.');
+        this.dialog.error("Couldn't delete the visitor. Please try again.");
       }
     }
   }
@@ -2300,13 +2317,17 @@ export class DatabaseExplorerComponent implements OnInit {
   async deleteRepairItem(id: string, label: any, event: Event) {
     event.stopPropagation();
     this.openRowMenuId = null;
-    if (confirm(`Delete repair item "${label}"? This cannot be undone.`)) {
+    if (await this.dialog.confirm({
+      title: 'Delete this item?',
+      message: `${label}\n\nThis will remove it for good.`,
+      confirmText: 'Delete', cancelText: 'Keep it', danger: true,
+    })) {
       try {
         await this.repairService.deleteMultipleRecords('repairItems', [id]);
         this.selectCollection('repairItems');
       } catch (error) {
         console.error('Error deleting repair item:', error);
-        alert('Failed to delete repair item.');
+        this.dialog.error("Couldn't delete the item. Please try again.");
       }
     }
   }
@@ -2406,10 +2427,14 @@ export class DatabaseExplorerComponent implements OnInit {
     const col = this.selectedCollection;
     if (!col) return;
     const piiFields = this.gdprPiiFields[col];
-    if (!piiFields?.length) { alert('No personal data fields identified for this collection.'); return; }
+    if (!piiFields?.length) { this.dialog.info('This collection has no personal data fields.'); return; }
 
     const label = this.getCollectionLabel(col);
-    if (!confirm(`Mask all personal data in "${label}"?\n\nFields affected: ${piiFields.join(', ')}\n\nThis will apply first-letter/last-3-chars masking to every record. This cannot be undone.`)) return;
+    if (!(await this.dialog.confirm({
+      title: `Mask personal data in "${label}"?`,
+      message: `Fields affected: ${piiFields.join(', ')}\n\nEach value is partly hidden (first letter and last 3 characters kept) on every record. This cannot be undone.`,
+      confirmText: 'Mask data', danger: true,
+    }))) return;
 
     try {
       const data = await this.repairService.getCollectionDataOnce(col);
@@ -2423,10 +2448,10 @@ export class DatabaseExplorerComponent implements OnInit {
         if (hasChange) { await this.repairService.updateRecord(col, record.id, updates); updated++; }
       }
       this.selectCollection(col);
-      alert(`Masked ${updated} record(s) in "${label}".`);
+      this.dialog.success(`Masked ${updated} record(s) in "${label}".`);
     } catch (err) {
       console.error('GDPR mask failed:', err);
-      alert('GDPR mask operation failed.');
+      this.dialog.error("Couldn't mask the personal data. Please try again.");
     }
   }
 
@@ -2435,10 +2460,14 @@ export class DatabaseExplorerComponent implements OnInit {
     const col = this.selectedCollection;
     if (!col) return;
     const piiFields = this.gdprPiiFields[col];
-    if (!piiFields?.length) { alert('No personal data fields identified for this collection.'); return; }
+    if (!piiFields?.length) { this.dialog.info('This collection has no personal data fields.'); return; }
 
     const label = this.getCollectionLabel(col);
-    if (!confirm(`Anonymize all personal data in "${label}"?\n\nFields affected: ${piiFields.join(', ')}\n\nAll values will be replaced with "[ANONYMIZED]". This cannot be undone.`)) return;
+    if (!(await this.dialog.confirm({
+      title: `Anonymise personal data in "${label}"?`,
+      message: `Fields affected: ${piiFields.join(', ')}\n\nAll values will be replaced with "[ANONYMIZED]". This cannot be undone.`,
+      confirmText: 'Anonymise', danger: true,
+    }))) return;
 
     try {
       const data = await this.repairService.getCollectionDataOnce(col);
@@ -2452,10 +2481,10 @@ export class DatabaseExplorerComponent implements OnInit {
         if (hasChange) { await this.repairService.updateRecord(col, record.id, updates); updated++; }
       }
       this.selectCollection(col);
-      alert(`Anonymized ${updated} record(s) in "${label}".`);
+      this.dialog.success(`Anonymised ${updated} record(s) in "${label}".`);
     } catch (err) {
       console.error('GDPR anonymize failed:', err);
-      alert('GDPR anonymize operation failed.');
+      this.dialog.error("Couldn't anonymise the personal data. Please try again.");
     }
   }
 
@@ -2464,16 +2493,24 @@ export class DatabaseExplorerComponent implements OnInit {
     const col = this.selectedCollection;
     if (!col) return;
     const label = this.getCollectionLabel(col);
-    if (!confirm(`PERMANENTLY DELETE all records in "${label}"?\n\nThis will delete every record in this collection. This action CANNOT be undone.`)) return;
-    if (!confirm(`Are you absolutely sure? All ${label} data will be gone forever.`)) return;
+    if (!(await this.dialog.confirm({
+      title: `Permanently delete all of "${label}"?`,
+      message: 'Every record in this collection will be deleted. This cannot be undone.',
+      confirmText: 'Delete everything', cancelText: 'Keep it', danger: true,
+    }))) return;
+    if (!(await this.dialog.confirm({
+      title: 'Are you absolutely sure?',
+      message: `All ${label} data will be gone forever.`,
+      confirmText: 'Yes, delete it all', cancelText: 'Keep it', danger: true,
+    }))) return;
 
     try {
       await this.repairService.deleteCollection(col);
       this.selectCollection(col);
-      alert(`All records in "${label}" have been purged.`);
+      this.dialog.success(`All records in "${label}" have been deleted.`);
     } catch (err) {
       console.error('GDPR purge failed:', err);
-      alert('GDPR purge operation failed.');
+      this.dialog.error("Couldn't delete the records. Please try again.");
     }
   }
 
@@ -2492,7 +2529,7 @@ export class DatabaseExplorerComponent implements OnInit {
       this.selectCollection(this.selectedCollection || 'repairItems');
     } catch (err) {
       console.error('Photo upload failed:', err);
-      alert('Photo upload failed. Please try again.');
+      this.dialog.error("Couldn't upload the photo. Please try again.");
     } finally {
       this.uploadingPhotoId = null;
       input.value = '';

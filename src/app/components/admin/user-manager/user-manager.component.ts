@@ -4,6 +4,7 @@ import { combineLatest, firstValueFrom, map, Observable } from 'rxjs';
 import { RepairService } from '../../../services/repair.service';
 import { AuthService } from '../../../services/auth.service';
 
+import { DialogService } from '../../../services/dialog.service';
 interface UserRow {
   id: string;
   displayName: string | null;
@@ -208,6 +209,7 @@ interface UserRow {
   `]
 })
 export class UserManagerComponent implements OnInit {
+  private dialog = inject(DialogService);
   private repairService = inject(RepairService);
   private authService = inject(AuthService);
 
@@ -237,14 +239,18 @@ export class UserManagerComponent implements OnInit {
   ngOnInit() {}
 
   async toggleApproved(user: UserRow) {
-    if (user.isApproved && !confirm(`Remove approval for ${user.displayName || user.email || 'this user'}? They will no longer see any repair data.`)) return;
+    if (user.isApproved && !(await this.dialog.confirm({
+      title: `Remove approval for ${user.displayName || user.email || 'this user'}?`,
+      message: 'They will no longer be able to see any repair information.',
+      confirmText: 'Remove approval', danger: true,
+    }))) return;
     this.loading[user.id] = true;
     try {
       const me = await firstValueFrom(this.authService.user$);
       await this.repairService.setVolunteerStatus(user.id, !user.isApproved, me?.uid);
     } catch (error) {
       console.error('Error changing approval:', error);
-      alert('Could not change approval. Only admins can approve volunteers.');
+      this.dialog.error("Couldn't change approval. Only admins can approve volunteers.");
     } finally {
       this.loading[user.id] = false;
     }

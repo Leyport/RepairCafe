@@ -5,6 +5,7 @@ import { firstValueFrom } from 'rxjs';
 import { BackupService } from '../../../services/backup.service';
 import { AuthService } from '../../../services/auth.service';
 
+import { DialogService } from '../../../services/dialog.service';
 // Clearing these could lock admins out, wipe login records or restart reference numbers, so they start unticked.
 const SENSITIVE_COLLECTIONS = ['admins', 'volunteers', 'users', 'sys_settings', 'sys_counters'];
 const CONFIRM_WORD = 'DELETE';
@@ -121,6 +122,7 @@ const CONFIRM_WORD = 'DELETE';
   `]
 })
 export class ClearDataComponent implements OnInit {
+  private dialog = inject(DialogService);
   private backupService = inject(BackupService);
   private authService = inject(AuthService);
 
@@ -160,7 +162,11 @@ export class ClearDataComponent implements OnInit {
 
   async clear() {
     const names = this.selectedNames();
-    if (!confirm(`Permanently delete all records in:\n\n${names.join(', ')}\n\nA backup will be downloaded first. Continue?`)) return;
+    if (!(await this.dialog.confirm({
+      title: 'Permanently delete all records?',
+      message: `This clears everything in:\n\n${names.join(', ')}\n\nA backup will be downloaded first.`,
+      confirmText: 'Delete everything', cancelText: 'Keep it', danger: true,
+    }))) return;
 
     this.busy = true;
     try {

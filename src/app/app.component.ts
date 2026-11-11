@@ -12,6 +12,7 @@ import { LoginComponent } from './components/auth/login/login.component';
 import { ConfirmDialogComponent } from './components/confirm-dialog/confirm-dialog.component';
 import { APP_VERSION } from './constants/version';
 
+import { DialogService } from './services/dialog.service';
 // Pages anyone can see without signing in or being approved.
 const PUBLIC_PATHS = new Set(['', 'stats', 'privacy', 'data-deletion']);
 
@@ -29,6 +30,7 @@ const UPDATE_CHECK_INTERVAL_MS = 5 * 60 * 1000;
   styleUrl: './app.component.css'
 })
 export class AppComponent implements OnInit, OnDestroy {
+  private dialog = inject(DialogService);
   title = 'RepairCafe';
   showLogin = false;
   updateAvailable = false;
@@ -121,7 +123,7 @@ export class AppComponent implements OnInit, OnDestroy {
     try {
       await this.authService.loginWithGoogle();
     } catch (e) {
-      alert('Login failed');
+      this.dialog.error("Couldn't sign you in. Please try again.", 'Sign-in failed');
     }
   }
 

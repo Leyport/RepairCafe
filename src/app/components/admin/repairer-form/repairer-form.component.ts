@@ -6,6 +6,7 @@ import { RepairService } from '../../../services/repair.service';
 import { AvatarService } from '../../../services/avatar.service';
 import { inject, OnChanges, OnDestroy } from '@angular/core';
 
+import { DialogService } from '../../../services/dialog.service';
 @Component({
   selector: 'app-repairer-form',
   standalone: true,
@@ -559,6 +560,7 @@ import { inject, OnChanges, OnDestroy } from '@angular/core';
   `]
 })
 export class RepairerFormComponent implements OnChanges, OnDestroy {
+  private dialog = inject(DialogService);
   private repairService = inject(RepairService);
   private avatarService = inject(AvatarService);
 
@@ -748,7 +750,7 @@ export class RepairerFormComponent implements OnChanges, OnDestroy {
         videoEl.srcObject = this.cameraStream;
       } catch {
         this.isCameraMode = false;
-        alert('Could not access camera. Please check browser permissions.');
+        this.dialog.error("Couldn't open the camera. Please allow camera access in your browser settings and try again.", 'Camera not available');
       }
     }, 50);
   }
@@ -851,7 +853,7 @@ export class RepairerFormComponent implements OnChanges, OnDestroy {
       this.photoPreview = storedUrl;
       this.isSearchMode = false;
     } catch (err) {
-      alert('Failed to save selected avatar. It might be blocked by CORS.');
+      this.dialog.error("Couldn't use that picture. Try another one, or upload a photo from your device.");
     } finally {
       this.isUploading = false;
     }
@@ -863,7 +865,7 @@ export class RepairerFormComponent implements OnChanges, OnDestroy {
 
     // Basic validation
     if (file.size > 5 * 1024 * 1024) { // 5MB
-      alert('File is too large. Max 5MB.');
+      this.dialog.error('That file is too large. Please choose a picture under 5 MB.', 'File too large');
       return;
     }
 
@@ -885,9 +887,13 @@ export class RepairerFormComponent implements OnChanges, OnDestroy {
     this.selectedEmoji = '';
   }
 
-  delete() {
+  async delete() {
     if (this.repairer?.id) {
-      if (confirm('Are you sure you want to delete this repairer?')) {
+      if (await this.dialog.confirm({
+        title: `Delete ${this.repairer.name || 'this repairer'}?`,
+        message: 'They will be taken off the list of repairers.',
+        confirmText: 'Delete', cancelText: 'Keep', danger: true,
+      })) {
         this.deleteEvent.emit(this.repairer.id);
       }
     }
@@ -924,7 +930,7 @@ export class RepairerFormComponent implements OnChanges, OnDestroy {
       });
     } catch (error) {
       console.error('Error saving repairer:', error);
-      alert('Failed to save repairer.');
+      this.dialog.error("Couldn't save the repairer. Please try again.");
     } finally {
       this.isUploading = false;
     }

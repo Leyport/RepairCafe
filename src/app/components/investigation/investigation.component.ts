@@ -9,6 +9,7 @@ import { Subscription } from 'rxjs';
 import { RepairService } from '../../services/repair.service';
 import { RepairItem, toRepairPhoto } from '../../models/repair-item.model';
 
+import { DialogService } from '../../services/dialog.service';
 interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;
@@ -367,6 +368,7 @@ interface FollowUp {
   `]
 })
 export class InvestigationComponent implements OnInit, OnDestroy {
+  private dialog = inject(DialogService);
   @ViewChild('videoEl') videoEl!: ElementRef<HTMLVideoElement>;
   @ViewChild('canvasEl') canvasEl!: ElementRef<HTMLCanvasElement>;
 
@@ -542,7 +544,7 @@ export class InvestigationComponent implements OnInit, OnDestroy {
       await this.repairService.updateRepairItem(this.item.id, { investigationNotes: this.investigationNotes });
     } catch (e) {
       console.error('Save failed:', e);
-      alert('Failed to save notes.');
+      this.dialog.error("Couldn't save your notes. Please try again.");
     } finally {
       this.saving = false;
     }
@@ -565,7 +567,7 @@ export class InvestigationComponent implements OnInit, OnDestroy {
       }
     } catch (e) {
       console.error('Failed to save report:', e);
-      alert('Failed to save report. Please try again.');
+      this.dialog.error("Couldn't save the report. Please try again.");
     } finally {
       this.savingReport = false;
     }
@@ -664,7 +666,7 @@ export class InvestigationComponent implements OnInit, OnDestroy {
       this.router.navigate(['/complete', this.item.id]);
     } catch (e) {
       console.error('Failed to save notes:', e);
-      alert('Failed to save notes.');
+      this.dialog.error("Couldn't save your notes. Please try again.");
       this.saving = false;
     }
   }

@@ -5,6 +5,7 @@ import { AuthService } from '../../../services/auth.service';
 import { ImportService, REPAIR_COLUMN_TARGETS, SheetPreview } from '../../../services/import.service';
 import { RepairService } from '../../../services/repair.service';
 
+import { DialogService } from '../../../services/dialog.service';
 @Component({
   selector: 'app-import-panel',
   standalone: true,
@@ -757,6 +758,7 @@ import { RepairService } from '../../../services/repair.service';
   `]
 })
 export class ImportPanelComponent {
+  private dialog = inject(DialogService);
   @ViewChild('fileInput') fileInputRef!: ElementRef<HTMLInputElement>;
 
   private authService = inject(AuthService);
@@ -898,7 +900,11 @@ export class ImportPanelComponent {
     const docs = built.flatMap(b => b.docs);
     const skipped = built.reduce((sum, b) => sum + b.skipped, 0);
 
-    if (!confirm(`Import ${docs.length} repair items from ${sheets.length} sheet(s) into "${target}"?`)) return;
+    if (!(await this.dialog.confirm({
+      title: `Import ${docs.length} repair items?`,
+      message: `From ${sheets.length} sheet(s) into "${target}".`,
+      confirmText: 'Import',
+    }))) return;
 
     this.isImporting = true;
     try {

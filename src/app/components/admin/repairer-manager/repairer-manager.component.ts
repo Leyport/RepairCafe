@@ -6,6 +6,7 @@ import { AuthService } from '../../../services/auth.service';
 import { Repairer } from '../../../models/repairer.model';
 import { RepairerFormComponent } from '../repairer-form/repairer-form.component';
 
+import { DialogService } from '../../../services/dialog.service';
 @Component({
   selector: 'app-repairer-manager',
   standalone: true,
@@ -244,6 +245,7 @@ import { RepairerFormComponent } from '../repairer-form/repairer-form.component'
   `]
 })
 export class RepairerManagerComponent {
+  private dialog = inject(DialogService);
   private repairService = inject(RepairService);
   private authService = inject(AuthService);
   private router = inject(Router);
@@ -317,7 +319,11 @@ export class RepairerManagerComponent {
 
   async deleteRepairer(repairer: Repairer, event: MouseEvent) {
     event.stopPropagation();
-    if (confirm(`Are you sure you want to remove ${repairer.name}?`)) {
+    if (await this.dialog.confirm({
+      title: `Remove ${repairer.name}?`,
+      message: 'They will be taken off the list of repairers.',
+      confirmText: 'Remove', cancelText: 'Keep', danger: true,
+    })) {
       try {
         await this.repairService.deleteRepairer(repairer.id!);
       } catch (error) {

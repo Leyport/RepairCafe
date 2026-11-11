@@ -7,6 +7,7 @@ import { Issue } from '../../models/issue.model';
 import { Observable, BehaviorSubject, combineLatest } from 'rxjs';
 import { take, map } from 'rxjs/operators';
 
+import { DialogService } from '../../services/dialog.service';
 interface IssueStats {
   total: number;
   newCount: number;
@@ -590,6 +591,7 @@ interface IssueStats {
   `]
 })
 export class IssuesComponent {
+  private dialog = inject(DialogService);
   private repairService = inject(RepairService);
   private authService = inject(AuthService);
 
@@ -734,7 +736,7 @@ export class IssuesComponent {
       this.toggleForm();
     } catch (error) {
       console.error('Error adding issue:', error);
-      alert('Failed to report issue.');
+      this.dialog.error("Couldn't report the issue. Please try again.");
     }
   }
 
@@ -759,7 +761,7 @@ export class IssuesComponent {
   }
 
   private speak(issues: Issue[]) {
-    if (!('speechSynthesis' in window)) { alert('Text-to-speech is not supported in this browser.'); return; }
+    if (!('speechSynthesis' in window)) { this.dialog.info('Reading aloud isn\'t supported in this browser.'); return; }
     const lines: string[] = [
       `Issue tracker report. Total issues: ${issues.length}.`,
       `New: ${this.countByStatus(issues, 'New')}.`,
@@ -796,17 +798,21 @@ export class IssuesComponent {
       await this.repairService.updateIssue(issue.id, { status: newStatus as any });
     } catch (error) {
       console.error('Error updating status:', error);
-      alert('Failed to update status.');
+      this.dialog.error("Couldn't update the status. Please try again.");
     }
   }
 
   async deleteIssue(id: string) {
-    if (confirm('Are you sure you want to delete this issue?')) {
+    if (await this.dialog.confirm({
+      title: 'Delete this issue?',
+      message: 'It will be removed from the issues list for good.',
+      confirmText: 'Delete', cancelText: 'Keep it', danger: true,
+    })) {
       try {
         await this.repairService.deleteIssue(id);
       } catch (error) {
         console.error('Error deleting issue:', error);
-        alert('Failed to delete issue.');
+        this.dialog.error("Couldn't delete the issue. Please try again.");
       }
     }
   }

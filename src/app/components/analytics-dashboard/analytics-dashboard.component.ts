@@ -11,6 +11,7 @@ import {
 import { RepairService } from '../../services/repair.service';
 import { RepairItem } from '../../models/repair-item.model';
 
+import { DialogService } from '../../services/dialog.service';
 // ── Data interfaces ───────────────────────────────────────────────────────────
 
 interface SessionOutcomes {
@@ -368,6 +369,7 @@ interface Session {
   `]
 })
 export class AnalyticsDashboardComponent implements OnInit, OnDestroy {
+  private dialog = inject(DialogService);
   private cdr           = inject(ChangeDetectorRef);
   private repairService = inject(RepairService);
   private firestore     = inject(Firestore);
@@ -618,7 +620,7 @@ export class AnalyticsDashboardComponent implements OnInit, OnDestroy {
       const sessions = this.parseWorkbook(wb);
 
       if (!sessions.length) {
-        alert('No session data found.\n\nMake sure the workbook contains sheets named "Monthly_Data YYYY".');
+        this.dialog.info('Make sure the workbook contains sheets named "Monthly_Data YYYY".', 'No session data found');
         return;
       }
 

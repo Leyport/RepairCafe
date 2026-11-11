@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { BackupService, ParsedBackup } from '../../../services/backup.service';
 
+import { DialogService } from '../../../services/dialog.service';
 // Restoring these could lock admins out or overwrite login records, so they start unticked.
 const SENSITIVE_COLLECTIONS = ['admins', 'volunteers', 'users', 'sys_settings'];
 
@@ -172,6 +173,7 @@ const SENSITIVE_COLLECTIONS = ['admins', 'volunteers', 'users', 'sys_settings'];
   `]
 })
 export class BackupManagerComponent {
+  private dialog = inject(DialogService);
   private backupService = inject(BackupService);
 
   log$ = this.backupService.getBackupLog();
@@ -243,7 +245,11 @@ export class BackupManagerComponent {
     const action = this.mode === 'replace'
       ? 'REPLACE these collections with the backup contents. Records not in the backup will be DELETED'
       : 'overwrite records in these collections with the backup contents';
-    if (!confirm(`This will ${action}:\n\n${names.join(', ')}\n\nContinue?`)) return;
+    if (!(await this.dialog.confirm({
+      title: 'Restore from this backup?',
+      message: `This will ${action}:\n\n${names.join(', ')}`,
+      confirmText: 'Restore', danger: this.mode === 'replace',
+    }))) return;
 
     this.busy = true;
     try {

@@ -5,6 +5,7 @@ import { Router } from '@angular/router';
 import { RepairService } from '../../services/repair.service';
 import { Owner } from '../../models/repair-item.model';
 
+import { DialogService } from '../../services/dialog.service';
 interface PendingPhoto {
   preview: string;
   file: File;
@@ -214,6 +215,7 @@ interface PendingPhoto {
   `]
 })
 export class IntakeComponent {
+  private dialog = inject(DialogService);
   @ViewChild('videoEl') videoEl!: ElementRef<HTMLVideoElement>;
 
   router = inject(Router);
@@ -355,7 +357,7 @@ export class IntakeComponent {
       this.router.navigate(['/repairs']);
     } catch (error) {
       console.error('Registration failed:', error);
-      alert('Failed to register item. Please try again.');
+      this.dialog.error("Couldn't register the item. Please try again.");
       this.saving = false;
     }
   }
