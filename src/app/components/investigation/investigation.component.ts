@@ -473,9 +473,7 @@ export class InvestigationComponent implements OnInit, OnDestroy {
       const extra = this.extraDetailsText();
       const result: any = await getRepairSuggestions({
         itemDescription: this.item.itemDescription,
-        // The AI function builds its prompt from these fields; anything else entered
-        // about the item goes in with the fault so it's guaranteed to reach the AI.
-        fault: [this.item.fault, extra].filter(Boolean).join('\n\n'),
+        fault: this.item.fault,
         category: this.item.category,
         make: this.item.make,
         model: this.item.model,

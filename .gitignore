@@ -47,3 +47,6 @@ Thumbs.db
 
 # Firebase deploy cache
 /.firebase/
+
+# Cloud Functions
+/functions/node_modules
