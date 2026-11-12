@@ -299,7 +299,7 @@ interface RepairerGroup {
                     [value]="''">
               <option value="" disabled>⋯</option>
               <option value="investigate">Investigate (AI)</option>
-              <option value="additional">Additional Details</option>
+              <option value="additional">Edit</option>
               <option value="complete">Complete</option>
               <option value="delete">Delete</option>
             </select>
