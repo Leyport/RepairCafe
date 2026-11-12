@@ -26,7 +26,7 @@ import { RepairItem, toRepairPhoto } from '../../models/repair-item.model';
             <p class="description-text">{{ item.itemDescription }}</p>
           </section>
 
-          <section class="detail-section tags-section" *ngIf="item.tags && item.tags.length > 0">
+          <section class="detail-section tags-section" *ngIf="showTags && item.tags && item.tags.length > 0">
             <label>Tags</label>
             <div class="tag-chips">
               <span class="tag-chip" *ngFor="let tag of item.tags">{{ tag }}</span>
@@ -314,6 +314,8 @@ export class RepairDetailComponent implements OnInit {
 
   item: RepairItem | null = null;
   selectedPhoto: string | null = null;
+  /** Tags are hidden for now (see repair-form showTags). */
+  readonly showTags = false;
 
   ngOnInit() {
     const id = this.route.snapshot.paramMap.get('id');

@@ -232,7 +232,7 @@ interface RepairerGroup {
               <option value="">—</option>
               <option *ngFor="let c of categories" [value]="c.value">{{ c.emoji }} {{ c.label }}</option>
             </select>
-            <div class="tag-trigger-wrapper" *ngIf="item.tags && item.tags.length > 0">
+            <div class="tag-trigger-wrapper" *ngIf="showTags && item.tags && item.tags.length > 0">
               <span class="tag-pill small-pill">
                 {{ getFirstTagEmoji(item.tags) || '🏷️' }}<span *ngIf="item.tags.length > 1"> +{{ item.tags.length - 1 }}</span>
               </span>
@@ -1177,6 +1177,9 @@ export class RepairListComponent implements OnInit {
   private route = inject(ActivatedRoute);
 
   /** Item just completed/edited elsewhere — kept visible and highlighted so it doesn't "vanish" from the Active view. */
+  /** Tags are hidden for now (see repair-form showTags). */
+  readonly showTags = false;
+
   recentId: string | null = this.route.snapshot.queryParamMap.get('recent');
 
   searchControl = new FormControl('');

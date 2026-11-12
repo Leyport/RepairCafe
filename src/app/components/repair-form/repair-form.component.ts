@@ -285,8 +285,8 @@ interface ImageResult {
                 </div>
               </div>
 
-              <!-- Tags -->
-              <div class="form-group">
+              <!-- Tags (hidden for now — set showTags = true to bring back) -->
+              <div class="form-group" *ngIf="showTags">
                 <label>Tags (Optional)</label>
                 <div class="tag-input-wrapper">
                   <div class="autocomplete-container">
@@ -929,6 +929,8 @@ export class RepairFormComponent implements OnInit, OnDestroy {
   private lastAutoImageQuery = '';
 
   tags: string[] = [];
+  /** Tags section is hidden for now; any tags already on an item are kept when it's saved. */
+  readonly showTags = false;
   allAvailableTags: Tag[] = [];
   filteredSuggestions: Tag[] = [];
   showSuggestions = false;

@@ -436,7 +436,6 @@ export class InvestigationComponent implements OnInit, OnDestroy {
       ['Year made', i.yearOfManufacture],
       ['Age', i.ageOfItem ? (this.ageLabels[i.ageOfItem] || i.ageOfItem) : undefined],
       ['Serial no.', i.serialNumber],
-      ['Tags', i.tags?.length ? i.tags.join(', ') : undefined],
     ];
     return rows.filter(([, v]) => !!v && String(v).trim()).map(([label, value]) => ({ label, value: String(value).trim() }));
   }
@@ -449,7 +448,6 @@ export class InvestigationComponent implements OnInit, OnDestroy {
       i.colour && `Colour: ${i.colour}`,
       i.yearOfManufacture && `Year of manufacture: ${i.yearOfManufacture}`,
       i.serialNumber && `Serial number: ${i.serialNumber}`,
-      i.tags?.length && `Tags: ${i.tags.join(', ')}`,
     ].filter(Boolean);
     return lines.length ? 'Other details about the item:\n' + lines.join('\n') : '';
   }
@@ -485,7 +483,6 @@ export class InvestigationComponent implements OnInit, OnDestroy {
         colour: this.item.colour,
         yearOfManufacture: this.item.yearOfManufacture,
         serialNumber: this.item.serialNumber,
-        tags: this.item.tags,
         photos: (this.item.photos || []).map(p => this.getPhotoUrl(p)),
         provider: this.aiProvider
       });
