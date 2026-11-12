@@ -97,12 +97,13 @@ interface FollowUp {
               </div>
             </div>
 
-            <div class="report-saved-bar" *ngIf="reportUrl">
+            <!-- Shown whenever the item has a report: just saved, or saved on an earlier visit -->
+            <div class="report-saved-bar" *ngIf="currentReportUrl">
               <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
                 <polyline points="20 6 9 17 4 12"></polyline>
               </svg>
-              Report saved —
-              <a class="report-link" [href]="reportUrl" target="_blank">Open HTML report</a>
+              {{ reportUrl ? 'Report saved —' : 'A saved AI report exists for this item —' }}
+              <a class="report-link" [href]="currentReportUrl" target="_blank">Open report</a>
               <button class="btn-wa-report" (click)="openWaReportDialog()">
                 <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor">
                   <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"></path>
@@ -126,15 +127,6 @@ interface FollowUp {
             </div>
 
             <div class="ai-error" *ngIf="aiError">{{ aiError }}</div>
-
-            <div class="saved-report-bar" *ngIf="item.aiReportUrl && !reportUrl">
-              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                <polyline points="14 2 14 8 20 8"></polyline>
-              </svg>
-              A saved AI report exists for this item —
-              <a class="report-link" [href]="item.aiReportUrl" target="_blank">View report</a>
-            </div>
 
             <div class="ai-placeholder" *ngIf="!aiSuggestions && !aiLoading && !aiError">
               Press <strong>Ask AI</strong> to get repair suggestions based on this item's details.
@@ -271,7 +263,6 @@ interface FollowUp {
     .provider-btn:hover:not(.active) { color: #ffffffb3; }
     .ai-btn-group { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; }
     .btn-save-report:hover:not(:disabled) { background: #3498db38; }
-    .saved-report-bar { display: flex; align-items: center; gap: .4rem; font-size: .82rem; color: #85c1e9; background: #3498db14; border: 1px solid rgba(52,152,219,.2); border-radius: 7px; padding: .45rem .8rem; margin-bottom: .5rem; flex-wrap: wrap; }
     .report-saved-bar { display: flex; align-items: center; gap: .4rem; font-size: .82rem; color: #58d68d; background: #28b46314; border: 1px solid rgba(40,180,99,.2); border-radius: 7px; padding: .45rem .8rem; margin-bottom: .5rem; flex-wrap: wrap; }
     .report-link { color: #58d68d; text-decoration: underline; cursor: pointer; }
     .btn-wa-report { display: inline-flex; align-items: center; gap: .3rem; background: #25d36626; border: 1px solid rgba(37,211,102,.35); color: #58d68d; border-radius: 6px; padding: .2rem .65rem; font-size: .78rem; font-weight: 600; font-family: inherit; cursor: pointer; transition: all .15s; }
@@ -588,6 +579,11 @@ export class InvestigationComponent implements OnInit, OnDestroy {
     }
   }
 
+  /** The report to open/share: one saved just now, or one saved on an earlier visit. */
+  get currentReportUrl(): string {
+    return this.reportUrl || this.item?.aiReportUrl || '';
+  }
+
   openWaReportDialog() {
     this.waReportPhone = this.item?.telephone || '';
     this.showWaReportDialog = true;
@@ -595,10 +591,11 @@ export class InvestigationComponent implements OnInit, OnDestroy {
 
   sendReportViaWhatsApp() {
     const phone = this.normalisePhone(this.waReportPhone);
-    if (!phone || !this.reportUrl) return;
+    const url = this.currentReportUrl;
+    if (!phone || !url) return;
     const owner = this.item?.owner || 'there';
     const description = this.item?.itemDescription || 'your item';
-    const message = `Hi ${owner}! 👋\n\nHere is the AI repair suggestions report for your ${description}:\n\n${this.reportUrl}\n\nShrewsbury Repair Café ♻️`;
+    const message = `Hi ${owner}! 👋\n\nHere is the AI repair suggestions report for your ${description}:\n\n${url}\n\nShrewsbury Repair Café ♻️`;
     window.open(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`, '_blank');
     this.showWaReportDialog = false;
   }
