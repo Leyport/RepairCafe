@@ -50,25 +50,20 @@ interface FollowUp {
         <div class="item-panel glass">
           <div class="item-header">
             <span class="item-num">{{ item.displayNumber }}</span>
-            <span class="stage-badge">Investigating</span>
           </div>
           <h2 class="item-title">{{ item.itemDescription }}</h2>
-          <div class="item-chips">
-            <span class="chip" *ngIf="item.owner">{{ item.owner }}</span>
-            <span class="chip" *ngIf="item.repairer">{{ item.repairer }}</span>
-            <span class="chip accent" *ngIf="item.category">{{ getCategoryEmoji(item.category) }} {{ item.category }}</span>
-          </div>
-          <div class="detail-row" *ngIf="item.make || item.model">
-            <span class="detail-label">Make / Model</span>
-            <span class="detail-val">{{ item.make }}{{ item.make && item.model ? ' / ' : '' }}{{ item.model }}</span>
-          </div>
           <div class="fault-box">
-            <div class="fault-label">Problem reported by owner</div>
-            <p class="fault-text">{{ item.fault || 'No fault description provided.' }}</p>
+            <div class="fault-label">What's wrong with it</div>
+            <p class="fault-text">{{ item.fault || 'Nothing entered yet.' }}</p>
+          </div>
+          <div class="detail-row" *ngFor="let d of itemDetails()">
+            <span class="detail-label">{{ d.label }}</span>
+            <span class="detail-val">{{ d.value }}</span>
           </div>
           <div class="photo-strip" *ngIf="item.photos && item.photos.length">
             <img class="photo-thumb" alt="Item photo" *ngFor="let photo of item.photos" [src]="getPhotoUrl(photo)">
           </div>
+          <p class="sent-hint">All of these details are sent to the AI when you press <strong>Ask AI</strong>.</p>
         </div>
 
         <div class="ai-panel">
@@ -77,7 +72,7 @@ interface FollowUp {
               <div class="ai-title-row">
                 <span class="ai-icon">🤖</span>
                 <h3>AI Repair Suggestions</h3>
-                <div class="provider-toggle">
+                <div class="provider-toggle" *ngIf="showClaude">
                   <!-- Claude option hidden for now — set showClaude = true to bring it back -->
                   <button *ngIf="showClaude" class="provider-btn" [class.active]="aiProvider === 'claude'" (click)="setProvider('claude')">Claude</button>
                   <button class="provider-btn" [class.active]="aiProvider === 'gemini'" (click)="setProvider('gemini')">Gemini</button>
@@ -142,25 +137,28 @@ interface FollowUp {
             </div>
 
             <div class="ai-placeholder" *ngIf="!aiSuggestions && !aiLoading && !aiError">
-              Click "Ask AI" to get repair suggestions based on this item's details.
+              Press <strong>Ask AI</strong> to get repair suggestions based on this item's details.
             </div>
 
-            <div class="ai-result" *ngIf="aiSuggestions" [innerHTML]="formattedSuggestions"></div>
+            <details class="ai-fold" *ngIf="aiSuggestions">
+              <summary>
+                <span class="fold-title">AI repair suggestions</span>
+                <span class="fold-hint show">Show</span><span class="fold-hint hide">Hide</span>
+              </summary>
+              <div class="ai-result" [innerHTML]="formattedSuggestions"></div>
+            </details>
 
-            <ng-container *ngIf="followUps.length > 0">
-              <div class="followup-thread">
-                <div class="followup-pair" *ngFor="let f of followUps">
-                  <div class="followup-q">
-                    <span class="fq-label">You asked</span>
-                    {{ f.question }}
-                  </div>
-                  <div class="followup-a" [innerHTML]="f.html"></div>
-                </div>
-                <div class="followup-thinking" *ngIf="followUpLoading">
-                  <span class="spinner-sm"></span> Thinking…
-                </div>
-              </div>
-            </ng-container>
+            <details class="ai-fold followup" *ngFor="let f of followUps">
+              <summary>
+                <span class="fold-title"><span class="fq-label">You asked</span>{{ f.question }}</span>
+                <span class="fold-hint show">Show</span><span class="fold-hint hide">Hide</span>
+              </summary>
+              <div class="followup-a" [innerHTML]="f.html"></div>
+            </details>
+
+            <div class="followup-thinking" *ngIf="followUpLoading">
+              <span class="spinner-sm"></span> Thinking…
+            </div>
 
             <div class="followup-compose" *ngIf="aiSuggestions && !aiLoading">
               <div class="followup-photos" *ngIf="item.photos && item.photos.length">
@@ -194,19 +192,6 @@ interface FollowUp {
             </div>
           </div>
 
-          <div class="notes-card glass">
-            <h3 class="notes-title">Investigation Notes</h3>
-            <p class="notes-hint">Record your findings, measurements, or anything useful for the repair.</p>
-            <textarea rows="6" placeholder="What did you find? Any part numbers, measurements, test results…"
-                      class="notes-textarea" [(ngModel)]="investigationNotes"></textarea>
-            <div class="action-row">
-              <button class="btn-save" [disabled]="saving" (click)="saveNotes()">
-                <span *ngIf="!saving">Save Notes</span>
-                <span *ngIf="saving">Saving…</span>
-              </button>
-              <button class="btn-start-repair" [disabled]="saving" (click)="completeRepair()"> Complete Repair → </button>
-            </div>
-          </div>
         </div>
       </div>
 
@@ -218,7 +203,6 @@ interface FollowUp {
           </div>
           <div class="webcam-body">
             <video #videoEl class="webcam-video" autoplay playsinline></video>
-            <canvas #canvasEl style="display:none"></canvas>
             <div class="webcam-error" *ngIf="webcamError">{{ webcamError }}</div>
           </div>
           <div class="webcam-footer">
@@ -246,7 +230,6 @@ interface FollowUp {
     .item-panel { border-radius: 14px; padding: 1.5rem; display: flex; flex-direction: column; gap: 1rem; min-width: 0; }
     .item-header { display: flex; align-items: center; justify-content: space-between; gap: .5rem; }
     .item-num { font-size: .78rem; font-weight: 700; background: #00f2ff1a; border: 1px solid rgba(0,242,255,.3); color: var(--accent-color); padding: .25rem .55rem; border-radius: 5px; }
-    .stage-badge { font-size: .7rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; background: #9b59b626; border: 1px solid rgba(155,89,182,.4); color: #c39bd3; padding: .2rem .55rem; border-radius: 20px; }
     .item-title { margin: 0; font-size: 1.15rem; font-weight: 700; color: #fff; }
     .item-chips { display: flex; flex-wrap: wrap; gap: .4rem; }
     .chip { font-size: .75rem; background: #ffffff12; border: 1px solid rgba(255,255,255,.12); color: #fff9; padding: .2rem .5rem; border-radius: 4px; }
@@ -261,7 +244,23 @@ interface FollowUp {
     .photo-thumb { width: 70px; height: 70px; border-radius: 8px; object-fit: cover; border: 1px solid rgba(255,255,255,.15); }
     .spinner-small { display: inline-block; width: 14px; height: 14px; border: 2px solid rgba(255,255,255,.2); border-top-color: var(--accent-color); border-radius: 50%; animation: spin .7s linear infinite; }
     .ai-panel { display: flex; flex-direction: column; gap: 1.2rem; min-width: 0; }
-    .ai-card, .notes-card { border-radius: 14px; padding: 1.5rem; }
+    .ai-card { border-radius: 14px; padding: 1.5rem; }
+    .sent-hint { margin: 0; font-size: .78rem; color: #ffffff59; line-height: 1.4; }
+    .sent-hint strong { color: #ffffff99; }
+    .ai-fold { border: 1px solid rgba(255,255,255,.1); border-radius: 10px; background: #ffffff05; margin-top: .75rem; }
+    .ai-fold > summary {
+      list-style: none; cursor: pointer; display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+      padding: .8rem 1rem; font-size: .9rem; font-weight: 600; color: #fff;
+    }
+    .ai-fold > summary::-webkit-details-marker { display: none; }
+    .ai-fold > summary:hover { background: #ffffff08; border-radius: 10px; }
+    .fold-title { display: flex; flex-direction: column; gap: .15rem; min-width: 0; }
+    .fold-hint { flex-shrink: 0; font-size: .78rem; font-weight: 700; color: var(--accent-color); }
+    .fold-hint::after { content: ' ▾'; }
+    .ai-fold[open] .fold-hint.show, .ai-fold:not([open]) .fold-hint.hide { display: none; }
+    .ai-fold[open] .fold-hint.hide::after { content: ' ▴'; }
+    .ai-fold > .ai-result, .ai-fold > .followup-a { padding: 0 1rem 1rem; border-top: 1px solid rgba(255,255,255,.07); padding-top: .9rem; }
+    .ai-fold.followup > summary { font-weight: 500; color: #ffffffd9; }
     .ai-card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; gap: 1rem; flex-wrap: wrap; }
     .ai-title-row { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; }
     .ai-icon { font-size: 1.3rem; }
@@ -271,9 +270,7 @@ interface FollowUp {
     .provider-btn.active { background: #9b59b659; color: #c39bd3; }
     .provider-btn:hover:not(.active) { color: #ffffffb3; }
     .ai-btn-group { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; }
-    .btn-save-report { display: flex; align-items: center; gap: .35rem; background: #3498db1f; border: 1px solid rgba(52,152,219,.35); color: #85c1e9; padding: .5rem .9rem; border-radius: 7px; cursor: pointer; font-size: .82rem; font-weight: 600; font-family: inherit; transition: all .15s; white-space: nowrap; }
     .btn-save-report:hover:not(:disabled) { background: #3498db38; }
-    .btn-save-report:disabled { opacity: .5; cursor: not-allowed; }
     .saved-report-bar { display: flex; align-items: center; gap: .4rem; font-size: .82rem; color: #85c1e9; background: #3498db14; border: 1px solid rgba(52,152,219,.2); border-radius: 7px; padding: .45rem .8rem; margin-bottom: .5rem; flex-wrap: wrap; }
     .report-saved-bar { display: flex; align-items: center; gap: .4rem; font-size: .82rem; color: #58d68d; background: #28b46314; border: 1px solid rgba(40,180,99,.2); border-radius: 7px; padding: .45rem .8rem; margin-bottom: .5rem; flex-wrap: wrap; }
     .report-link { color: #58d68d; text-decoration: underline; cursor: pointer; }
@@ -299,18 +296,8 @@ interface FollowUp {
     .ai-placeholder { color: #ffffff4d; font-size: .88rem; padding: 1.5rem 0; text-align: center; }
     .ai-result { font-size: .9rem; color: #ffffffd9; line-height: 1.6; white-space: pre-wrap; }
     .ai-result strong { color: #fff; }
-    .notes-title { margin: 0 0 .3rem; font-size: .95rem; font-weight: 700; color: #fff; }
-    .notes-hint { margin: 0 0 .9rem; font-size: .8rem; color: #ffffff59; }
-    .notes-textarea { width: 100%; background: #ffffff0a; border: 1px solid rgba(255,255,255,.1); color: #ffffffd9; border-radius: 8px; padding: .7rem .9rem; font-size: .9rem; resize: vertical; outline: none; font-family: inherit; transition: border-color .15s; box-sizing: border-box; }
-    .notes-textarea:focus { border-color: var(--accent-color); }
-    .notes-textarea::placeholder { color: #fff3; }
-    .action-row { display: flex; gap: 1rem; justify-content: flex-end; flex-wrap: wrap; }
-    .btn-save { background: transparent; border: 1px solid rgba(255,255,255,.2); color: #ffffffa6; padding: .65rem 1.5rem; border-radius: 8px; cursor: pointer; font-size: .9rem; font-weight: 600; transition: all .15s; }
     .btn-save:hover:not(:disabled) { background: #ffffff0f; color: #fff; }
-    .btn-save:disabled { opacity: .4; cursor: not-allowed; }
-    .btn-start-repair { background: #3498db26; border: 1px solid rgba(52,152,219,.4); color: #85c1e9; padding: .65rem 1.8rem; border-radius: 8px; cursor: pointer; font-size: .9rem; font-weight: 700; transition: all .15s; }
     .btn-start-repair:hover:not(:disabled) { background: #3498db40; }
-    .btn-start-repair:disabled { opacity: .4; cursor: not-allowed; }
     .followup-thread { display: flex; flex-direction: column; gap: 1rem; border-top: 1px solid rgba(255,255,255,.07); margin-top: 1rem; padding-top: 1rem; }
     .followup-pair { display: flex; flex-direction: column; gap: .5rem; }
     .followup-q { display: flex; flex-direction: column; gap: .2rem; background: #9b59b614; border: 1px solid rgba(155,89,182,.2); border-radius: 8px; padding: .6rem .9rem; font-size: .88rem; color: #ffffffbf; line-height: 1.5; }
@@ -371,7 +358,6 @@ interface FollowUp {
 export class InvestigationComponent implements OnInit, OnDestroy {
   private dialog = inject(DialogService);
   @ViewChild('videoEl') videoEl!: ElementRef<HTMLVideoElement>;
-  @ViewChild('canvasEl') canvasEl!: ElementRef<HTMLCanvasElement>;
 
   private route = inject(ActivatedRoute);
   private router = inject(Router);
@@ -381,13 +367,11 @@ export class InvestigationComponent implements OnInit, OnDestroy {
 
   item: RepairItem | null = null;
   loading = true;
-  saving = false;
 
   aiLoading = false;
   aiSuggestions = '';
   aiError = '';
   formattedSuggestions = '';
-  investigationNotes = '';
   /** Claude is hidden on this page for now, so Gemini is the default (and only) choice. */
   readonly showClaude = false;
   aiProvider: 'claude' | 'gemini' = 'gemini';
@@ -425,7 +409,6 @@ export class InvestigationComponent implements OnInit, OnDestroy {
     }
     this.sub = this.repairService.getRepairItems().subscribe(items => {
       this.item = items.find(i => i.id === id) ?? null;
-      if (this.item) this.investigationNotes = this.item.investigationNotes || '';
       this.loading = false;
     });
   }
@@ -446,6 +429,40 @@ export class InvestigationComponent implements OnInit, OnDestroy {
     this.reportUrl = '';
   }
 
+  private readonly ageLabels: Record<string, string> = {
+    '<1': 'Under 1 year', '1-2': '1–2 years', '3-5': '3–5 years', '6-10': '6–10 years', '11+': '11+ years',
+  };
+
+  /** Everything entered about the item (besides description and fault), as label/value pairs. */
+  itemDetails(): { label: string; value: string }[] {
+    const i = this.item;
+    if (!i) return [];
+    const rows: [string, string | undefined][] = [
+      ['Category', i.category ? `${this.getCategoryEmoji(i.category)} ${i.category}` : undefined],
+      ['Make / Brand', i.make],
+      ['Model', i.model],
+      ['Colour', i.colour],
+      ['Year made', i.yearOfManufacture],
+      ['Age', i.ageOfItem ? (this.ageLabels[i.ageOfItem] || i.ageOfItem) : undefined],
+      ['Serial no.', i.serialNumber],
+      ['Tags', i.tags?.length ? i.tags.join(', ') : undefined],
+    ];
+    return rows.filter(([, v]) => !!v && String(v).trim()).map(([label, value]) => ({ label, value: String(value).trim() }));
+  }
+
+  /** Details the AI function doesn't take as their own fields, written out for the prompt. */
+  private extraDetailsText(): string {
+    const i = this.item;
+    if (!i) return '';
+    const lines = [
+      i.colour && `Colour: ${i.colour}`,
+      i.yearOfManufacture && `Year of manufacture: ${i.yearOfManufacture}`,
+      i.serialNumber && `Serial number: ${i.serialNumber}`,
+      i.tags?.length && `Tags: ${i.tags.join(', ')}`,
+    ].filter(Boolean);
+    return lines.length ? 'Other details about the item:\n' + lines.join('\n') : '';
+  }
+
   getCategoryEmoji(category?: string): string {
     return this.categoryEmojis[category?.toLowerCase() || ''] || '❓';
   }
@@ -464,19 +481,27 @@ export class InvestigationComponent implements OnInit, OnDestroy {
     this.chatHistory = [];
     try {
       const getRepairSuggestions = httpsCallable(this.functions, 'getRepairSuggestions');
+      const extra = this.extraDetailsText();
       const result: any = await getRepairSuggestions({
         itemDescription: this.item.itemDescription,
-        fault: this.item.fault,
+        // The AI function builds its prompt from these fields; anything else entered
+        // about the item goes in with the fault so it's guaranteed to reach the AI.
+        fault: [this.item.fault, extra].filter(Boolean).join('\n\n'),
         category: this.item.category,
         make: this.item.make,
         model: this.item.model,
         ageOfItem: this.item.ageOfItem,
+        colour: this.item.colour,
+        yearOfManufacture: this.item.yearOfManufacture,
+        serialNumber: this.item.serialNumber,
+        tags: this.item.tags,
+        photos: (this.item.photos || []).map(p => this.getPhotoUrl(p)),
         provider: this.aiProvider
       });
       this.aiSuggestions = result.data.suggestions;
       this.formattedSuggestions = this.renderMarkdown(this.aiSuggestions);
       this.chatHistory = [
-        { role: 'user', content: `Repair item: ${this.item.itemDescription || ''}. Fault: ${this.item.fault || ''}` },
+        { role: 'user', content: `Repair item: ${this.item.itemDescription || ''}. Fault: ${this.item.fault || ''}${extra ? '\n\n' + extra : ''}` },
         { role: 'assistant', content: this.aiSuggestions }
       ];
       if (this.item.id) {
@@ -489,7 +514,7 @@ export class InvestigationComponent implements OnInit, OnDestroy {
       }
     } catch (e: any) {
       console.error('AI call failed:', e);
-      this.aiError = e?.message || 'Failed to get AI suggestions. Make sure the ANTHROPIC_API_KEY is set in your Firebase Function config.';
+      this.aiError = "Couldn't get suggestions from the AI. Please try again.";
     } finally {
       this.aiLoading = false;
     }
@@ -523,7 +548,7 @@ export class InvestigationComponent implements OnInit, OnDestroy {
       }
     } catch (e: any) {
       console.error('Follow-up failed:', e);
-      this.aiError = e?.message || 'Failed to get a response.';
+      this.aiError = "Couldn't get an answer to that question. Please try again.";
     } finally {
       this.followUpLoading = false;
     }
@@ -538,19 +563,6 @@ export class InvestigationComponent implements OnInit, OnDestroy {
       .replace(/^\d+\. (.+)$/gm, '<li style="margin:0.3em 0">$1</li>')
       .replace(/^[-*] (.+)$/gm, '<li style="margin:0.3em 0">$1</li>')
       .replace(/\n\n/g, '<br><br>');
-  }
-
-  async saveNotes() {
-    if (!this.item?.id || this.saving) return;
-    this.saving = true;
-    try {
-      await this.repairService.updateRepairItem(this.item.id, { investigationNotes: this.investigationNotes });
-    } catch (e) {
-      console.error('Save failed:', e);
-      this.dialog.error("Couldn't save your notes. Please try again.");
-    } finally {
-      this.saving = false;
-    }
   }
 
   async saveAIReport() {
@@ -661,19 +673,6 @@ export class InvestigationComponent implements OnInit, OnDestroy {
       .replace(/"/g, '&quot;');
   }
 
-  async completeRepair() {
-    if (!this.item?.id || this.saving) return;
-    this.saving = true;
-    try {
-      await this.repairService.updateRepairItem(this.item.id, { investigationNotes: this.investigationNotes });
-      this.router.navigate(['/complete', this.item.id]);
-    } catch (e) {
-      console.error('Failed to save notes:', e);
-      this.dialog.error("Couldn't save your notes. Please try again.");
-      this.saving = false;
-    }
-  }
-
   goBack() {
     this.router.navigate(['/repairs']);
   }
@@ -709,15 +708,18 @@ export class InvestigationComponent implements OnInit, OnDestroy {
   }
 
   capturePhoto() {
+    if (!this.showWebcam) return; // ignore extra taps once a photo has been taken
     const video = this.videoEl.nativeElement;
-    const canvas = this.canvasEl.nativeElement;
+    if (!video.videoWidth) return; // camera not ready yet
+    // Off-screen canvas, so it survives the camera modal being removed below.
+    const canvas = document.createElement('canvas');
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
     canvas.getContext('2d')!.drawImage(video, 0, 0);
+    this.closeWebcam(); // one press, one photo
     canvas.toBlob(async (blob) => {
       if (!blob) return;
       const file = new File([blob], `photo-${Date.now()}.jpg`, { type: 'image/jpeg' });
-      this.closeWebcam();
       await this.uploadNewPhoto(file);
     }, 'image/jpeg', 0.9);
   }
