@@ -35,7 +35,7 @@ service cloud.firestore {
     // excluded here and handled below, so volunteers can't approve themselves or others.
     match /{collectionName}/{document=**} {
       allow read, write: if isVolunteer()
-        && !(collectionName in ['admins', 'volunteers', 'users', 'public_stats']);
+        && !(collectionName in ['admins', 'volunteers', 'users', 'public_stats', 'activity']);
     }
 
     match /admins/{uid} {
@@ -49,6 +49,12 @@ service cloud.firestore {
     // Each person's own sign-in profile (name, email, photo, last seen).
     match /users/{uid} {
       allow read, create, update: if isSelf(uid);
+    }
+
+    // Activity log (who used which part of the app). Anyone signed in can add entries about
+    // themselves; only admins can read or delete them (via the admin rule above).
+    match /activity/{entry} {
+      allow create: if signedIn() && request.resource.data.uid == request.auth.uid;
     }
 
     // Anonymous per-session counts shown on the public /stats page and embedded on other websites.

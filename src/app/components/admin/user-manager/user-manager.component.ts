@@ -11,6 +11,8 @@ interface UserRow {
   email: string | null;
   photoURL: string | null;
   lastSeen: any;
+  lastPage?: string;
+  lastDevice?: string;
   isAdmin: boolean;
   isApproved: boolean;
 }
@@ -43,6 +45,7 @@ interface UserRow {
               <span class="user-name">{{ user.displayName || user.email || 'Unknown User' }}</span>
               <span class="user-email" *ngIf="user.displayName && user.email">{{ user.email }}</span>
               <span class="last-seen" *ngIf="user.lastSeen">Last seen: {{ user.lastSeen.toDate() | date:'medium' }}</span>
+              <span class="last-seen" *ngIf="user.lastPage">Last used: {{ user.lastPage }}<ng-container *ngIf="user.lastDevice"> · {{ user.lastDevice }}</ng-container></span>
             </div>
           </div>
           <div class="user-actions">
@@ -227,6 +230,8 @@ export class UserManagerComponent implements OnInit {
         email: u.email,
         photoURL: u.photoURL,
         lastSeen: u.lastSeen,
+        lastPage: u.lastPage,
+        lastDevice: u.lastDevice,
         isAdmin: adminIds.includes(u.id),
         isApproved: adminIds.includes(u.id) || volunteerIds.includes(u.id)
       }))

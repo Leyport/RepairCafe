@@ -1,6 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { Auth, GoogleAuthProvider, OAuthProvider, FacebookAuthProvider, signInWithPopup, signOut, user, User, signInWithEmailAndPassword, createUserWithEmailAndPassword, linkWithCredential, AuthCredential, UserCredential } from '@angular/fire/auth';
 import { Firestore, doc, docData, getDoc, setDoc, Timestamp } from '@angular/fire/firestore';
+import { ActivityService } from './activity.service';
 import { Observable, from, map, of, switchMap, catchError, combineLatest, shareReplay } from 'rxjs';
 
 /** 'loading' until known; 'pending' = signed in but not yet approved by an admin. */
@@ -12,6 +13,7 @@ export type AccessState = 'loading' | 'signed-out' | 'pending' | 'approved';
 export class AuthService {
     private auth: Auth = inject(Auth);
     private firestore: Firestore = inject(Firestore);
+    private activity = inject(ActivityService);
     user$: Observable<User | null> = user(this.auth);
 
     /**
@@ -147,6 +149,7 @@ export class AuthService {
     }
 
     async logout(): Promise<void> {
+        await this.activity.logSignOut();
         await signOut(this.auth);
     }
 

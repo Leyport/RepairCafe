@@ -13,6 +13,7 @@ import { ConfirmDialogComponent } from './components/confirm-dialog/confirm-dial
 import { APP_VERSION } from './constants/version';
 
 import { DialogService } from './services/dialog.service';
+import { ActivityService } from './services/activity.service';
 // Pages anyone can see without signing in or being approved.
 const PUBLIC_PATHS = new Set(['', 'stats', 'privacy', 'data-deletion']);
 
@@ -40,6 +41,7 @@ export class AppComponent implements OnInit, OnDestroy {
   private router = inject(Router);
   private http = inject(HttpClient);
   private publicStats = inject(PublicStatsService);
+  private activity = inject(ActivityService);
   private statsSub: Subscription | null = null;
 
   /** Embedded in another website (e.g. /stats?embed=1): show just the page, no header or footer. */
@@ -92,6 +94,8 @@ export class AppComponent implements OnInit, OnDestroy {
     document.addEventListener('visibilitychange', this.onVisibilityChange);
     // Keep the anonymous public statistics (/stats) up to date while a volunteer is signed in.
     if (!this.embedded) this.statsSub = this.publicStats.startAutoPublish();
+    // Who is using the app and which parts (Admin → Activity).
+    if (!this.embedded) this.activity.start();
   }
 
   ngOnDestroy() {

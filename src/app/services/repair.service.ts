@@ -11,6 +11,7 @@ import { Tag } from '../models/tag.model';
 import { Repairer } from '../models/repairer.model';
 import { Issue } from '../models/issue.model';
 import { SequenceService, SEQUENCE_FIELD } from './sequence.service';
+import { ActivityService } from './activity.service';
 
 const TAG_EMOJI_MAP: { [key: string]: string } = {
     'electrical': '⚡',
@@ -42,6 +43,7 @@ export class RepairService {
     private sequence = inject(SequenceService);
     private storage: Storage = inject(Storage);
     private http: HttpClient = inject(HttpClient);
+    private activity = inject(ActivityService);
     private repairCollection = collection(this.firestore, 'repairItems');
     private tagsCollection = collection(this.firestore, 'tags');
     private repairersCollection = collection(this.firestore, 'repairers');
@@ -262,7 +264,9 @@ export class RepairService {
             await Promise.all(newItem.tags.map(tag => this.ensureTagExists(tag)));
         }
 
-        return addDoc(this.repairCollection, newItem);
+        const ref = await addDoc(this.repairCollection, newItem);
+        this.activity.log('Registered an item', ref.id, newItem.itemDescription);
+        return ref;
     }
 
     async getSuggestedDisplayNumber(rcDay: string): Promise<string> {
@@ -412,7 +416,17 @@ export class RepairService {
             if (updateData[key] === undefined) delete updateData[key];
         }
 
-        return updateDoc(itemDoc, updateData);
+        await updateDoc(itemDoc, updateData);
+        this.logUpdate(id, updateData);
+    }
+
+    /** Activity log entry for an item change. AI pages log their own, clearer entries. */
+    private logUpdate(id: string, data: Partial<RepairItem>) {
+        const keys = Object.keys(data);
+        if (keys.some(k => k === 'investigationNotes' || k === 'aiReportUrl')) return;
+        if (data.status) this.activity.log(`Marked as ${data.status}`, id, data.itemDescription);
+        else if (keys.length === 1 && keys[0] === 'photos') this.activity.log('Changed photos', id);
+        else this.activity.log('Edited an item', id, data.itemDescription);
     }
 
     async deleteRepairItem(id: string) {
@@ -421,15 +435,18 @@ export class RepairService {
         const q = query(this.repairCollection, where('__name__', '==', id));
         const snapshot = await getDocs(q);
 
+        let description: string | null = null;
         if (!snapshot.empty) {
             const item = snapshot.docs[0].data() as RepairItem;
+            description = item.itemDescription || null;
             if (item.photos && item.photos.length > 0) {
                 // Delete all associated photos from storage (handle legacy string[] and new RepairPhoto[])
                 await Promise.all(item.photos.map((p: any) => this.deletePhoto(typeof p === 'string' ? p : p.url)));
             }
         }
 
-        return deleteDoc(itemDoc);
+        await deleteDoc(itemDoc);
+        this.activity.log('Deleted an item', id, description);
     }
 
     getRepairers(): Observable<Repairer[]> {

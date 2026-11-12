@@ -24,6 +24,9 @@ import { LEGAL_PAGE_STYLES } from './legal-page.styles';
       <ul>
         <li>your name, email address and profile picture (if your account has one)</li>
         <li>when you last signed in</li>
+        <li>a simple activity log: when you use the app, which parts of it you open, what you change
+          (for example registering or completing an item) and the type of device (e.g. "iPhone · Safari").
+          Only Repair Cafe admins can see it, and it is deleted after 90 days</li>
       </ul>
       <p>
         When you sign in with Facebook we ask only for your public profile (name and picture) and email

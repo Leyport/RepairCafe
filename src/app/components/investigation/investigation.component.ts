@@ -9,6 +9,7 @@ import { Subscription } from 'rxjs';
 import { RepairService } from '../../services/repair.service';
 import { RepairItem, toRepairPhoto } from '../../models/repair-item.model';
 
+import { ActivityService } from '../../services/activity.service';
 import { DialogService } from '../../services/dialog.service';
 interface ChatMessage {
   role: 'user' | 'assistant';
@@ -348,6 +349,7 @@ interface FollowUp {
 })
 export class InvestigationComponent implements OnInit, OnDestroy {
   private dialog = inject(DialogService);
+  private activity = inject(ActivityService);
   @ViewChild('videoEl') videoEl!: ElementRef<HTMLVideoElement>;
 
   private route = inject(ActivatedRoute);
@@ -485,6 +487,7 @@ export class InvestigationComponent implements OnInit, OnDestroy {
         provider: this.aiProvider
       });
       this.aiSuggestions = result.data.suggestions;
+      this.activity.log('Asked the AI', this.item.id, this.item.itemDescription);
       this.formattedSuggestions = this.renderMarkdown(this.aiSuggestions);
       this.chatHistory = [
         { role: 'user', content: `Repair item: ${this.item.itemDescription || ''}. Fault: ${this.item.fault || ''}${extra ? '\n\n' + extra : ''}` },
@@ -522,6 +525,7 @@ export class InvestigationComponent implements OnInit, OnDestroy {
         photos: (this.item.photos || []).map(p => this.getPhotoUrl(p))
       });
       const answer = result.data.suggestions;
+      this.activity.log('Asked the AI a follow-up', this.item.id, this.item.itemDescription);
       this.chatHistory.push({ role: 'user', content: question });
       this.chatHistory.push({ role: 'assistant', content: answer });
       this.followUps.push({ question, answer, html: this.renderMarkdown(answer) });

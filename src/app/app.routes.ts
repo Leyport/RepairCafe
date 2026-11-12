@@ -33,6 +33,10 @@ export const routes: Routes = [
         loadComponent: () => import('./components/admin/user-manager/user-manager.component').then(m => m.UserManagerComponent)
       },
       {
+        path: 'activity',
+        loadComponent: () => import('./components/admin/activity-log/activity-log.component').then(m => m.ActivityLogComponent)
+      },
+      {
         path: 'backup',
         loadComponent: () => import('./components/admin/backup-manager/backup-manager.component').then(m => m.BackupManagerComponent)
       },
