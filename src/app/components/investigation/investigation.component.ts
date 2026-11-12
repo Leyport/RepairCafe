@@ -78,7 +78,8 @@ interface FollowUp {
                 <span class="ai-icon">🤖</span>
                 <h3>AI Repair Suggestions</h3>
                 <div class="provider-toggle">
-                  <button class="provider-btn" [class.active]="aiProvider === 'claude'" (click)="setProvider('claude')">Claude</button>
+                  <!-- Claude option hidden for now — set showClaude = true to bring it back -->
+                  <button *ngIf="showClaude" class="provider-btn" [class.active]="aiProvider === 'claude'" (click)="setProvider('claude')">Claude</button>
                   <button class="provider-btn" [class.active]="aiProvider === 'gemini'" (click)="setProvider('gemini')">Gemini</button>
                 </div>
               </div>
@@ -387,7 +388,9 @@ export class InvestigationComponent implements OnInit, OnDestroy {
   aiError = '';
   formattedSuggestions = '';
   investigationNotes = '';
-  aiProvider: 'claude' | 'gemini' = 'claude';
+  /** Claude is hidden on this page for now, so Gemini is the default (and only) choice. */
+  readonly showClaude = false;
+  aiProvider: 'claude' | 'gemini' = 'gemini';
 
   followUps: FollowUp[] = [];
   followUpQuestion = '';
