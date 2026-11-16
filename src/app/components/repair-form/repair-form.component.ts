@@ -432,8 +432,20 @@ interface ImageResult {
                 </div>
               </div>
 
+              <div class="form-group" *ngIf="isEdit && editItemId">
+                <label for="completionNotes">Completion Notes</label>
+                <textarea id="completionNotes" formControlName="completionNotes" rows="3"
+                          placeholder="Notes about the repair outcome (also shown on the Complete screen)"></textarea>
+              </div>
+
               <p class="outcome-hint" *ngIf="isEdit && editItemId">
-                Use the <strong>Complete</strong> button below to record satisfaction and donation details.
+                <ng-container *ngIf="completionSummary; else noSummary">
+                  Recorded at completion: <strong>{{ completionSummary }}</strong>.
+                  Use <strong>Complete</strong> below to change these.
+                </ng-container>
+                <ng-template #noSummary>
+                  Use the <strong>Complete</strong> button below to record the outcome, satisfaction and donation.
+                </ng-template>
               </p>
 
             </div>
@@ -981,6 +993,7 @@ export class RepairFormComponent implements OnInit, OnDestroy {
       owner: [''],
       repairer: [''],
       status: ['New'],
+      completionNotes: [''],
       RCDay: [defaultValue, Validators.required]
     });
 
@@ -1067,8 +1080,10 @@ export class RepairFormComponent implements OnInit, OnDestroy {
             telephone: item.telephone || '',
             owner: item.owner || '',
             repairer: item.repairer || '',
-            status: item.status || 'New'
+            status: item.status || 'New',
+            completionNotes: item.completionNotes || ''
           };
+          this.completionSummary = this.buildCompletionSummary(item);
           if (item.RCDay && item.RCDay.trim() !== '') {
             updates.RCDay = this.normalizeRCDay(item.RCDay);
           }
@@ -1359,7 +1374,7 @@ export class RepairFormComponent implements OnInit, OnDestroy {
   removeSecondaryRepairer(index: number) { this.secondaryRepairers.splice(index, 1); }
   hideSecondaryRepairerSuggestions() { setTimeout(() => { this.showSecondaryRepairerSuggestions = false; }, 200); }
 
-  async onSubmit() {
+  async onSubmit(navigateHome = true): Promise<boolean> {
     if (this.repairForm.valid && !this.isUploading) {
       this.isUploading = true;
       this.uploadError = null;
@@ -1393,14 +1408,17 @@ export class RepairFormComponent implements OnInit, OnDestroy {
           await this.repairService.addRepairItem(itemData);
         }
         this.repairService.setEditItem(null);
-        this.router.navigate(['/']);
+        if (navigateHome) this.router.navigate(['/']);
+        return true;
       } catch (error) {
         console.error('Error during submission:', error);
         this.uploadError = 'Some photos failed to upload. Please try again or remove the failing files.';
+        return false;
       } finally {
         this.isUploading = false;
       }
     }
+    return false;
   }
 
   selectCategory(value: string) {
@@ -1412,7 +1430,26 @@ export class RepairFormComponent implements OnInit, OnDestroy {
     if (!this.isUploading) { this.repairService.setEditItem(null); this.router.navigate(['/']); }
   }
 
-  goToComplete() {
-    if (this.editItemId) { this.router.navigate(['/complete', this.editItemId]); }
+  /** Short read-only summary of what was recorded on the Complete screen (satisfaction, donation). */
+  completionSummary = '';
+
+  private buildCompletionSummary(item: RepairItem): string {
+    if (!['Repaired', 'Partially Repaired', 'Advice Given', 'Not Repaired'].includes(item.status || '')) return '';
+    const parts: string[] = [item.status!];
+    if (item.ownerSatisfied === true) parts.push('owner happy');
+    else if (item.ownerSatisfied === false) parts.push('owner unhappy');
+    else if (item.ownerSatisfied === null) parts.push('owner neutral');
+    if (item.donationAmount) parts.push(`£${item.donationAmount.toFixed(2)} donation`);
+    return parts.join(' · ');
+  }
+
+  async goToComplete() {
+    if (!this.editItemId || this.isUploading) return;
+    // Save any changes made here first, so nothing typed on this screen is lost.
+    if (this.hasChanges && this.repairForm.valid) {
+      const ok = await this.onSubmit(false);
+      if (!ok) return;
+    }
+    this.router.navigate(['/complete', this.editItemId]);
   }
 }

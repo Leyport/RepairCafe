@@ -394,6 +394,11 @@ export class RepairService {
         // The reference number is permanent once assigned.
         delete (updateData as any)[SEQUENCE_FIELD];
 
+        // Never wipe the status: a blank/null status would make a completed item look "new" again.
+        if ('status' in updateData && (!updateData.status || !String(updateData.status).trim())) {
+            delete updateData.status;
+        }
+
         // Guard against blank RCDay in updates
         if ('RCDay' in updateData && (!updateData.RCDay || updateData.RCDay.trim() === '')) {
             delete updateData.RCDay;

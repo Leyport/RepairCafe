@@ -68,9 +68,17 @@ import { RepairItem, toRepairPhoto } from '../../models/repair-item.model';
             </div>
           </section>
 
-          <section class="detail-section description-section" *ngIf="item.completionNotes">
-            <label>Completion Notes</label>
-            <p class="description-text">{{ item.completionNotes }}</p>
+          <section class="detail-section outcome-section">
+            <label>Outcome</label>
+            <div class="outcome-row">
+              <span class="status-badge" [ngClass]="getStatusClass(item.status)">{{ item.status || 'New' }}</span>
+              <span *ngIf="isCompleted && item.ownerSatisfied === true" class="outcome-chip">😊 Owner happy</span>
+              <span *ngIf="isCompleted && item.ownerSatisfied === null" class="outcome-chip">😐 Owner neutral</span>
+              <span *ngIf="isCompleted && item.ownerSatisfied === false" class="outcome-chip">😞 Owner unhappy</span>
+              <span *ngIf="item.donationAmount" class="outcome-chip">£{{ item.donationAmount | number:'1.2-2' }} donation</span>
+            </div>
+            <p class="notes-text" *ngIf="item.completionNotes">{{ item.completionNotes }}</p>
+            <p class="notes-empty" *ngIf="!isCompleted">Not completed yet — press <strong>Complete</strong> below when the repair is finished.</p>
           </section>
         </div>
 
@@ -86,7 +94,7 @@ import { RepairItem, toRepairPhoto } from '../../models/repair-item.model';
             <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
               <polyline points="20 6 9 17 4 12"></polyline>
             </svg>
-            Complete
+            {{ isCompleted ? 'Change Outcome' : 'Complete' }}
           </button>
           <button class="btn-delete" (click)="onDelete()">
             <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
@@ -174,6 +182,24 @@ import { RepairItem, toRepairPhoto } from '../../models/repair-item.model';
       color: rgba(255, 255, 255, 0.9);
       margin: 0;
     }
+    .outcome-row { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
+    .outcome-chip {
+      font-size: 0.85rem; padding: 0.25rem 0.6rem; border-radius: 6px;
+      background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.12);
+      color: rgba(255,255,255,0.8);
+    }
+    .notes-text { margin: 0.75rem 0 0; font-size: 1.05rem; line-height: 1.5; color: rgba(255,255,255,0.9); white-space: pre-wrap; }
+    .notes-empty { margin: 0.75rem 0 0; font-size: 0.9rem; color: rgba(255,255,255,0.45); }
+    .status-badge {
+      font-size: 0.8rem; font-weight: 700; padding: 0.25rem 0.65rem; border-radius: 20px;
+      text-transform: uppercase; letter-spacing: 0.04em; white-space: nowrap;
+    }
+    .status-new       { background: rgba(74,144,226,0.12);  color: #7ab1f7; border: 1px solid rgba(74,144,226,0.3); }
+    .status-assigned  { background: rgba(241,196,15,0.12);  color: #fce170; border: 1px solid rgba(241,196,15,0.3); }
+    .status-repaired  { background: rgba(40,180,99,0.12);   color: #58d68d; border: 1px solid rgba(40,180,99,0.3); }
+    .status-advice    { background: rgba(230,126,34,0.12);  color: #f0a055; border: 1px solid rgba(230,126,34,0.3); }
+    .status-partial   { background: rgba(230,126,34,0.12);  color: #f0a055; border: 1px solid rgba(230,126,34,0.3); }
+    .status-not       { background: rgba(231,76,60,0.12);   color: #f1948a; border: 1px solid rgba(231,76,60,0.3); }
     .info-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -330,6 +356,21 @@ export class RepairDetailComponent implements OnInit {
     if (this.item) {
       this.repairService.setEditItem(this.item);
       this.router.navigate(['/edit', this.item.id]);
+    }
+  }
+
+  get isCompleted(): boolean {
+    return ['Repaired', 'Partially Repaired', 'Advice Given', 'Not Repaired'].includes(this.item?.status || '');
+  }
+
+  getStatusClass(status: string | undefined): string {
+    switch (status) {
+      case 'Assigned':           return 'status-assigned';
+      case 'Repaired':           return 'status-repaired';
+      case 'Advice Given':       return 'status-advice';
+      case 'Partially Repaired': return 'status-partial';
+      case 'Not Repaired':       return 'status-not';
+      default:                   return 'status-new';
     }
   }
 
