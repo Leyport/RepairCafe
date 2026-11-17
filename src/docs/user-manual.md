@@ -52,6 +52,8 @@ The buttons at the top of the repair list choose which items are shown:
 
 > **Taken Home items:** set an item's status to *Taken Home* when a volunteer takes it away between sessions. It then leaves the Active list but stays tracked under **Taken Home**. When it comes back, change its status (for example to *Investigating*, or use **Complete**) and it moves out of the Taken Home list automatically.
 
+Electrical items show a **⚡ PAT** badge before the description: **⚡ PAT ✓** passed, **⚡ PAT ✗** failed, or **⚡ PAT ?** not tested yet. On a computer, hover over the badge to see who tested it and when; the item's details page shows this too.
+
 ---
 
 ## Creating a Repair Record

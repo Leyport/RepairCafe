@@ -5,7 +5,7 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { RepairService } from '../../services/repair.service';
 import { DialogService } from '../../services/dialog.service';
 import { Observable, BehaviorSubject, combineLatest, startWith, map, shareReplay } from 'rxjs';
-import { RepairItem, Owner, toRepairPhoto } from '../../models/repair-item.model';
+import { RepairItem, Owner, toRepairPhoto, isElectricalCategory } from '../../models/repair-item.model';
 import { rcDayKey, createdMonthKey, buildSessionFilterOptions, matchesSessionFilter, monthLabel } from '../../utils/rc-day';
 import { OUTCOMES, STAGES, fromStatusSelectValue, getStage, isDone, stageForRepairerChange, statusClass, statusLabel, statusSelectValue } from '../../models/repair-status';
 
@@ -211,6 +211,9 @@ interface RepairerGroup {
           <span class="col-desc truncate">
             <span *ngIf="item.id === recentId" class="just-saved">✓ Just saved</span>
             <span *ngIf="item.completionNotes" class="notes-flag" [title]="'Completion notes: ' + item.completionNotes">📝</span>
+            <span *ngIf="isElectrical(item)" class="pat-flag"
+                  [class.pass]="item.patResult === 'Pass'" [class.fail]="item.patResult === 'Fail'"
+                  [title]="patTitle(item)">⚡ PAT {{ item.patResult === 'Pass' ? '✓' : item.patResult === 'Fail' ? '✗' : '?' }}</span>
             {{ item.itemDescription }}
           </span>
 
@@ -643,6 +646,13 @@ interface RepairerGroup {
       margin-right: 0.35rem;
     }
     .notes-flag { margin-right: 0.3rem; cursor: help; }
+    .pat-flag {
+      display: inline-block; margin-right: 0.35rem; padding: 0 0.4rem; border-radius: 4px; cursor: help;
+      font-size: 0.7rem; font-weight: 700; vertical-align: 1px;
+      background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.55); border: 1px solid rgba(255,255,255,0.15);
+    }
+    .pat-flag.pass { background: rgba(40,180,99,0.12); color: #58d68d; border-color: rgba(40,180,99,0.4); }
+    .pat-flag.fail { background: rgba(231,76,60,0.15); color: #f1948a; border-color: rgba(231,76,60,0.5); }
     .col-code {
       display: flex;
       flex-direction: column;
@@ -1606,6 +1616,15 @@ export class RepairListComponent implements OnInit {
   }
 
   readonly getStatusClass = statusClass;
+
+  isElectrical(item: RepairItem): boolean { return isElectricalCategory(item.category); }
+
+  patTitle(item: RepairItem): string {
+    if (!item.patResult) return 'PAT test: not tested yet';
+    const by = item.patTester ? ` by ${item.patTester}` : '';
+    const when = item.patDate?.toDate ? ` on ${item.patDate.toDate().toLocaleDateString('en-GB')}` : '';
+    return `PAT test: ${item.patResult === 'Pass' ? 'passed' : 'FAILED'}${by}${when}`;
+  }
   readonly statusLabel = statusLabel;
   readonly statusSelectValue = statusSelectValue;
   readonly outcomes = OUTCOMES;
