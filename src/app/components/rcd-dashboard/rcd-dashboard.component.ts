@@ -10,6 +10,7 @@ import { Repairer } from '../../models/repairer.model';
 import { map, switchMap } from 'rxjs/operators';
 import { Observable, take, firstValueFrom } from 'rxjs';
 import { FormsModule } from '@angular/forms';
+import { OUTCOMES, STATUS_COLOURS, fromStatusSelectValue, getStage, isDone, pillClass, reportKey, statusLabel, statusSelectValue } from '../../models/repair-status';
 
 @Component({
   selector: 'app-rcd-dashboard',
@@ -104,7 +105,7 @@ import { FormsModule } from '@angular/forms';
           <div class="stat-label">Completed</div>
         </div>
         <div class="stat-card glass stat-assigned">
-          <div class="stat-value">{{ countByStatus(items, 'Assigned') }}</div>
+          <div class="stat-value">{{ countInProgress(items) }}</div>
           <div class="stat-label">In Progress</div>
         </div>
         <div class="stat-card glass stat-new">
@@ -171,18 +172,17 @@ import { FormsModule } from '@angular/forms';
                   <td class="col-meta">{{ item.owner || '—' }}</td>
                   <td class="col-meta">{{ item.repairItem || '—' }}</td>
                   <td>
-                    <select class="status-select" [ngClass]="getStatusClass(item.status)"
-                      [(ngModel)]="item.status"
-                      (change)="updateStatus(item)"
+                    <select class="status-select" [ngClass]="getStatusClass(item)"
+                      [ngModel]="statusSelectValue(item)"
+                      (ngModelChange)="updateStatus(item, $event)"
                       [disabled]="!!saving[item.id!]">
                       <option value="New">New</option>
-                      <option value="Assigned">Assigned</option>
+                      <option value="Investigating">Investigating</option>
+                      <option value="Taken Home">Taken Home</option>
                       <optgroup label="Completed">
-                        <option value="Repaired">Repaired</option>
-                        <option value="Advice Given">Advice Given</option>
-                        <option value="Partially Repaired">Partially Repaired</option>
-                        <option value="Not Repaired">Not Repaired</option>
+                        <option *ngFor="let o of outcomes" [value]="'Completed|' + o">{{ o }}</option>
                       </optgroup>
+                      <option value="Collected">Collected</option>
                     </select>
                   </td>
                   <td class="col-repairer">{{ item.repairer || 'Unassigned' }}</td>
@@ -513,6 +513,7 @@ import { FormsModule } from '@angular/forms';
     .status-bar.bar-advice { background: #ff9800; }
     .status-bar.bar-partial { background: #ff9800; }
     .status-bar.bar-not-repaired { background: #f44336; }
+    .status-bar.bar-home { background: #ab47bc; }
 
     .status-count {
       width: 30px;
@@ -560,6 +561,8 @@ import { FormsModule } from '@angular/forms';
     .status-pill.pill-advice { background: rgba(255, 152, 0, 0.2); color: #ffb74d; }
     .status-pill.pill-partial { background: rgba(255, 152, 0, 0.2); color: #ffb74d; }
     .status-pill.pill-not-repaired { background: rgba(244, 67, 54, 0.2); color: #ef9a9a; }
+    .status-pill.pill-home { background: rgba(171,71,188,0.2); color: #ce93d8; }
+    .status-pill.pill-collected { background: rgba(120,144,156,0.25); color: #cfd8dc; }
 
     .col-num { width: 50px; text-align: center; color: rgba(255,255,255,0.5); font-size: 0.85rem; }
     .col-meta { color: rgba(255,255,255,0.6); font-size: 0.85rem; }
@@ -658,6 +661,8 @@ import { FormsModule } from '@angular/forms';
     .status-select.pill-advice { background: rgba(255, 152, 0, 0.2); color: #ffb74d; }
     .status-select.pill-partial { background: rgba(255, 152, 0, 0.2); color: #ffb74d; }
     .status-select.pill-not-repaired { background: rgba(244, 67, 54, 0.2); color: #ef9a9a; }
+    .status-select.pill-home { background: rgba(171,71,188,0.2); color: #ce93d8; }
+    .status-select.pill-collected { background: rgba(120,144,156,0.25); color: #cfd8dc; }
     .status-select option, .status-select optgroup { background: #1a1a2e; color: white; }
 
     .btn-primary { background: var(--accent-color); color: black; border: none; padding: 0.8rem 1.5rem; border-radius: 8px; font-weight: bold; cursor: pointer; }
@@ -899,7 +904,7 @@ export class RcdDashboardComponent implements OnInit {
     const dateStr = this.formatRCDateLong();
     const total = items.length;
     const completed = this.countCompleted(items);
-    const inProgress = this.countByStatus(items, 'Assigned');
+    const inProgress = this.countInProgress(items);
     const awaiting = this.countByStatus(items, 'New');
     const generated = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
 
@@ -920,7 +925,7 @@ export class RcdDashboardComponent implements OnInit {
 
     for (const item of sorted) {
       md += `### ${item.displayNumber} — ${item.itemDescription || '(no description)'}\n\n`;
-      md += `**Status:** ${item.status || 'New'}  \n`;
+      md += `**Status:** ${statusLabel(item)}  \n`;
       if (item.owner)               md += `**Owner:** ${item.owner}  \n`;
       if (item.telephone)           md += `**Telephone:** ${item.telephone}  \n`;
       if (item.category)            md += `**Category:** ${item.category}  \n`;
@@ -978,11 +983,13 @@ export class RcdDashboardComponent implements OnInit {
     this.repairService.updateRepairItem(item.id, { additionalRepairers: item.additionalRepairers });
   }
 
-  async updateStatus(item: RepairItem) {
+  async updateStatus(item: RepairItem, value: string) {
     if (!item.id) return;
     this.saving[item.id] = true;
+    const updates = fromStatusSelectValue(value, item);
+    Object.assign(item, updates);
     try {
-      await this.repairService.updateRepairItem(item.id, { status: item.status });
+      await this.repairService.updateRepairItem(item.id, updates);
     } catch (e) {
       console.error('Error updating status:', e);
     } finally {
@@ -990,13 +997,17 @@ export class RcdDashboardComponent implements OnInit {
     }
   }
 
+  /** Counts by stage (New, Investigating...) or, for finished items, by outcome (Repaired...). */
   countByStatus(items: RepairItem[], status: string): number {
-    return items.filter(i => i.status === status).length;
+    return items.filter(i => getStage(i) === status || reportKey(i) === status).length;
+  }
+
+  countInProgress(items: RepairItem[]): number {
+    return items.filter(i => ['Investigating', 'Taken Home'].includes(getStage(i))).length;
   }
 
   countCompleted(items: RepairItem[]): number {
-    const completedStatuses = ['Repaired', 'Advice Given', 'Partially Repaired', 'Not Repaired'];
-    return items.filter(i => completedStatuses.includes(i.status || '')).length;
+    return items.filter(i => isDone(i)).length;
   }
 
   private polarToCartesian(cx: number, cy: number, r: number, angleDeg: number) {
@@ -1016,14 +1027,7 @@ export class RcdDashboardComponent implements OnInit {
   }
 
   getPieSlices(items: RepairItem[]) {
-    const colors: { [key: string]: string } = {
-      'New': '#2196f3',
-      'Assigned': '#ffc107',
-      'Repaired': '#4caf50',
-      'Advice Given': '#ff9800',
-      'Partially Repaired': '#ff9800',
-      'Not Repaired': '#f44336'
-    };
+    const colors: { [key: string]: string } = STATUS_COLOURS;
     const breakdown = this.getStatusBreakdown(items);
     const total = items.length || 1;
     let angle = -90;
@@ -1035,31 +1039,27 @@ export class RcdDashboardComponent implements OnInit {
     });
   }
 
-  getStatusClass(status?: string): string {
-    const map: { [key: string]: string } = {
-      'New': 'pill-new',
-      'Assigned': 'pill-assigned',
-      'Repaired': 'pill-repaired',
-      'Advice Given': 'pill-advice',
-      'Partially Repaired': 'pill-partial',
-      'Not Repaired': 'pill-not-repaired'
-    };
-    return map[status || ''] || '';
+  getStatusClass(item?: RepairItem): string {
+    return pillClass(item);
   }
+  readonly statusSelectValue = statusSelectValue;
+  readonly outcomes = OUTCOMES;
 
   getStatusBreakdown(items: RepairItem[]) {
     const statuses = [
       { status: 'New', cssClass: 'bar-new' },
-      { status: 'Assigned', cssClass: 'bar-assigned' },
+      { status: 'Investigating', cssClass: 'bar-assigned' },
+      { status: 'Taken Home', cssClass: 'bar-home' },
       { status: 'Repaired', cssClass: 'bar-repaired' },
-      { status: 'Advice Given', cssClass: 'bar-advice' },
       { status: 'Partially Repaired', cssClass: 'bar-partial' },
-      { status: 'Not Repaired', cssClass: 'bar-not-repaired' }
+      { status: 'Unrepairable', cssClass: 'bar-not-repaired' },
+      { status: 'Advice Given', cssClass: 'bar-advice' },
+      { status: 'Completed', cssClass: 'bar-repaired' }
     ];
     const total = items.length || 1;
 
     return statuses.map(({ status, cssClass }) => {
-      const count = this.countByStatus(items, status);
+      const count = items.filter(i => reportKey(i) === status).length;
       return { status, cssClass, count, percentage: (count / total) * 100 };
     }).filter(s => s.count > 0);
   }

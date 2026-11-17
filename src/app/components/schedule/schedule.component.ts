@@ -2,6 +2,7 @@ import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
 import { RepairService } from '../../services/repair.service';
+import { REPORT_KEYS, STATUS_COLOURS, reportKey } from '../../models/repair-status';
 
 @Component({
   selector: 'app-schedule',
@@ -302,15 +303,8 @@ export class ScheduleComponent implements OnInit {
 
   dateStatusMap: Map<string, { [status: string]: number }> = new Map();
 
-  private statusColors: { [key: string]: string } = {
-    'New': '#2196f3',
-    'Assigned': '#ffc107',
-    'Repaired': '#4caf50',
-    'Advice Given': '#ff9800',
-    'Partially Repaired': '#ff9800',
-    'Not Repaired': '#f44336'
-  };
-  private statusOrder = ['New', 'Assigned', 'Repaired', 'Advice Given', 'Partially Repaired', 'Not Repaired'];
+  private statusColors: { [key: string]: string } = STATUS_COLOURS;
+  private statusOrder: readonly string[] = REPORT_KEYS;
 
   ngOnInit() {
     this.generateSchedule();
@@ -362,7 +356,7 @@ export class ScheduleComponent implements OnInit {
       items.forEach(item => {
         if (item.RCDay) {
           const breakdown = this.dateStatusMap.get(item.RCDay) || {};
-          const s = item.status || 'New';
+          const s = reportKey(item);
           breakdown[s] = (breakdown[s] || 0) + 1;
           this.dateStatusMap.set(item.RCDay, breakdown);
         }

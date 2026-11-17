@@ -4,6 +4,7 @@ import { SequenceService, SEQUENCE_FIELD } from './sequence.service';
 import { Firestore, collection, addDoc, writeBatch, doc, Timestamp, setDoc, query, where, getDocs } from '@angular/fire/firestore';
 import { firstValueFrom } from 'rxjs';
 import * as XLSX from 'xlsx';
+import { OUTCOMES } from '../models/repair-status';
 
 /** One sheet of an uploaded workbook, with its header row located and blank rows trimmed. */
 export interface SheetPreview {
@@ -71,8 +72,9 @@ const CATEGORY_RULES: [RegExp, string][] = [
 const OUTCOME_RULES: [RegExp, string][] = [
     [/partial/i, 'Partially Repaired'],
     [/advice/i, 'Advice Given'],
-    [/not repaired yet|ongoing|bring back|coming back|pending|out of time|going home/i, 'Assigned'],
-    [/unable|unrepairable|not (repaired|reaired|able)|invalid|wasn't broke|needs part/i, 'Not Repaired'],
+    [/bring back|coming back|going home|taken home/i, 'Taken Home'],
+    [/not repaired yet|ongoing|pending|out of time/i, 'Investigating'],
+    [/unable|unrepairable|not (repaired|reaired|able)|invalid|wasn't broke|needs part/i, 'Unrepairable'],
     [/repair|complete/i, 'Repaired']
 ];
 
@@ -408,7 +410,12 @@ export class ImportService {
                         break;
                     case 'outcome':
                         data.repairOutcome = text;
-                        data.status = OUTCOME_RULES.find(([re]) => re.test(text))?.[1];
+                        {
+                            const v = OUTCOME_RULES.find(([re]) => re.test(text))?.[1];
+                            // Outcomes become status "Completed" + outcome; stages stay as the status.
+                            if (v && (OUTCOMES as readonly string[]).includes(v)) { data.status = 'Completed'; data.outcome = v; }
+                            else data.status = v;
+                        }
                         break;
                     case 'satisfaction':
                         data.satisfaction = text;
@@ -427,7 +434,7 @@ export class ImportService {
             });
 
             if (!data.itemDescription) data.itemDescription = '(No description)';
-            if (!data.status) data.status = data.repairer ? 'Assigned' : 'New';
+            if (!data.status) data.status = data.repairer ? 'Investigating' : 'New';
 
             const date: Date | undefined = data.rcdate;
             if (date) {

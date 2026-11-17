@@ -255,7 +255,7 @@ export class RepairService {
             creationDate: Timestamp.fromDate(now),
             displayNumber: displayNumber,
             RCDay: rcDay,
-            status: item.repairer ? 'Assigned' : 'New',
+            status: item.repairer ? 'Investigating' : 'New',
             sequenceNumber: await this.sequence.reserve(1)
         };
 

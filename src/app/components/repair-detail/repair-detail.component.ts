@@ -4,6 +4,7 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { RepairService } from '../../services/repair.service';
 import { DialogService } from '../../services/dialog.service';
 import { RepairItem, toRepairPhoto } from '../../models/repair-item.model';
+import { getOutcome, getStage, isDone, statusClass, statusLabel } from '../../models/repair-status';
 
 @Component({
   selector: 'app-repair-detail',
@@ -71,7 +72,7 @@ import { RepairItem, toRepairPhoto } from '../../models/repair-item.model';
           <section class="detail-section outcome-section">
             <label>Outcome</label>
             <div class="outcome-row">
-              <span class="status-badge" [ngClass]="getStatusClass(item.status)">{{ item.status || 'New' }}</span>
+              <span class="status-badge" [ngClass]="getStatusClass(item)">{{ statusLabel(item) }}</span>
               <span *ngIf="isCompleted && item.ownerSatisfied === true" class="outcome-chip">😊 Owner happy</span>
               <span *ngIf="isCompleted && item.ownerSatisfied === null" class="outcome-chip">😐 Owner neutral</span>
               <span *ngIf="isCompleted && item.ownerSatisfied === false" class="outcome-chip">😞 Owner unhappy</span>
@@ -79,6 +80,7 @@ import { RepairItem, toRepairPhoto } from '../../models/repair-item.model';
             </div>
             <p class="notes-text" *ngIf="item.completionNotes">{{ item.completionNotes }}</p>
             <p class="notes-empty" *ngIf="!isCompleted">Not completed yet — press <strong>Complete</strong> below when the repair is finished.</p>
+            <button class="btn-collected" *ngIf="stage === 'Completed'" (click)="markCollected()">👋 Owner has collected it</button>
           </section>
         </div>
 
@@ -200,6 +202,13 @@ import { RepairItem, toRepairPhoto } from '../../models/repair-item.model';
     .status-advice    { background: rgba(230,126,34,0.12);  color: #f0a055; border: 1px solid rgba(230,126,34,0.3); }
     .status-partial   { background: rgba(230,126,34,0.12);  color: #f0a055; border: 1px solid rgba(230,126,34,0.3); }
     .status-not       { background: rgba(231,76,60,0.12);   color: #f1948a; border: 1px solid rgba(231,76,60,0.3); }
+    .status-home      { background: rgba(171,71,188,0.12);  color: #ce93d8; border: 1px solid rgba(171,71,188,0.3); }
+    .status-collected { background: rgba(120,144,156,0.15); color: #b0bec5; border: 1px solid rgba(120,144,156,0.4); }
+    .btn-collected {
+      margin-top: 0.75rem; background: rgba(120,144,156,0.15); border: 1px solid rgba(120,144,156,0.4);
+      color: #cfd8dc; padding: 0.5rem 1rem; border-radius: 8px; cursor: pointer; font-weight: 600;
+    }
+    .btn-collected:hover { background: rgba(120,144,156,0.3); }
     .info-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -359,19 +368,15 @@ export class RepairDetailComponent implements OnInit {
     }
   }
 
-  get isCompleted(): boolean {
-    return ['Repaired', 'Partially Repaired', 'Advice Given', 'Not Repaired'].includes(this.item?.status || '');
-  }
+  get isCompleted(): boolean { return isDone(this.item); }
+  get stage() { return getStage(this.item); }
+  readonly statusLabel = statusLabel;
+  readonly getStatusClass = statusClass;
 
-  getStatusClass(status: string | undefined): string {
-    switch (status) {
-      case 'Assigned':           return 'status-assigned';
-      case 'Repaired':           return 'status-repaired';
-      case 'Advice Given':       return 'status-advice';
-      case 'Partially Repaired': return 'status-partial';
-      case 'Not Repaired':       return 'status-not';
-      default:                   return 'status-new';
-    }
+  async markCollected() {
+    if (!this.item?.id) return;
+    const outcome = getOutcome(this.item);
+    await this.repairService.updateRepairItem(this.item.id, outcome ? { status: 'Collected', outcome } : { status: 'Collected' });
   }
 
   onComplete() {

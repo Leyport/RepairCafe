@@ -23,7 +23,8 @@ export interface RepairItem {
   paperItemNumber?: string; // Number on the paper ticket/form, while the paper system runs in parallel
   RCDay: string;
   rcDayNumber: number;
-  status?: string; // Status: "New", "Assigned", "Completed"
+  status?: string; // Stage: New, Investigating, Taken Home, Completed, Collected (see repair-status.ts)
+  outcome?: string; // When Completed/Collected: Repaired, Partially Repaired, Unrepairable, Advice Given
   telephone?: string; // Contact telephone number
   owner?: string; // Name of the owner
   postcode?: string; // Postcode AREA only (outward code, e.g. "SY1") — never the full

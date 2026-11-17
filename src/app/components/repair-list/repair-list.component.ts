@@ -7,6 +7,7 @@ import { DialogService } from '../../services/dialog.service';
 import { Observable, BehaviorSubject, combineLatest, startWith, map, shareReplay } from 'rxjs';
 import { RepairItem, Owner, toRepairPhoto } from '../../models/repair-item.model';
 import { rcDayKey, createdMonthKey, buildSessionFilterOptions, matchesSessionFilter, monthLabel } from '../../utils/rc-day';
+import { OUTCOMES, STAGES, fromStatusSelectValue, getStage, isDone, stageForRepairerChange, statusClass, statusLabel, statusSelectValue } from '../../models/repair-status';
 
 type SortColumn = 'number' | 'description' | 'owner' | 'category' | 'repairer' | 'session' | 'created' | 'status';
 type SortDir = 'asc' | 'desc';
@@ -22,7 +23,7 @@ interface ColumnFilters {
 }
 
 const EMPTY_FILTERS: ColumnFilters = { description: '', owner: '', category: '', repairer: '', session: '', created: '', status: '' };
-const STATUSES = ['New', 'Assigned', 'Repaired', 'Advice Given', 'Partially Repaired', 'Not Repaired'];
+const STATUSES: readonly string[] = STAGES;
 // Dates sort newest-first on the first click; text columns A–Z.
 const DEFAULT_DIR: Record<SortColumn, SortDir> = {
   number: 'asc', description: 'asc', owner: 'asc', category: 'asc',
@@ -37,7 +38,6 @@ const SORT_LABELS: Record<SortColumn, string> = {
 
 type CompletionFilter = 'all' | 'active' | 'completed';
 
-const COMPLETED_STATUSES = new Set(['Repaired', 'Advice Given', 'Partially Repaired', 'Not Repaired']);
 
 interface RepairerGroup {
   label: string;
@@ -277,17 +277,16 @@ interface RepairerGroup {
           <!-- Status -->
           <div class="col-status" (click)="$event.stopPropagation()" (dblclick)="$event.stopPropagation()">
             <select class="inline-select status-select"
-                    [ngModel]="item.status || 'New'"
-                    (ngModelChange)="updateItem(item, 'status', $event)"
-                    [ngClass]="getStatusClass(item.status)">
+                    [ngModel]="statusSelectValue(item)"
+                    (ngModelChange)="updateStatus(item, $event)"
+                    [ngClass]="getStatusClass(item)">
               <option value="New">New</option>
-              <option value="Assigned">Assigned</option>
+              <option value="Investigating">Investigating</option>
+              <option value="Taken Home">Taken Home</option>
               <optgroup label="Completed">
-                <option value="Repaired">Repaired</option>
-                <option value="Advice Given">Advice Given</option>
-                <option value="Partially Repaired">Partially Repaired</option>
-                <option value="Not Repaired">Not Repaired</option>
+                <option *ngFor="let o of outcomes" [value]="'Completed|' + o">{{ o }}</option>
               </optgroup>
+              <option value="Collected">Collected</option>
             </select>
           </div>
 
@@ -343,7 +342,7 @@ interface RepairerGroup {
               <span class="rp-item-num">{{ item.displayNumber }}</span>
               <span class="rp-item-desc">{{ item.itemDescription }}</span>
               <span class="rp-item-role secondary" *ngIf="isSecondaryRepairer(item, selectedRepairer!)">2nd</span>
-              <span class="status-badge rp-item-status" [ngClass]="getStatusClass(item.status)">{{ item.status || 'New' }}</span>
+              <span class="status-badge rp-item-status" [ngClass]="getStatusClass(item)">{{ statusLabel(item) }}</span>
             </div>
           </div>
         </div>
@@ -700,6 +699,8 @@ interface RepairerGroup {
     .status-advice    { background: rgba(230,126,34,0.12);  color: #f0a055; border: 1px solid rgba(230,126,34,0.3); }
     .status-partial   { background: rgba(230,126,34,0.12);  color: #f0a055; border: 1px solid rgba(230,126,34,0.3); }
     .status-not       { background: rgba(231,76,60,0.12);   color: #f1948a; border: 1px solid rgba(231,76,60,0.3); }
+    .status-home      { background: rgba(171,71,188,0.12);  color: #ce93d8; border: 1px solid rgba(171,71,188,0.3); }
+    .status-collected { background: rgba(120,144,156,0.15); color: #b0bec5; border: 1px solid rgba(120,144,156,0.4); }
 
     /* Tag pill in category column */
     .tag-pill {
@@ -973,6 +974,8 @@ interface RepairerGroup {
     .status-advice   { background: rgba(230,126,34,0.15)!important; color:#f0a055!important; border-color:rgba(230,126,34,0.4)!important; }
     .status-partial  { background: rgba(230,126,34,0.15)!important; color:#f0a055!important; border-color:rgba(230,126,34,0.4)!important; }
     .status-not      { background: rgba(231,76,60,0.15)!important;  color:#f1948a!important; border-color:rgba(231,76,60,0.4)!important; }
+    .status-home     { background: rgba(171,71,188,0.15)!important; color:#ce93d8!important; border-color:rgba(171,71,188,0.4)!important; }
+    .status-collected{ background: rgba(120,144,156,0.18)!important; color:#b0bec5!important; border-color:rgba(120,144,156,0.45)!important; }
     .action-menu-wrapper {
       position: relative;
       display: flex;
@@ -1238,11 +1241,17 @@ export class RepairListComponent implements OnInit {
       (item as any).displayNumber = newSeq;
     }
     if (field === 'repairer') {
-      const currentStatus = item.status || 'New';
-      if (value && currentStatus === 'New') { updates.status = 'Assigned'; (item as any).status = 'Assigned'; }
-      else if (!value && currentStatus === 'Assigned') { updates.status = 'New'; (item as any).status = 'New'; }
+      const next = stageForRepairerChange(item, !!value);
+      if (next) { updates.status = next; (item as any).status = next; }
     }
     (item as any)[field] = value;
+    await this.repairService.updateRepairItem(item.id, updates);
+  }
+
+  async updateStatus(item: RepairItem, value: string) {
+    if (!item.id) return;
+    const updates = fromStatusSelectValue(value, item);
+    Object.assign(item, updates);
     await this.repairService.updateRepairItem(item.id, updates);
   }
 
@@ -1444,15 +1453,17 @@ export class RepairListComponent implements OnInit {
       this.latestSessionLabel = latest ? this.sessionLabel(latest) : '';
       this.sessionLimited = !!latest && completionFilter !== 'all' && !filters.session;
       if (this.sessionLimited) {
-        items = items.filter(item => rcDayKey(item.RCDay) === latest || item.id === this.recentId);
+        // Items taken home between sessions are followed into the next session.
+        items = items.filter(item => rcDayKey(item.RCDay) === latest || item.id === this.recentId
+          || (completionFilter === 'active' && getStage(item) === 'Taken Home'));
       }
 
       // Completion filter
       let filtered = items.filter(item => {
-        const isDone = COMPLETED_STATUSES.has(item.status || '');
+        const done = isDone(item);
         // Imported historic items are past records, never open work, even without a final outcome.
-        if (completionFilter === 'active') return (!isDone && !item.importSource) || item.id === this.recentId;
-        if (completionFilter === 'completed') return isDone;
+        if (completionFilter === 'active') return (!done && !item.importSource) || item.id === this.recentId;
+        if (completionFilter === 'completed') return done;
         return true;
       });
 
@@ -1507,7 +1518,7 @@ export class RepairListComponent implements OnInit {
       case 'repairer':    return text(a.repairer, b.repairer);
       case 'session':     return rcDayKey(a.RCDay).localeCompare(rcDayKey(b.RCDay));
       case 'created':     return (a.creationDate?.toMillis() || 0) - (b.creationDate?.toMillis() || 0);
-      case 'status':      return STATUSES.indexOf(a.status || 'New') - STATUSES.indexOf(b.status || 'New');
+      case 'status':      return STATUSES.indexOf(getStage(a)) - STATUSES.indexOf(getStage(b));
       default:            return 0;
     }
   }
@@ -1525,7 +1536,7 @@ export class RepairListComponent implements OnInit {
     }
     if (!matchesSessionFilter(item.RCDay, f.session)) return false;
     if (f.created && createdMonthKey(item) !== f.created) return false;
-    if (f.status && (item.status || 'New') !== f.status) return false;
+    if (f.status && getStage(item) !== f.status) return false;
     return true;
   }
 
@@ -1577,16 +1588,10 @@ export class RepairListComponent implements OnInit {
     return '';
   }
 
-  getStatusClass(status: string | undefined): string {
-    switch (status) {
-      case 'Assigned':          return 'status-assigned';
-      case 'Repaired':          return 'status-repaired';
-      case 'Advice Given':      return 'status-advice';
-      case 'Partially Repaired': return 'status-partial';
-      case 'Not Repaired':      return 'status-not';
-      default:                  return 'status-new';
-    }
-  }
+  readonly getStatusClass = statusClass;
+  readonly statusLabel = statusLabel;
+  readonly statusSelectValue = statusSelectValue;
+  readonly outcomes = OUTCOMES;
 
   formatRCDay(rcDay: string): string {
     if (!rcDay) return '—';

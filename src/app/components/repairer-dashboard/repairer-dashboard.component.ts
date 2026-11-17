@@ -6,6 +6,7 @@ import { RepairItem } from '../../models/repair-item.model';
 import { Repairer } from '../../models/repairer.model';
 import { combineLatest, Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
+import { REPORT_KEYS, STATUS_COLOURS, isDone, pillClass, reportKey, statusLabel } from '../../models/repair-status';
 
 @Component({
   selector: 'app-repairer-dashboard',
@@ -111,7 +112,7 @@ import { map } from 'rxjs/operators';
                       </span>
                     </td>
                     <td>
-                      <span class="status-pill" [ngClass]="getStatusClass(item.status)">{{ item.status }}</span>
+                      <span class="status-pill" [ngClass]="getStatusClass(item)">{{ statusLabel(item) }}</span>
                     </td>
                   </tr>
                 </tbody>
@@ -279,6 +280,8 @@ import { map } from 'rxjs/operators';
     .pill-advice { background: rgba(255,152,0,0.2); color: #ffb74d; }
     .pill-partial { background: rgba(255,152,0,0.2); color: #ffb74d; }
     .pill-not-repaired { background: rgba(244,67,54,0.2); color: #ef9a9a; }
+    .pill-home { background: rgba(171,71,188,0.2); color: #ce93d8; }
+    .pill-collected { background: rgba(120,144,156,0.25); color: #cfd8dc; }
 
     .empty-msg { color: rgba(255,255,255,0.4); font-size: 0.9rem; text-align: center; padding: 2rem 0; }
   `]
@@ -320,8 +323,7 @@ export class RepairerDashboardComponent implements OnInit {
   }
 
   countCompleted(items: RepairItem[]): number {
-    const done = ['Repaired', 'Advice Given', 'Partially Repaired', 'Not Repaired'];
-    return items.filter(i => done.includes(i.status || '')).length;
+    return items.filter(i => isDone(i)).length;
   }
 
   formatRCDay(rcDay: string): string {
@@ -335,13 +337,10 @@ export class RepairerDashboardComponent implements OnInit {
     return rcDay;
   }
 
-  getStatusClass(status?: string): string {
-    const map: Record<string, string> = {
-      'New': 'pill-new', 'Assigned': 'pill-assigned', 'Repaired': 'pill-repaired',
-      'Advice Given': 'pill-advice', 'Partially Repaired': 'pill-partial', 'Not Repaired': 'pill-not-repaired'
-    };
-    return map[status || ''] || '';
+  getStatusClass(item?: RepairItem): string {
+    return pillClass(item);
   }
+  readonly statusLabel = statusLabel;
 
   private polarToCartesian(cx: number, cy: number, r: number, angleDeg: number) {
     const rad = (angleDeg * Math.PI) / 180;
@@ -360,15 +359,12 @@ export class RepairerDashboardComponent implements OnInit {
   }
 
   getPieSlices(items: RepairItem[]) {
-    const colors: Record<string, string> = {
-      'New': '#2196f3', 'Assigned': '#ffc107', 'Repaired': '#4caf50',
-      'Advice Given': '#ff9800', 'Partially Repaired': '#ff9800', 'Not Repaired': '#f44336'
-    };
-    const order = ['New', 'Assigned', 'Repaired', 'Advice Given', 'Partially Repaired', 'Not Repaired'];
+    const colors = STATUS_COLOURS;
+    const order = REPORT_KEYS;
     const total = items.length || 1;
     let angle = -90;
     return order
-      .map(status => ({ status, count: items.filter(i => i.status === status).length }))
+      .map(status => ({ status: status as string, count: items.filter(i => reportKey(i) === status).length }))
       .filter(s => s.count > 0)
       .map(({ status, count }) => {
         const sweep = (count / total) * 360;

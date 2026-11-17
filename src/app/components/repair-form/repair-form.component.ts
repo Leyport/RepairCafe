@@ -7,6 +7,7 @@ import { APP_VERSION } from '../../constants/version';
 import { RepairService } from '../../services/repair.service';
 import { Observable, firstValueFrom } from 'rxjs';
 import { RepairItem, RepairPhoto, toRepairPhoto, Owner } from '../../models/repair-item.model';
+import { OUTCOMES, fromStatusSelectValue, isDone, statusLabel, statusSelectValue } from '../../models/repair-status';
 import { Tag } from '../../models/tag.model';
 import { environment } from '../../../environments/environment';
 
@@ -420,13 +421,12 @@ interface ImageResult {
                 <div class="select-wrapper glass">
                   <select id="status" formControlName="status">
                     <option value="New">New</option>
-                    <option value="Assigned">Assigned</option>
+                    <option value="Investigating">Investigating</option>
+                    <option value="Taken Home">Taken Home (between sessions)</option>
                     <optgroup label="Completed">
-                      <option value="Repaired">Repaired</option>
-                      <option value="Advice Given">Advice Given</option>
-                      <option value="Partially Repaired">Partially Repaired</option>
-                      <option value="Not Repaired">Not Repaired</option>
+                      <option *ngFor="let o of outcomes" [value]="'Completed|' + o">{{ o }}</option>
                     </optgroup>
+                    <option value="Collected">Collected by owner</option>
                   </select>
                   <div class="select-arrow">▼</div>
                 </div>
@@ -1014,8 +1014,8 @@ export class RepairFormComponent implements OnInit, OnDestroy {
     this.repairForm.get('repairer')?.valueChanges.subscribe(repairer => {
       const currentStatus = this.repairForm.get('status')?.value;
       if (repairer && currentStatus === 'New') {
-        this.repairForm.patchValue({ status: 'Assigned' }, { emitEvent: false });
-      } else if (!repairer && currentStatus === 'Assigned') {
+        this.repairForm.patchValue({ status: 'Investigating' }, { emitEvent: false });
+      } else if (!repairer && currentStatus === 'Investigating') {
         this.repairForm.patchValue({ status: 'New' }, { emitEvent: false });
       }
     });
@@ -1080,10 +1080,11 @@ export class RepairFormComponent implements OnInit, OnDestroy {
             telephone: item.telephone || '',
             owner: item.owner || '',
             repairer: item.repairer || '',
-            status: item.status || 'New',
+            status: statusSelectValue(item),
             completionNotes: item.completionNotes || ''
           };
           this.completionSummary = this.buildCompletionSummary(item);
+          this.loadedItem = item;
           if (item.RCDay && item.RCDay.trim() !== '') {
             updates.RCDay = this.normalizeRCDay(item.RCDay);
           }
@@ -1393,8 +1394,10 @@ export class RepairFormComponent implements OnInit, OnDestroy {
         });
         const newPhotos = await Promise.all(uploadPromises);
         const allPhotos: RepairPhoto[] = [...this.existingPhotos, ...newPhotos];
+        const { status: statusValue, ...formValues } = this.repairForm.value;
         const itemData = {
-          ...this.repairForm.value,
+          ...formValues,
+          ...fromStatusSelectValue(statusValue || 'New', this.loadedItem),
           photos: allPhotos,
           tags: this.tags,
           additionalRepairers: this.secondaryRepairers,
@@ -1432,10 +1435,13 @@ export class RepairFormComponent implements OnInit, OnDestroy {
 
   /** Short read-only summary of what was recorded on the Complete screen (satisfaction, donation). */
   completionSummary = '';
+  /** The item as last loaded, so "Collected" can keep its existing outcome. */
+  private loadedItem: RepairItem | null = null;
+  readonly outcomes = OUTCOMES;
 
   private buildCompletionSummary(item: RepairItem): string {
-    if (!['Repaired', 'Partially Repaired', 'Advice Given', 'Not Repaired'].includes(item.status || '')) return '';
-    const parts: string[] = [item.status!];
+    if (!isDone(item)) return '';
+    const parts: string[] = [statusLabel(item)];
     if (item.ownerSatisfied === true) parts.push('owner happy');
     else if (item.ownerSatisfied === false) parts.push('owner unhappy');
     else if (item.ownerSatisfied === null) parts.push('owner neutral');

@@ -12,6 +12,7 @@ import { RepairService } from '../../services/repair.service';
 import { RepairItem } from '../../models/repair-item.model';
 
 import { DialogService } from '../../services/dialog.service';
+import { getStage, reportKey } from '../../models/repair-status';
 // ── Data interfaces ───────────────────────────────────────────────────────────
 
 interface SessionOutcomes {
@@ -568,7 +569,7 @@ export class AnalyticsDashboardComponent implements OnInit, OnDestroy {
       const cats = this.emptyCats();
       dayItems.forEach(item => cats[this.mapCategory(item.category)]++);
 
-      const cnt = (status: string) => dayItems.filter(i => i.status === status).length;
+      const cnt = (key: string) => dayItems.filter(i => reportKey(i) === key).length;
 
       sessions.push({
         date,
@@ -583,13 +584,13 @@ export class AnalyticsDashboardComponent implements OnInit, OnDestroy {
         outcomes: {
           complete:     cnt('Repaired'),
           partial:      cnt('Partially Repaired'),
-          ongoingHome:  0,
+          ongoingHome:  cnt('Taken Home'),
           completeHome: 0,
           advice:       cnt('Advice Given'),
-          unable:       cnt('Not Repaired'),
+          unable:       cnt('Unrepairable'),
           willBring:    0,
           paperwork:    0,
-          inProgress:   dayItems.filter(i => !i.status || i.status === 'New' || i.status === 'Assigned').length,
+          inProgress:   dayItems.filter(i => ['New', 'Investigating'].includes(getStage(i))).length,
         },
         categories: cats,
       });

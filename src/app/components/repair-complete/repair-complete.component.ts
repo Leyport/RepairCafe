@@ -4,6 +4,8 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { RepairService } from '../../services/repair.service';
 import { RepairItem } from '../../models/repair-item.model';
+import { OUTCOME_OPTIONS, getOutcome, getStage, isDone, statusClass, statusLabel } from '../../models/repair-status';
+import { take } from 'rxjs';
 
 import { DialogService } from '../../services/dialog.service';
 @Component({
@@ -35,7 +37,7 @@ import { DialogService } from '../../services/dialog.service';
               <div class="meta-row">
                 <span *ngIf="item.owner" class="meta-chip">{{ item.owner }}</span>
                 <span *ngIf="item.repairer" class="meta-chip repairer">{{ item.repairer }}</span>
-                <span class="status-badge" [ngClass]="getStatusClass(item.status)">{{ item.status || 'New' }}</span>
+                <span class="status-badge" [ngClass]="getStatusClass(item)">{{ statusLabel(item) }}</span>
               </div>
             </div>
           </div>
@@ -57,7 +59,22 @@ import { DialogService } from '../../services/dialog.service';
                 [class.selected]="completionStatus === opt.value"
                 (click)="completionStatus = opt.value">
                 <span class="outcome-icon">{{ opt.icon }}</span>
-                <span class="outcome-label">{{ opt.label }}</span>
+                <span class="outcome-label">{{ opt.value }}</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Collected by owner? -->
+          <div class="field-group">
+            <label class="field-label">Has the owner collected the item?</label>
+            <div class="satisfaction-options">
+              <button class="sat-btn happy" [class.selected]="collected" (click)="collected = true">
+                <span class="sat-icon">👋</span>
+                <span>Yes — Collected</span>
+              </button>
+              <button class="sat-btn neutral" [class.selected]="!collected" (click)="collected = false">
+                <span class="sat-icon">📦</span>
+                <span>Not yet</span>
               </button>
             </div>
           </div>
@@ -121,7 +138,7 @@ import { DialogService } from '../../services/dialog.service';
 
         <div *ngIf="saved" class="saved-banner">
           <div class="saved-text">
-            <strong>✓ Saved</strong> — item {{ item.displayNumber }} is marked <strong>{{ item.status }}</strong>.
+            <strong>✓ Saved</strong> — item {{ item.displayNumber }} is marked <strong>{{ statusLabel(item) }}</strong>.
             <span *ngIf="item.completionNotes">Your notes are stored on this item and shown on its details page (and as 📝 in the repair list).</span>
           </div>
           <div class="saved-actions">
@@ -446,6 +463,8 @@ import { DialogService } from '../../services/dialog.service';
     .status-advice    { background: rgba(230,126,34,0.12);  color: #f0a055; border: 1px solid rgba(230,126,34,0.3); }
     .status-partial   { background: rgba(230,126,34,0.12);  color: #f0a055; border: 1px solid rgba(230,126,34,0.3); }
     .status-not       { background: rgba(231,76,60,0.12);   color: #f1948a; border: 1px solid rgba(231,76,60,0.3); }
+    .status-home      { background: rgba(171,71,188,0.12);  color: #ce93d8; border: 1px solid rgba(171,71,188,0.3); }
+    .status-collected { background: rgba(120,144,156,0.15); color: #b0bec5; border: 1px solid rgba(120,144,156,0.4); }
 
     /* Saved confirmation */
     .saved-banner {
@@ -527,29 +546,28 @@ export class RepairCompleteComponent implements OnInit {
   alreadyCompleted = false;
 
   completionStatus: string = '';
+  collected = false;
   ownerSatisfied: boolean | null = null;
   donationAmount: number | null = null;
   completionNotes: string = '';
 
-  readonly outcomeOptions = [
-    { value: 'Repaired',            label: 'Repaired',            icon: '✅' },
-    { value: 'Partially Repaired',  label: 'Partially Repaired',  icon: '🔧' },
-    { value: 'Advice Given',        label: 'Advice Given',        icon: '💬' },
-    { value: 'Not Repaired',        label: 'Not Repaired',        icon: '❌' },
-  ];
+  readonly outcomeOptions = OUTCOME_OPTIONS;
+  readonly statusLabel = statusLabel;
+  readonly getStatusClass = statusClass;
 
   ngOnInit() {
     const id = this.route.snapshot.paramMap.get('id');
     if (!id) { this.loading = false; return; }
 
-    this.repairService.getRepairItems().subscribe(items => {
+    this.repairService.getRepairItems().pipe(take(1)).subscribe(items => {
       this.item = items.find(i => i.id === id) ?? null;
       if (this.item) {
         // Pre-fill if already has completion data
-        if (this.item.status && this.item.status !== 'New' && this.item.status !== 'Assigned') {
-          this.completionStatus = this.item.status;
+        if (isDone(this.item)) {
+          this.completionStatus = getOutcome(this.item);
           this.alreadyCompleted = true;
         }
+        this.collected = getStage(this.item) === 'Collected';
         if (this.item.ownerSatisfied !== undefined) {
           this.ownerSatisfied = this.item.ownerSatisfied;
         }
@@ -562,17 +580,6 @@ export class RepairCompleteComponent implements OnInit {
       }
       this.loading = false;
     });
-  }
-
-  getStatusClass(status: string | undefined): string {
-    switch (status) {
-      case 'Assigned':           return 'status-assigned';
-      case 'Repaired':           return 'status-repaired';
-      case 'Advice Given':       return 'status-advice';
-      case 'Partially Repaired': return 'status-partial';
-      case 'Not Repaired':       return 'status-not';
-      default:                   return 'status-new';
-    }
   }
 
   goBack() {
@@ -589,7 +596,8 @@ export class RepairCompleteComponent implements OnInit {
     this.saving = true;
 
     const updates: Partial<RepairItem> = {
-      status: this.completionStatus,
+      status: this.collected ? 'Collected' : 'Completed',
+      outcome: this.completionStatus,
       ownerSatisfied: this.ownerSatisfied,
       donationAmount: (this.donationAmount && this.donationAmount > 0) ? this.donationAmount : 0,
       completionNotes: this.completionNotes.trim(),

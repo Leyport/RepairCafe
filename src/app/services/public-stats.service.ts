@@ -6,6 +6,7 @@ import { RepairItem } from '../models/repair-item.model';
 import { rcDayKey } from '../utils/rc-day';
 import { RepairService } from './repair.service';
 import { AuthService } from './auth.service';
+import { isOpen, reportKey } from '../models/repair-status';
 
 /**
  * Anonymous, counts-only summary of each session, published so the public /stats page (and
@@ -54,7 +55,7 @@ export function buildPublicStats(items: RepairItem[]): PublicSessionStats[] {
   return [...bySession.entries()]
     .sort(([a], [b]) => b.localeCompare(a))
     .map(([date, list]) => {
-      const count = (status: string) => list.filter(i => i.status === status).length;
+      const count = (key: string) => list.filter(i => reportKey(i) === key).length;
       const categories: Record<string, number> = {};
       for (const i of list) {
         const name = categoryName(i.category);
@@ -67,8 +68,8 @@ export function buildPublicStats(items: RepairItem[]): PublicSessionStats[] {
         repaired: count('Repaired'),
         partlyRepaired: count('Partially Repaired'),
         advice: count('Advice Given'),
-        notRepaired: count('Not Repaired'),
-        inProgress: list.filter(i => !i.status || i.status === 'New' || i.status === 'Assigned').length,
+        notRepaired: count('Unrepairable'),
+        inProgress: list.filter(i => isOpen(i)).length,
         categories,
       };
     });

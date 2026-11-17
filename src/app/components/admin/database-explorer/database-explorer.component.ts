@@ -14,6 +14,7 @@ import { SequenceService, SEQUENCE_FIELD } from '../../../services/sequence.serv
 import { rcDayKey, createdMonthKey, buildSessionFilterOptions, matchesSessionFilter, monthLabel, SessionFilterOptions } from '../../../utils/rc-day';
 
 import { DialogService } from '../../../services/dialog.service';
+import { OUTCOMES, STAGES, fromStatusSelectValue, getStage, stageForRepairerChange, statusClass, statusLabel, statusSelectValue } from '../../../models/repair-status';
 interface ExplorerFilters {
   number: string;
   description: string;
@@ -28,7 +29,7 @@ interface ExplorerFilters {
 const EMPTY_FILTERS: ExplorerFilters = {
   number: '', description: '', owner: '', repairItem: '', repairer: '', session: '', created: '', status: ''
 };
-const STATUSES = ['New', 'Assigned', 'Repaired', 'Advice Given', 'Partially Repaired', 'Not Repaired'];
+const STATUSES: readonly string[] = STAGES;
 // Date columns sort newest-first on the first click.
 const DATE_COLUMNS = new Set(['RCDay', 'creationDate', 'createdAt', 'firstSeen']);
 
@@ -430,27 +431,19 @@ const DATE_COLUMNS = new Set(['RCDay', 'creationDate', 'createdAt', 'firstSeen']
                             <td>
                               <div class="lov-container">
                                 <select
-                                  [ngModel]="record.status || 'New'"
-                                  (ngModelChange)="updateItem(record, 'status', $event)"
+                                  [ngModel]="statusSelectValue(record)"
+                                  (ngModelChange)="updateStatus(record, $event)"
                                   class="inline-select status-select"
-                                  [ngClass]="{
-                                    'status-new':              (record.status || 'New') === 'New',
-                                    'status-assigned':         record.status === 'Assigned',
-                                    'status-repaired':         record.status === 'Repaired',
-                                    'status-advice':           record.status === 'Advice Given',
-                                    'status-partial':          record.status === 'Partially Repaired',
-                                    'status-not-repaired':     record.status === 'Not Repaired'
-                                  }"
-                                  [title]="record.status || 'New'"
+                                  [ngClass]="getStatusClass(record)"
+                                  [title]="statusLabel(record)"
                                   (click)="$event.stopPropagation()">
                                   <option value="New">New</option>
-                                  <option value="Assigned">Assigned</option>
+                                  <option value="Investigating">Investigating</option>
+                                  <option value="Taken Home">Taken Home</option>
                                   <optgroup label="Completed">
-                                    <option value="Repaired">Repaired</option>
-                                    <option value="Advice Given">Advice Given</option>
-                                    <option value="Partially Repaired">Partially Repaired</option>
-                                    <option value="Not Repaired">Not Repaired</option>
+                                    <option *ngFor="let o of outcomes" [value]="'Completed|' + o">{{ o }}</option>
                                   </optgroup>
+                                  <option value="Collected">Collected</option>
                                 </select>
                               </div>
                             </td>
@@ -1158,7 +1151,17 @@ const DATE_COLUMNS = new Set(['RCDay', 'creationDate', 'createdAt', 'firstSeen']
         color: #f0a055 !important;
         border: 1px solid rgba(230, 126, 34, 0.4) !important;
     }
-    .status-not-repaired {
+    .status-home {
+        background: rgba(171, 71, 188, 0.15) !important;
+        color: #ce93d8 !important;
+        border: 1px solid rgba(171, 71, 188, 0.4) !important;
+    }
+    .status-collected {
+        background: rgba(120, 144, 156, 0.18) !important;
+        color: #b0bec5 !important;
+        border: 1px solid rgba(120, 144, 156, 0.45) !important;
+    }
+    .status-not, .status-not-repaired {
         background: rgba(231, 76, 60, 0.15) !important;
         color: #f1948a !important;
         border: 1px solid rgba(231, 76, 60, 0.4) !important;
@@ -1639,6 +1642,17 @@ export class DatabaseExplorerComponent implements OnInit {
 
   // Searching and column filters
   readonly statuses = STATUSES;
+  readonly outcomes = OUTCOMES;
+  readonly statusSelectValue = statusSelectValue;
+  readonly statusLabel = statusLabel;
+  readonly getStatusClass = statusClass;
+
+  async updateStatus(item: RepairItem, value: string) {
+    if (!item.id) return;
+    const updates = fromStatusSelectValue(value, item);
+    Object.assign(item, updates);
+    await this.repairService.updateRepairItem(item.id, updates);
+  }
   searchAll = '';
   colFilters: ExplorerFilters = { ...EMPTY_FILTERS };
   showFilters = false;
@@ -1806,12 +1820,9 @@ export class DatabaseExplorerComponent implements OnInit {
     };
 
     // Update status logic
-    const currentStatus = this.selectedItemForAssignment.status || 'New';
-    if (this.assignmentPrimary && currentStatus === 'New') {
-      updates.status = 'Assigned';
-    } else if (!this.assignmentPrimary && this.assignmentAdditional.size === 0 && currentStatus === 'Assigned') {
-      updates.status = 'New';
-    }
+    const nextStage = stageForRepairerChange(this.selectedItemForAssignment,
+      !!this.assignmentPrimary || this.assignmentAdditional.size > 0);
+    if (nextStage) updates.status = nextStage;
 
     Object.assign(this.selectedItemForAssignment, updates);
 
@@ -1940,7 +1951,7 @@ export class DatabaseExplorerComponent implements OnInit {
     if (f.session === '__none') { if (rcDayKey(item.RCDay)) return false; }
     else if (!matchesSessionFilter(item.RCDay, f.session)) return false;
     if (f.created && createdMonthKey(item) !== f.created) return false;
-    if (f.status && (item.status || 'New') !== f.status) return false;
+    if (f.status && getStage(item) !== f.status) return false;
     return true;
   }
 
@@ -2130,13 +2141,10 @@ export class DatabaseExplorerComponent implements OnInit {
 
     // Logic: Auto-update status based on repairer assignment
     if (field === 'repairer') {
-      const currentStatus = item.status || 'New';
-      if (value && currentStatus === 'New') {
-        updates.status = 'Assigned';
-        (item as any).status = 'Assigned'; // Optimistic update
-      } else if (!value && currentStatus === 'Assigned') {
-        updates.status = 'New';
-        (item as any).status = 'New'; // Optimistic update
+      const nextStage = stageForRepairerChange(item, !!value);
+      if (nextStage) {
+        updates.status = nextStage;
+        (item as any).status = nextStage; // Optimistic update
       }
     }
 
