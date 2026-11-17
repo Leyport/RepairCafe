@@ -54,6 +54,8 @@ The buttons at the top of the repair list choose which items are shown:
 
 Electrical items show a **⚡ PAT** badge before the description: **⚡ PAT ✓** passed, **⚡ PAT ✗** failed, or **⚡ PAT ?** not tested yet. On a computer, hover over the badge to see who tested it and when; the item's details page shows this too.
 
+To list items by PAT result, click **⚲ Filters** and use the **⚡ PAT** drop-down next to the description filter: *All electrical*, *PAT passed*, *PAT failed* or *PAT not tested*. It works together with the buttons above — choose **All** to search every session rather than just the latest.
+
 ---
 
 ## Creating a Repair Record

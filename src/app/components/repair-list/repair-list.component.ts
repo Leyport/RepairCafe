@@ -20,9 +20,10 @@ interface ColumnFilters {
   session: string;    // 'y:2026', 'm:2026-09' or 'd:2026-09-19'
   created: string;    // '2026-09'
   status: string;
+  pat: string;        // '' = any item, 'any' = all electrical, 'Pass', 'Fail', 'none' = not tested yet
 }
 
-const EMPTY_FILTERS: ColumnFilters = { description: '', owner: '', category: '', repairer: '', session: '', created: '', status: '' };
+const EMPTY_FILTERS: ColumnFilters = { description: '', owner: '', category: '', repairer: '', session: '', created: '', status: '', pat: '' };
 const STATUSES: readonly string[] = STAGES;
 // Dates sort newest-first on the first click; text columns A–Z.
 const DEFAULT_DIR: Record<SortColumn, SortDir> = {
@@ -132,8 +133,18 @@ interface RepairerGroup {
         <div class="filter-row" [class.open]="showFilters">
           <span class="col-photo"></span>
           <span class="col-code"></span>
-          <input class="col-desc filter-input" type="text" [class.set]="filters.description" placeholder="Description contains…"
-                 [ngModel]="filters.description" (ngModelChange)="setFilter('description', $event)">
+          <div class="col-desc desc-filter-cell">
+            <input class="filter-input" type="text" [class.set]="filters.description" placeholder="Description contains…"
+                   [ngModel]="filters.description" (ngModelChange)="setFilter('description', $event)">
+            <select class="filter-select pat-filter" [class.set]="filters.pat" title="PAT test"
+                    [ngModel]="filters.pat" (ngModelChange)="setFilter('pat', $event)">
+              <option value="">⚡ PAT: any</option>
+              <option value="any">⚡ All electrical</option>
+              <option value="Pass">⚡ PAT passed ✓</option>
+              <option value="Fail">⚡ PAT failed ✗</option>
+              <option value="none">⚡ PAT not tested ?</option>
+            </select>
+          </div>
           <select class="col-owner filter-select" [class.set]="filters.owner"
                   [ngModel]="filters.owner" (ngModelChange)="setFilter('owner', $event)">
             <option value="">All owners</option>
@@ -558,6 +569,9 @@ interface RepairerGroup {
       cursor: pointer;
     }
     .filter-input { cursor: text; }
+    .desc-filter-cell { display: flex; gap: 0.4rem; min-width: 0; }
+    .desc-filter-cell .filter-input { flex: 1 1 auto; }
+    .desc-filter-cell .pat-filter { flex: 0 0 150px; width: 150px; }
     .filter-input:focus, .filter-select:focus { outline: none; border-color: var(--accent-color); }
     .filter-select.set, .filter-input.set { border-color: var(--accent-color); color: var(--accent-color); }
     .filter-select option, .filter-select optgroup { background: #1a2236; color: white; }
@@ -626,6 +640,8 @@ interface RepairerGroup {
       .filter-row > span { display: none; }
       .filter-row > .filter-input, .filter-row > .filter-select { flex: 1 1 140px; font-size: 0.85rem; padding: 0.45rem; }
       .filter-row > .filter-input { flex-basis: 100%; }
+      .filter-row > .desc-filter-cell { flex: 1 1 100%; }
+      .desc-filter-cell .filter-input, .desc-filter-cell .pat-filter { font-size: 0.85rem; padding: 0.45rem; }
     }
 
     .list-row:hover {
@@ -1553,6 +1569,11 @@ export class RepairListComponent implements OnInit {
   private matchesFilters(item: RepairItem, f: ColumnFilters): boolean {
     const pick = (filter: string, value: string | undefined) =>
       !filter || (filter === '__none' ? !value : value === filter);
+    if (f.pat) {
+      if (!this.isElectrical(item)) return false;
+      if (f.pat === 'none' && item.patResult) return false;
+      if ((f.pat === 'Pass' || f.pat === 'Fail') && item.patResult !== f.pat) return false;
+    }
 
     if (f.description && !(item.itemDescription || '').toLowerCase().includes(f.description.toLowerCase())) return false;
     if (!pick(f.owner, item.owner)) return false;
