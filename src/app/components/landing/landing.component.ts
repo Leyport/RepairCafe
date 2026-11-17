@@ -561,7 +561,11 @@ export class LandingComponent implements OnInit, OnDestroy {
       case 'auth/operation-not-allowed':
         return `${name} sign-in isn't available yet. Please use another sign-in option.`;
       case 'auth/account-exists-with-different-credential':
-        return '';   // explained by the "Link your Facebook account" box
+        // Facebook: explained by the "Link your Facebook account" box. Google: the email was first
+        // registered another way (usually Facebook, now hidden), so they can't get in on their own.
+        return provider === 'google'
+          ? 'This email address was first registered using Facebook, so Google sign-in can\'t open it. Please ask a Repair Cafe admin to reset your account to Google.'
+          : '';
       case 'auth/popup-blocked':
         return 'Your browser blocked the sign-in window. Please allow pop-ups for this site and try again.';
       case 'auth/unauthorized-domain':
