@@ -1,10 +1,10 @@
-import { Component, inject } from '@angular/core';
+import { Component, OnDestroy, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RepairService } from '../../services/repair.service';
 import { AuthService } from '../../services/auth.service';
-import { Issue } from '../../models/issue.model';
-import { Observable, BehaviorSubject, combineLatest } from 'rxjs';
+import { Issue, IssueMessage } from '../../models/issue.model';
+import { Observable, BehaviorSubject, combineLatest, firstValueFrom } from 'rxjs';
 import { take, map } from 'rxjs/operators';
 
 import { DialogService } from '../../services/dialog.service';
@@ -139,8 +139,8 @@ interface IssueStats {
             </tr>
           </thead>
           <tbody>
-            <tr *ngFor="let issue of sortedIssues$ | async"
-                [class.needs-fix]="!issue.fix">
+            <ng-container *ngFor="let issue of sortedIssues$ | async">
+            <tr [class.needs-fix]="!issue.fix" [class.thread-open]="openThreadId === issue.id">
               <td class="col-num">{{ numMap.get(issue.id!) }}</td>
               <td class="col-desc" (click)="startEdit(issue)">
                 <textarea *ngIf="editingId === issue.id"
@@ -152,6 +152,12 @@ interface IssueStats {
                   (click)="$event.stopPropagation()"
                   rows="2"></textarea>
                 <span *ngIf="editingId !== issue.id" class="desc-text" title="Click to edit">{{ issue.description }}</span>
+                <button class="btn-thread" [class.unread]="hasUnread(issue)"
+                        (click)="$event.stopPropagation(); toggleThread(issue)"
+                        [title]="hasUnread(issue) ? 'New message' : 'Open the conversation about this issue'">
+                  💬 {{ issue.messages?.length ? (issue.messages!.length + (issue.messages!.length === 1 ? ' message' : ' messages')) : 'Discuss' }}
+                  <span class="unread-dot" *ngIf="hasUnread(issue)">New</span>
+                </button>
               </td>
               <td class="col-fix" (click)="startFixEdit(issue)">
                 <span *ngIf="!issue.fix && editingFixId !== issue.id" class="no-fix-placeholder">
@@ -183,6 +189,36 @@ interface IssueStats {
                 <button class="btn-icon delete" (click)="deleteIssue(issue.id!)" title="Delete">🗑️</button>
               </td>
             </tr>
+            <tr *ngIf="openThreadId === issue.id" class="thread-row">
+              <td colspan="7">
+                <div class="thread">
+                  <div class="msg" [class.mine]="isMine(issue.raisedByUid)">
+                    <div class="msg-meta">
+                      <strong>{{ issue.raisedBy || 'Someone' }}</strong> <span class="role-tag">raised this issue</span>
+                      · {{ issue.dateRaised?.toDate() | date:'d MMM, HH:mm' }}
+                    </div>
+                    <div class="msg-text">{{ issue.description }}</div>
+                  </div>
+                  <div class="msg" *ngFor="let m of issue.messages" [class.mine]="isMine(m.byUid)">
+                    <div class="msg-meta">
+                      <strong>{{ m.by }}</strong>
+                      <span class="role-tag" *ngIf="m.byUid && m.byUid === issue.raisedByUid">raised this issue</span>
+                      · {{ m.at?.toDate() | date:'d MMM, HH:mm' }}
+                    </div>
+                    <div class="msg-text">{{ m.text }}</div>
+                  </div>
+                  <div class="thread-fix" *ngIf="issue.fix">✅ <strong>Fix recorded:</strong> {{ issue.fix }}</div>
+                  <div class="reply">
+                    <textarea rows="2" [(ngModel)]="replyText" placeholder="Write a reply… (Ctrl+Enter to send)"
+                              (keydown.control.enter)="sendReply(issue)" (keydown.meta.enter)="sendReply(issue)"></textarea>
+                    <button class="btn-send" [disabled]="!replyText.trim() || sendingReply" (click)="sendReply(issue)">
+                      {{ sendingReply ? 'Sending…' : 'Send' }}
+                    </button>
+                  </div>
+                </div>
+              </td>
+            </tr>
+            </ng-container>
           </tbody>
         </table>
         
@@ -481,6 +517,40 @@ interface IssueStats {
       transition: border-color 0.15s;
     }
     .col-desc:hover .desc-text { border-color: rgba(255,255,255,0.3); }
+
+    /* Conversation */
+    .btn-thread {
+      margin-top: 0.4rem; display: inline-flex; align-items: center; gap: 0.35rem;
+      background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.12); border-radius: 6px;
+      color: rgba(255,255,255,0.65); font-size: 0.75rem; padding: 0.2rem 0.5rem; cursor: pointer; font-family: inherit;
+    }
+    .btn-thread:hover { background: rgba(255,255,255,0.1); color: white; }
+    .btn-thread.unread { border-color: rgba(255,69,0,0.6); color: white; }
+    .unread-dot { background: rgba(255,69,0,0.9); color: white; border-radius: 99px; padding: 0 0.4rem; font-size: 0.68rem; font-weight: 700; }
+    tr.thread-open td { background: rgba(0,242,255,0.04); }
+    .thread-row td { background: rgba(0,0,0,0.25); padding: 0.75rem 1rem 1rem !important; }
+    .thread { display: flex; flex-direction: column; gap: 0.6rem; }
+    .msg {
+      max-width: 80%; align-self: flex-start; padding: 0.55rem 0.8rem; border-radius: 12px 12px 12px 4px;
+      background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.1);
+    }
+    .msg.mine { align-self: flex-end; border-radius: 12px 12px 4px 12px; background: rgba(0,242,255,0.1); border-color: rgba(0,242,255,0.25); }
+    .msg-meta { font-size: 0.72rem; color: rgba(255,255,255,0.5); margin-bottom: 0.2rem; }
+    .msg-meta strong { color: rgba(255,255,255,0.85); }
+    .role-tag { background: rgba(255,180,0,0.15); color: #ffcc66; border-radius: 4px; padding: 0 0.3rem; font-size: 0.68rem; }
+    .msg-text { white-space: pre-wrap; font-size: 0.9rem; color: rgba(255,255,255,0.9); line-height: 1.4; }
+    .thread-fix { font-size: 0.85rem; color: #81c784; padding: 0.4rem 0.2rem; }
+    .reply { display: flex; gap: 0.5rem; align-items: flex-end; margin-top: 0.3rem; }
+    .reply textarea {
+      flex: 1; background: rgba(0,0,0,0.35); border: 1px solid rgba(255,255,255,0.15); border-radius: 8px;
+      color: white; padding: 0.5rem 0.7rem; font-family: inherit; font-size: 0.9rem; resize: vertical;
+    }
+    .reply textarea:focus { outline: none; border-color: var(--accent-color, #00f2ff); }
+    .btn-send {
+      background: rgba(0,242,255,0.15); border: 1px solid rgba(0,242,255,0.5); color: #00f2ff; border-radius: 8px;
+      padding: 0.5rem 1rem; font-weight: 700; cursor: pointer; font-family: inherit;
+    }
+    .btn-send:disabled { opacity: 0.4; cursor: not-allowed; }
     .inline-edit {
       width: 100%;
       background: rgba(0, 0, 0, 0.4);
@@ -590,7 +660,7 @@ interface IssueStats {
     }
   `]
 })
-export class IssuesComponent {
+export class IssuesComponent implements OnDestroy {
   private dialog = inject(DialogService);
   private repairService = inject(RepairService);
   private authService = inject(AuthService);
@@ -630,6 +700,62 @@ export class IssuesComponent {
   );
 
   sortDir: 'asc' | 'desc' = 'asc';
+
+  // --- Conversation on each issue ---
+  openThreadId: string | null = null;
+  replyText = '';
+  sendingReply = false;
+  private myUid: string | null = null;
+  private authSub = this.authService.user$.subscribe(u => (this.myUid = u?.uid ?? null));
+
+  ngOnDestroy() {
+    this.authSub.unsubscribe();
+  }
+
+  isMine(uid?: string): boolean {
+    return !!uid && uid === this.myUid;
+  }
+
+  toggleThread(issue: Issue) {
+    if (!issue.id) return;
+    this.openThreadId = this.openThreadId === issue.id ? null : issue.id;
+    this.replyText = '';
+    this.markRead(issue);
+  }
+
+  /** Someone else has written since you last opened this conversation (remembered on this device). */
+  hasUnread(issue: Issue): boolean {
+    const msgs = issue.messages || [];
+    const last = [...msgs].reverse().find(m => !this.isMine(m.byUid));
+    if (!last?.at?.toMillis || !issue.id) return false;
+    return last.at.toMillis() > this.readAt(issue.id);
+  }
+
+  private readAt(id: string): number {
+    try { return Number(localStorage.getItem('issueRead:' + id)) || 0; } catch { return 0; }
+  }
+
+  private markRead(issue: Issue) {
+    if (!issue.id) return;
+    try { localStorage.setItem('issueRead:' + issue.id, String(Date.now())); } catch { /* storage unavailable */ }
+  }
+
+  async sendReply(issue: Issue) {
+    const text = this.replyText.trim();
+    if (!text || !issue.id || this.sendingReply) return;
+    this.sendingReply = true;
+    try {
+      const user = await firstValueFrom(this.authService.user$);
+      await this.repairService.addIssueMessage(issue.id, text, user?.displayName || user?.email || 'Someone', user?.uid);
+      this.replyText = '';
+      this.markRead(issue);
+    } catch (e) {
+      console.error('Error sending reply:', e);
+      this.dialog.error("Couldn't send your reply. Please try again.");
+    } finally {
+      this.sendingReply = false;
+    }
+  }
   private sortDir$ = new BehaviorSubject<'asc' | 'desc'>('asc');
 
   private statusOrder = ['New', 'Assigned', 'Fixed'];
@@ -732,7 +858,7 @@ export class IssuesComponent {
     try {
       const user = await this.authService.user$.pipe(take(1)).toPromise();
       const raisedBy = user?.displayName || user?.email || undefined;
-      await this.repairService.addIssue(this.newIssueDescription, raisedBy);
+      await this.repairService.addIssue(this.newIssueDescription, raisedBy, user?.uid);
       this.toggleForm();
     } catch (error) {
       console.error('Error adding issue:', error);

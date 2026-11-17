@@ -34,6 +34,7 @@ The header contains the following buttons (some only visible when logged in):
 | **New** | Opens the form to create a new repair record |
 | **Sessions** (calendar icon) | Opens the session schedule |
 | **Issues** (circle icon) | Opens the issue tracker *(approved users only)* |
+| **Notifications** (bell icon) | People waiting for approval, with an *Approve* button *(admins only)* |
 | **Admin** (grid icon) | Opens the admin panel *(admins only)* |
 
 ---
@@ -207,6 +208,16 @@ Access it via the **Issues** icon in the header (approved users only).
 2. Enter a description of the issue
 3. Click **Submit Issue**
 
+### Talking About an Issue
+
+Each issue has its own conversation, so the person who raised it and the person fixing it can ask questions and give updates.
+
+1. Click the **💬 Discuss** button under the issue's description (it shows the number of messages once there are some)
+2. Read the conversation — it starts with the original issue, marked *raised this issue*
+3. Type your reply in the box at the bottom and click **Send** (or press Ctrl+Enter)
+
+Your own messages appear on the right, everyone else's on the left. A red **New** label on the 💬 button means someone has replied since you last opened that conversation on this device.
+
 ### Managing Issues
 
 | Action | How |
@@ -244,7 +255,16 @@ A full view of all repair records across all sessions.
 
 ### User Manager
 
-Lists all users who have logged in. Admins can grant or revoke admin access.
+Lists all users who have logged in. People waiting for approval are shown first — press **Approve** to let them see the repair records. Admins can also grant or revoke admin access.
+
+### Notifications (bell icon)
+
+Admins see a **bell** icon in the header. When someone new signs in and is waiting for approval:
+
+- a red number on the bell shows how many people are waiting;
+- if you are signed in at the time, a pop-up appears in the bottom-right corner — click it to review.
+
+Click the bell to see who is waiting and press **Approve** next to their name. They get in straight away, without needing to sign in again. Use **Open Admin → Users** for more options.
 
 ### Version Manager
 

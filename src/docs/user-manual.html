@@ -282,6 +282,7 @@
           <tr><td><strong>New</strong></td><td>Opens the form to create a new repair record</td></tr>
           <tr><td><strong>Sessions</strong> (calendar icon)</td><td>Opens the session schedule</td></tr>
           <tr><td><strong>Issues</strong> (circle icon)</td><td>Opens the issue tracker <em>(approved users only)</em></td></tr>
+          <tr><td><strong>Notifications</strong> (bell icon)</td><td>People waiting for approval, with an <em>Approve</em> button <em>(admins only)</em></td></tr>
           <tr><td><strong>Admin</strong> (grid icon)</td><td>Opens the admin panel <em>(admins only)</em></td></tr>
         </tbody>
       </table>
@@ -469,6 +470,15 @@
         <li>Click <strong>Submit Issue</strong></li>
       </ol>
 
+      <h3>Talking about an issue</h3>
+      <p>Each issue has its own conversation, so the person who raised it and the person fixing it can ask questions and give updates.</p>
+      <ol class="steps">
+        <li>Click the <strong>💬 Discuss</strong> button under the issue's description (it shows the number of messages once there are some)</li>
+        <li>Read the conversation &mdash; it starts with the original issue, marked <em>raised this issue</em></li>
+        <li>Type your reply in the box at the bottom and click <strong>Send</strong> (or press Ctrl+Enter)</li>
+      </ol>
+      <p>Your own messages appear on the right, everyone else's on the left. A red <strong>New</strong> label on the 💬 button means someone has replied since you last opened that conversation on this device. Click the button again to close the conversation.</p>
+
       <h3>Managing issues</h3>
       <table>
         <thead><tr><th>Action</th><th>How</th></tr></thead>
@@ -508,7 +518,15 @@
       <p>A full searchable view of all repair records across every session. Click a row to open the full repair detail. Use the print icon on a row to generate a PDF repair receipt in a new window.</p>
 
       <h3>User Manager</h3>
-      <p>Lists every user who has ever logged in. Admins can grant or revoke admin access here.</p>
+      <p>Lists every user who has ever logged in. People waiting for approval are shown first &mdash; press <strong>Approve</strong> to let them see the repair records. Admins can also grant or revoke admin access here.</p>
+
+      <h3>Notifications (bell icon)</h3>
+      <p>Admins see a <strong>bell</strong> icon in the header. When someone new signs in and is waiting for approval:</p>
+      <ul>
+        <li>a red number on the bell shows how many people are waiting;</li>
+        <li>if you are signed in at the time, a pop-up appears in the bottom-right corner &mdash; click it to review.</li>
+      </ul>
+      <p>Click the bell to see who is waiting and press <strong>Approve</strong> next to their name. They get in straight away, without needing to sign in again. Use <strong>Open Admin &rarr; Users</strong> for more options.</p>
 
       <h3>Version Manager</h3>
       <p>Displays the current application version and description. The version shown in the header and footer always reflects the latest deployed code automatically &mdash; no manual update needed after a deployment.</p>

@@ -1,7 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
-import { Firestore, collection, collectionData, addDoc, Timestamp, doc, deleteDoc, query, where, getDocs, orderBy, updateDoc, setDoc, writeBatch, getDoc, docData } from '@angular/fire/firestore';
+import { Firestore, collection, collectionData, addDoc, Timestamp, doc, deleteDoc, query, where, getDocs, orderBy, updateDoc, setDoc, writeBatch, getDoc, docData, arrayUnion } from '@angular/fire/firestore';
 import { Storage, ref, uploadBytes, getDownloadURL, deleteObject } from '@angular/fire/storage';
 import { Observable, BehaviorSubject, of } from 'rxjs';
 import { map, catchError } from 'rxjs/operators';
@@ -9,7 +9,7 @@ import { APP_VERSION } from '../constants/version';
 import { RepairItem, Owner } from '../models/repair-item.model';
 import { Tag } from '../models/tag.model';
 import { Repairer } from '../models/repairer.model';
-import { Issue } from '../models/issue.model';
+import { Issue, IssueMessage } from '../models/issue.model';
 import { SequenceService, SEQUENCE_FIELD } from './sequence.service';
 import { ActivityService } from './activity.service';
 
@@ -597,14 +597,22 @@ export class RepairService {
         return collectionData(q, { idField: 'id' }) as Observable<Issue[]>;
     }
 
-    async addIssue(description: string, raisedBy?: string): Promise<void> {
+    async addIssue(description: string, raisedBy?: string, raisedByUid?: string): Promise<void> {
         const issuesCollection = collection(this.firestore, 'issues');
         await addDoc(issuesCollection, {
             description,
             dateRaised: Timestamp.now(),
             status: 'New',
-            ...(raisedBy ? { raisedBy } : {})
+            ...(raisedBy ? { raisedBy } : {}),
+            ...(raisedByUid ? { raisedByUid } : {})
         });
+    }
+
+    /** Adds a message to an issue's conversation. */
+    async addIssueMessage(id: string, text: string, by: string, byUid?: string): Promise<void> {
+        const at = Timestamp.now();
+        const message: IssueMessage = { text, by, at, ...(byUid ? { byUid } : {}) };
+        await updateDoc(doc(this.firestore, 'issues', id), { messages: arrayUnion(message), lastMessageAt: at });
     }
 
     async updateIssue(id: string, data: Partial<Issue>): Promise<void> {
