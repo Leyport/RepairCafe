@@ -1,5 +1,6 @@
 import { Component, OnDestroy, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { NotificationBellComponent } from './components/notifications/notification-bell.component';
 import { RouterOutlet, RouterLink, Router, NavigationEnd } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
 import { RepairService } from './services/repair.service';
@@ -26,7 +27,7 @@ const UPDATE_CHECK_INTERVAL_MS = 5 * 60 * 1000;
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [CommonModule, RouterOutlet, RouterLink, LoginComponent, ConfirmDialogComponent],
+  imports: [CommonModule, RouterOutlet, RouterLink, LoginComponent, ConfirmDialogComponent, NotificationBellComponent],
   templateUrl: './app.component.html',
   styleUrl: './app.component.css'
 })
