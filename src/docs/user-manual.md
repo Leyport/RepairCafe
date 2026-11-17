@@ -10,13 +10,11 @@ RepairCafe is a web application for tracking repair items at Repair Cafe session
 
 ### Logging In
 
-Click one of the login buttons in the top-right corner of the header:
+Sign in with your Google account: press **Continue with Google** and choose your account. Google is the only way to sign in.
 
-- **Email icon** — log in with an email address and password
-- **Google icon** — log in with a Google account
-- **Apple icon** — log in with an Apple account
+The first time you sign in, an admin needs to approve your account before you can see the repair records. The page opens by itself as soon as they do.
 
-Once logged in your name appears in the header. Admin-only features (Admin panel, Issues log) become visible.
+Once logged in your name appears in the header. The **Admin** icon is only shown to admins.
 
 ### Logging Out
 
@@ -34,7 +32,7 @@ The header contains the following buttons (some only visible when logged in):
 | **New** | Opens the form to create a new repair record |
 | **Sessions** (calendar icon) | Opens the session schedule |
 | **Issues** (circle icon) | Opens the issue tracker *(logged-in users only)* |
-| **Admin** (grid icon) | Opens the admin panel *(logged-in users only)* |
+| **Admin** (grid icon) | Opens the admin panel *(admins only)* |
 
 ---
 
@@ -223,7 +221,7 @@ Issues with no fix entered are highlighted with an amber border to make them eas
 
 ## Admin Panel
 
-The admin panel is accessible to logged-in users via the **Admin** (grid) icon.
+The admin panel is available to admins only, via the **Admin** (grid) icon. Other users don't see the icon and can't open the admin pages.
 
 ### Repairers
 

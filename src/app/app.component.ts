@@ -57,6 +57,7 @@ export class AppComponent implements OnInit, OnDestroy {
 
   user$ = this.authService.user$;
   access$ = this.authService.access$;
+  isAdmin$ = this.authService.isAdmin$;
 
   // Only approved volunteers can read the issues log.
   issueCount$ = this.access$.pipe(

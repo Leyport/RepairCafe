@@ -1,4 +1,7 @@
-import { Routes } from '@angular/router';
+import { inject } from '@angular/core';
+import { Router, Routes } from '@angular/router';
+import { map, take } from 'rxjs';
+import { AuthService } from './services/auth.service';
 import { RepairListComponent } from './components/repair-list/repair-list.component';
 import { RepairFormComponent } from './components/repair-form/repair-form.component';
 import { RepairCompleteComponent } from './components/repair-complete/repair-complete.component';
@@ -14,6 +17,11 @@ export const routes: Routes = [
   { path: 'complete/:id', component: RepairCompleteComponent },
   {
     path: 'admin',
+    // Admins only — anyone else is sent back to the repair list.
+    canActivate: [() => {
+      const router = inject(Router);
+      return inject(AuthService).isAdmin$.pipe(take(1), map(isAdmin => isAdmin || router.createUrlTree(['/repairs'])));
+    }],
     loadComponent: () => import('./components/admin/admin-panel/admin-panel.component').then(m => m.AdminPanelComponent),
     children: [
       {

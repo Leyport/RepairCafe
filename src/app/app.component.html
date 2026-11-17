@@ -18,7 +18,7 @@
       <div class="header-controls">
         <div class="header-actions">
           <ng-container *ngIf="(access$ | async) === 'approved'">
-            <a routerLink="/admin" class="btn-admin" title="Admin Dashboard">
+            <a *ngIf="isAdmin$ | async" routerLink="/admin" class="btn-admin" title="Admin Dashboard">
               <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"
                 stroke-linecap="round" stroke-linejoin="round">
                 <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>

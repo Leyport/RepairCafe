@@ -67,9 +67,9 @@ import { Subscription } from 'rxjs';
               </button>
             </div>
 
-            <div class="divider"><span>or</span></div>
+            <div class="divider" *ngIf="showEmail"><span>or</span></div>
 
-            <div class="email-form">
+            <div class="email-form" *ngIf="showEmail">
               <input class="email-input" type="email" placeholder="Email address" [(ngModel)]="emailValue" [disabled]="loading" />
               <input class="email-input" type="password" placeholder="Password" [(ngModel)]="passwordValue" [disabled]="loading" (keyup.enter)="emailSignIn()" />
               <div class="email-btns">
@@ -506,6 +506,8 @@ export class LandingComponent implements OnInit, OnDestroy {
   authService = inject(AuthService);
   /** Hidden until the Facebook app passes Meta business verification and is published (set back to true then). */
   readonly showFacebook = false;
+  /** Email/password sign-in is hidden: volunteers sign in with Google only. */
+  readonly showEmail = false;
   private router = inject(Router);
   private repairService = inject(RepairService);
   private sub: Subscription | null = null;
