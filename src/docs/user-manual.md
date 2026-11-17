@@ -68,7 +68,7 @@ Each item moves through these steps, in this order:
 |--------|---------|
 | **New** | Item registered, no repairer working on it yet |
 | **Investigating** | A repairer is looking at the item. Choosing a repairer sets this automatically. |
-| **Taken Home** | A volunteer has taken the item home to keep working on it between sessions. These items stay in the **Active** list at the next session. |
+| **Taken Home** | A volunteer has taken the item home to keep working on it between sessions. These items are not counted as active work for a session; they are listed under the **Taken Home** button at the top of the repair list (with a count), whichever session they came from. |
 | **Completed** | The repair work is finished. Every completed item also records how it went (see below). |
 | **Collected** | The owner has taken the item away. How the repair went is still kept, e.g. *Collected · Repaired*. |
 

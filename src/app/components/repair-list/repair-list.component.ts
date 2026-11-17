@@ -36,7 +36,7 @@ const SORT_LABELS: Record<SortColumn, string> = {
   repairer: 'Repairer', session: 'RC Session', created: 'Created', status: 'Status'
 };
 
-type CompletionFilter = 'all' | 'active' | 'completed';
+type CompletionFilter = 'all' | 'active' | 'home' | 'completed';
 
 
 interface RepairerGroup {
@@ -58,6 +58,10 @@ interface RepairerGroup {
             <button class="toggle-btn"
                     [class.active]="completionControl.value === 'active'"
                     (click)="completionControl.setValue('active')">Active</button>
+            <button class="toggle-btn"
+                    [class.active]="completionControl.value === 'home'"
+                    (click)="completionControl.setValue('home')"
+                    title="Items a volunteer has taken home between sessions">Taken Home<span class="toggle-count" *ngIf="takenHomeCount">{{ takenHomeCount }}</span></button>
             <button class="toggle-btn"
                     [class.active]="completionControl.value === 'all'"
                     (click)="completionControl.setValue('all')">All</button>
@@ -106,7 +110,7 @@ interface RepairerGroup {
 
       <div class="filter-summary" *ngIf="activeFilterCount() > 0">
         Showing {{ (filteredItems$ | async)?.length ?? 0 }} item(s) matching {{ activeFilterCount() }} column filter(s)
-        <span *ngIf="completionControl.value !== 'all'"> in <strong>{{ completionControl.value }}</strong> items</span>
+        <span *ngIf="completionControl.value !== 'all'"> in <strong>{{ completionControl.value === 'home' ? 'taken home' : completionControl.value }}</strong> items</span>
         · <button class="link-btn" (click)="clearFilters()">Clear filters</button>
       </div>
 
@@ -308,6 +312,7 @@ interface RepairerGroup {
       
       <div *ngIf="(filteredItems$ | async)?.length === 0" class="empty-state">
         <p *ngIf="completionControl.value === 'active'">No active repair items.</p>
+        <p *ngIf="completionControl.value === 'home'">No items are taken home at the moment.</p>
         <p *ngIf="completionControl.value === 'completed'">No completed repair items.</p>
         <p *ngIf="completionControl.value === 'all'">No repair items found.</p>
       </div>
@@ -418,6 +423,14 @@ interface RepairerGroup {
       cursor: pointer;
       transition: all 0.15s;
       white-space: nowrap;
+    }
+    .toggle-count {
+      margin-left: 0.35rem;
+      padding: 0 0.4rem;
+      border-radius: 10px;
+      background: rgba(171, 71, 188, 0.3);
+      color: #e1bee7;
+      font-size: 0.72rem;
     }
     .toggle-btn:not(:last-child) {
       border-right: 1px solid rgba(255, 255, 255, 0.1);
@@ -1358,6 +1371,7 @@ export class RepairListComponent implements OnInit {
 
   /** True while the list is limited to the latest session (Active/Completed, no session filter). */
   sessionLimited = false;
+  takenHomeCount = 0;
   latestSessionLabel = '';
 
   /**
@@ -1451,18 +1465,21 @@ export class RepairListComponent implements OnInit {
       // a session in the column filter) goes back further.
       const latest = this.latestSessionKey(items);
       this.latestSessionLabel = latest ? this.sessionLabel(latest) : '';
-      this.sessionLimited = !!latest && completionFilter !== 'all' && !filters.session;
+      this.takenHomeCount = items.filter(item => getStage(item) === 'Taken Home').length;
+      // Taken Home spans sessions (items carry over until they come back), so it's never limited to one.
+      this.sessionLimited = !!latest && completionFilter !== 'all' && completionFilter !== 'home' && !filters.session;
       if (this.sessionLimited) {
         // Items taken home between sessions are followed into the next session.
-        items = items.filter(item => rcDayKey(item.RCDay) === latest || item.id === this.recentId
-          || (completionFilter === 'active' && getStage(item) === 'Taken Home'));
+        items = items.filter(item => rcDayKey(item.RCDay) === latest || item.id === this.recentId);
       }
 
       // Completion filter
       let filtered = items.filter(item => {
         const done = isDone(item);
         // Imported historic items are past records, never open work, even without a final outcome.
-        if (completionFilter === 'active') return (!done && !item.importSource) || item.id === this.recentId;
+        // Taken Home items have their own tab, so they don't count as active work for the session.
+        if (completionFilter === 'active') return (!done && !item.importSource && getStage(item) !== 'Taken Home') || item.id === this.recentId;
+        if (completionFilter === 'home') return getStage(item) === 'Taken Home' || item.id === this.recentId;
         if (completionFilter === 'completed') return done;
         return true;
       });
