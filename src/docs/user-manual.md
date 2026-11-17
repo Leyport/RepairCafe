@@ -14,6 +14,8 @@ Sign in with your Google account: press **Continue with Google** and choose your
 
 The first time you sign in, an admin needs to approve your account before you can see the repair records. The page opens by itself as soon as they do.
 
+> **Used email/password or Facebook before?** Those sign-in options have been removed. Sign in with **Continue with Google** instead. If Google sign-in says your email address was registered another way, ask a Repair Cafe admin to reset your account to Google.
+
 Once logged in your name appears in the header. The **Admin** icon is only shown to admins.
 
 ### Logging Out
@@ -31,7 +33,7 @@ The header contains the following buttons (some only visible when logged in):
 | **RepairCafe** (title) | Returns to the home / repair list |
 | **New** | Opens the form to create a new repair record |
 | **Sessions** (calendar icon) | Opens the session schedule |
-| **Issues** (circle icon) | Opens the issue tracker *(logged-in users only)* |
+| **Issues** (circle icon) | Opens the issue tracker *(approved users only)* |
 | **Admin** (grid icon) | Opens the admin panel *(admins only)* |
 
 ---
@@ -197,7 +199,7 @@ The dashboard shows:
 
 The issue tracker is for logging operational issues with the Repair Cafe (e.g. equipment problems, process improvements).
 
-Access it via the **Issues** icon in the header (logged-in users only).
+Access it via the **Issues** icon in the header (approved users only).
 
 ### Reporting an Issue
 
