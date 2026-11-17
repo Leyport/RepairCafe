@@ -119,6 +119,12 @@ You can also change the status at any time from the **Status** dropdown in the r
 
 Every item in the **Electrical** category has a **⚡ PAT Test** section showing who tested it, whether it passed or failed, and the date the result was recorded. Fill it in on the **Complete** screen or in the *PAT Test* section of the **Edit** screen; it is shown on the item's details page. Start typing the tester's name to pick from the list of repairers, or type any name.
 
+**Where to see PAT results:**
+
+- **Item details page** — result, tester and date
+- **Repair list** — a *⚡ PAT ✓ / ✗ / ?* badge on each electrical item, and a *⚡ PAT* filter under **⚲ Filters** (see Repair List)
+- **Session dashboard** — a *⚡ PAT Tests* card counting passed, failed and not tested, a *PAT* column in the items list, and a PAT line for each electrical item in the session report (see Session Dashboard)
+
 > **Failed PAT test:** an item that fails must not be handed back for use until it has been made safe.
 
 ---
