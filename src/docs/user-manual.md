@@ -60,14 +60,37 @@ Click **Save** to create the record, or **Cancel** to discard it.
 
 ## Repair Statuses
 
+Each item moves through these steps, in this order:
+
+**1. New → 2. Investigating → 3. Taken Home** *(only if needed)* **→ 4. Completed → 5. Collected**
+
 | Status | Meaning |
 |--------|---------|
-| **New** | Item registered, not yet assigned |
-| **Assigned** | A repairer has been assigned |
+| **New** | Item registered, no repairer working on it yet |
+| **Investigating** | A repairer is looking at the item. Choosing a repairer sets this automatically. |
+| **Taken Home** | A volunteer has taken the item home to keep working on it between sessions. These items stay in the **Active** list at the next session. |
+| **Completed** | The repair work is finished. Every completed item also records how it went (see below). |
+| **Collected** | The owner has taken the item away. How the repair went is still kept, e.g. *Collected · Repaired*. |
+
+### How the repair went (when Completed)
+
+| Outcome | Meaning |
+|---------|---------|
 | **Repaired** | Item successfully fixed |
-| **Advice Given** | Item could not be repaired; advice was provided |
-| **Partially Repaired** | Some repair was carried out but not complete |
-| **Not Repaired** | Item could not be fixed |
+| **Partially Repaired** | Some repair was carried out but the item is not fully fixed |
+| **Unrepairable** | The item could not be fixed |
+| **Advice Given** | No repair was made, but the owner was given advice |
+
+### Completing a repair
+
+1. Open the item and press **Complete** (or choose *Complete* from the ⋯ menu in the repair list).
+2. Choose how the repair went: Repaired, Partially Repaired, Unrepairable or Advice Given.
+3. Answer **Has the owner collected the item?** — usually *Yes* at a session. Choose *Not yet* if the item is waiting to be picked up.
+4. Record the owner's satisfaction, any donation and notes, then press **Mark as Complete**.
+
+If an item was completed but not yet collected, open it later and press **👋 Owner has collected it** when the owner picks it up.
+
+You can also change the status at any time from the **Status** dropdown in the repair list or on the Edit screen.
 
 ---
 
@@ -93,8 +116,8 @@ The session dashboard shows all repair items recorded for a specific session.
 At the top you will see four stat cards:
 
 - **Total Items** — all items recorded for the session
-- **Completed** — items that have a resolved status (Repaired, Advice Given, Partially Repaired, Not Repaired)
-- **In Progress** — items with status *Assigned*
+- **Completed** — items that are *Completed* or *Collected*
+- **In Progress** — items that are *Investigating* or *Taken Home*
 - **Awaiting** — items with status *New*
 
 ### Status Distribution Chart
