@@ -5,7 +5,7 @@ import { RepairService } from '../../services/repair.service';
 import { ExportService } from '../../services/export.service';
 import { ImportService } from '../../services/import.service';
 import { AuthService } from '../../services/auth.service';
-import { RepairItem, toRepairPhoto } from '../../models/repair-item.model';
+import { RepairItem, toRepairPhoto, isElectricalCategory } from '../../models/repair-item.model';
 import { Repairer } from '../../models/repairer.model';
 import { map, switchMap } from 'rxjs/operators';
 import { Observable, take, firstValueFrom } from 'rxjs';
@@ -112,6 +112,14 @@ import { OUTCOMES, STATUS_COLOURS, fromStatusSelectValue, getStage, isDone, pill
           <div class="stat-value">{{ countByStatus(items, 'New') }}</div>
           <div class="stat-label">Awaiting</div>
         </div>
+        <div class="stat-card glass stat-pat" *ngIf="patSummary(items) as pat" [class.has-fail]="pat.fail">
+          <div class="stat-value pat-values">
+            <span class="pv pass" title="Passed">{{ pat.pass }} ✓</span>
+            <span class="pv fail" title="Failed">{{ pat.fail }} ✗</span>
+            <span class="pv none" title="Not tested yet">{{ pat.none }} ?</span>
+          </div>
+          <div class="stat-label">⚡ PAT Tests ({{ pat.total }} electrical)</div>
+        </div>
       </div>
 
       <div class="reports-section" *ngIf="items$ | async as items">
@@ -161,6 +169,7 @@ import { OUTCOMES, STATUS_COLOURS, fromStatusSelectValue, getStage, isDone, pill
                   <th>Owner</th>
                   <th>Category</th>
                   <th>Status</th>
+                  <th>PAT</th>
                   <th>Primary Repairer</th>
                   <th>Secondary Repairers</th>
                 </tr>
@@ -184,6 +193,15 @@ import { OUTCOMES, STATUS_COLOURS, fromStatusSelectValue, getStage, isDone, pill
                       </optgroup>
                       <option value="Collected">Collected</option>
                     </select>
+                  </td>
+                  <td class="col-pat">
+                    <span *ngIf="isElectrical(item); else noPat" class="pat-badge"
+                          [class.pass]="item.patResult === 'Pass'" [class.fail]="item.patResult === 'Fail'"
+                          [title]="patTitle(item)">
+                      {{ item.patResult === 'Pass' ? '✓ Passed' : item.patResult === 'Fail' ? '✗ Failed' : '? Not tested' }}
+                      <small *ngIf="item.patTester">{{ item.patTester }}</small>
+                    </span>
+                    <ng-template #noPat><span class="col-meta">—</span></ng-template>
                   </td>
                   <td class="col-repairer">{{ item.repairer || 'Unassigned' }}</td>
                   <td class="col-secondary">
@@ -566,6 +584,20 @@ import { OUTCOMES, STATUS_COLOURS, fromStatusSelectValue, getStage, isDone, pill
 
     .col-num { width: 50px; text-align: center; color: rgba(255,255,255,0.5); font-size: 0.85rem; }
     .col-meta { color: rgba(255,255,255,0.6); font-size: 0.85rem; }
+    .pat-badge {
+      display: inline-flex; flex-direction: column; padding: 0.2rem 0.5rem; border-radius: 6px; white-space: nowrap;
+      font-size: 0.78rem; font-weight: 700; cursor: help;
+      background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.6); border: 1px solid rgba(255,255,255,0.15);
+    }
+    .pat-badge small { font-weight: 400; font-size: 0.7rem; opacity: 0.8; }
+    .pat-badge.pass { background: rgba(76,175,80,0.15); color: #81c784; border-color: rgba(76,175,80,0.4); }
+    .pat-badge.fail { background: rgba(244,67,54,0.15); color: #ef9a9a; border-color: rgba(244,67,54,0.5); }
+    .stat-pat { border-color: rgba(76, 175, 80, 0.3) !important; }
+    .stat-pat.has-fail { border-color: rgba(244, 67, 54, 0.5) !important; }
+    .pat-values { display: flex; justify-content: center; gap: 0.8rem; font-size: 1.6rem !important; }
+    .pv.pass { color: #81c784; }
+    .pv.fail { color: #ef9a9a; }
+    .pv.none { color: rgba(255,255,255,0.5); }
     .col-repairer { color: var(--accent-color, #00f2ff); font-size: 0.85rem; }
     .col-secondary { min-width: 140px; }
 
@@ -936,6 +968,7 @@ export class RcdDashboardComponent implements OnInit {
       if (item.colour)              md += `**Colour:** ${item.colour}  \n`;
       if (item.yearOfManufacture)   md += `**Year of Manufacture:** ${item.yearOfManufacture}  \n`;
       if (item.serialNumber)        md += `**Serial Number:** ${item.serialNumber}  \n`;
+      if (this.isElectrical(item))  md += `**PAT Test:** ${this.patTitle(item).replace('PAT test: ', '')}  \n`;
       if (item.tags?.length)        md += `**Tags:** ${item.tags.join(', ')}  \n`;
       md += `\n`;
 
@@ -1000,6 +1033,24 @@ export class RcdDashboardComponent implements OnInit {
   /** Counts by stage (New, Investigating...) or, for finished items, by outcome (Repaired...). */
   countByStatus(items: RepairItem[], status: string): number {
     return items.filter(i => getStage(i) === status || reportKey(i) === status).length;
+  }
+
+  isElectrical(item: RepairItem): boolean { return isElectricalCategory(item.category); }
+
+  /** PAT results for this session's electrical items, or null if there are none. */
+  patSummary(items: RepairItem[]): { total: number; pass: number; fail: number; none: number } | null {
+    const elec = items.filter(i => this.isElectrical(i));
+    if (!elec.length) return null;
+    const pass = elec.filter(i => i.patResult === 'Pass').length;
+    const fail = elec.filter(i => i.patResult === 'Fail').length;
+    return { total: elec.length, pass, fail, none: elec.length - pass - fail };
+  }
+
+  patTitle(item: RepairItem): string {
+    if (!item.patResult) return 'PAT test: not tested yet';
+    const by = item.patTester ? ` by ${item.patTester}` : '';
+    const when = item.patDate?.toDate ? ` on ${item.patDate.toDate().toLocaleDateString('en-GB')}` : '';
+    return `PAT test: ${item.patResult === 'Pass' ? 'passed' : 'FAILED'}${by}${when}`;
   }
 
   countInProgress(items: RepairItem[]): number {

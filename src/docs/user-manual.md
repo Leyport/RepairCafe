@@ -167,6 +167,7 @@ At the top you will see four stat cards:
 - **Completed** — items that are *Completed* or *Collected*
 - **In Progress** — items that are *Investigating* or *Taken Home*
 - **Awaiting** — items with status *New*
+- **⚡ PAT Tests** — for sessions with electrical items: how many passed (✓), failed (✗) and are not tested yet (?). The card has a red border if any item failed.
 
 ### Status Distribution Chart
 
@@ -189,6 +190,7 @@ The table lists every repair item for the session with the following columns:
 | **Primary Repairer** | Lead repairer assigned |
 | **Secondary Repairers** | Additional helpers — click **+** to add, **×** to remove |
 | **Status** | Inline dropdown — change directly in the table |
+| **PAT** | Electrical items: *Passed*, *Failed* or *Not tested*, with the tester's name. Other items show — |
 
 ---
 
