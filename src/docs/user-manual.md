@@ -94,6 +94,25 @@ You can also change the status at any time from the **Status** dropdown in the r
 
 ---
 
+## AI Repair Suggestions
+
+The AI helper can suggest what might be wrong with an item and how to fix it. To use it, choose **Investigate (AI)** from the ⋯ menu next to an item in the repair list, then press **Ask AI**.
+
+### What is sent to the AI
+
+- The item's description, the fault, and any other details recorded (make, model, colour and so on)
+- **All photos already on the item** — including those added when the item was booked in, on the Edit screen, or imported from the spreadsheet — plus any you add on this screen
+
+The AI looks at the photos and says what it can see, so a clear picture of the fault or the rating label often helps a lot.
+
+> **Photo limit:** up to the 6 most recent photos are sent with each question. If an item has more, add the most useful close-up last.
+
+### Asking follow-up questions
+
+After the first answer you can type a follow-up question. Use the camera or file button beside the question box to add a new photo first — it is saved to the item and sent with your question, together with the item's other photos.
+
+---
+
 ## Session Schedule
 
 Click the **Sessions** button to view the Repair Cafe schedule.
