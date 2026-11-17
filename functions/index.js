@@ -60,11 +60,29 @@ function isOwnStorageUrl(url) {
 async function fetchImage(url) {
   const res = await fetch(url, { signal: AbortSignal.timeout(15000) });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  const mimeType = (res.headers.get('content-type') || 'image/jpeg').split(';')[0].trim();
-  if (!mimeType.startsWith('image/')) throw new Error(`not an image (${mimeType})`);
+  const headerType = (res.headers.get('content-type') || '').split(';')[0].trim();
   const buf = Buffer.from(await res.arrayBuffer());
   if (buf.length > MAX_PHOTO_BYTES) throw new Error(`too large (${buf.length} bytes)`);
+  // Some stored photos (e.g. imported ones) have no proper content type
+  // ("application/octet-stream"), so recognise the image from its bytes instead.
+  const mimeType = sniffImageType(buf) || (headerType.startsWith('image/') ? headerType : '');
+  if (!mimeType) throw new Error(`not an image (${headerType || 'unknown type'})`);
   return { inlineData: { mimeType, data: buf.toString('base64') } };
+}
+
+/** Identifies common image formats from their first bytes; '' if not recognised. */
+function sniffImageType(buf) {
+  if (buf.length < 12) return '';
+  if (buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) return 'image/jpeg';
+  if (buf.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) return 'image/png';
+  if (buf.toString('ascii', 0, 4) === 'RIFF' && buf.toString('ascii', 8, 12) === 'WEBP') return 'image/webp';
+  if (buf.toString('ascii', 0, 3) === 'GIF') return 'image/gif';
+  if (buf.toString('ascii', 4, 8) === 'ftyp') {
+    const brand = buf.toString('ascii', 8, 12);
+    if (/^(heic|heix|hevc|hevx)$/.test(brand)) return 'image/heic';
+    if (/^(mif1|msf1|heif)$/.test(brand)) return 'image/heif';
+  }
+  return '';
 }
 
 /** Downloads the item's photos as Gemini image parts. Bad/unreachable photos are skipped. */
