@@ -102,11 +102,20 @@ Each item moves through these steps, in this order:
 1. Open the item and press **Complete** (or choose *Complete* from the ⋯ menu in the repair list).
 2. Choose how the repair went: Repaired, Partially Repaired, Unrepairable or Advice Given.
 3. Answer **Has the owner collected the item?** — usually *Yes* at a session. Choose *Not yet* if the item is waiting to be picked up.
-4. Record the owner's satisfaction, any donation and notes, then press **Mark as Complete**.
+4. For **electrical** items, fill in the **⚡ PAT Test**: the name of the PAT tester and whether it *Passed* or *Failed* (leave it on *Not tested yet* if it hasn't been done).
+5. Record the owner's satisfaction, any donation and notes, then press **Mark as Complete**.
 
 If an item was completed but not yet collected, open it later and press **👋 Owner has collected it** when the owner picks it up.
 
 You can also change the status at any time from the **Status** dropdown in the repair list or on the Edit screen.
+
+---
+
+### PAT Tests (Electrical Items)
+
+Every item in the **Electrical** category has a **⚡ PAT Test** section showing who tested it, whether it passed or failed, and the date the result was recorded. Fill it in on the **Complete** screen or in the *PAT Test* section of the **Edit** screen; it is shown on the item's details page. Start typing the tester's name to pick from the list of repairers, or type any name.
+
+> **Failed PAT test:** an item that fails must not be handed back for use until it has been made safe.
 
 ---
 

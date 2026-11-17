@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { RepairService } from '../../services/repair.service';
-import { RepairItem } from '../../models/repair-item.model';
+import { RepairItem, isElectricalCategory, patFields } from '../../models/repair-item.model';
 import { OUTCOME_OPTIONS, getOutcome, getStage, isDone, statusClass, statusLabel } from '../../models/repair-status';
 import { take } from 'rxjs';
 
@@ -77,6 +77,27 @@ import { DialogService } from '../../services/dialog.service';
                 <span>Not yet</span>
               </button>
             </div>
+          </div>
+
+          <!-- PAT test (electrical items only) -->
+          <div class="field-group" *ngIf="isElectrical">
+            <label class="field-label">⚡ PAT Test</label>
+            <input class="pat-input" list="pat-testers" [(ngModel)]="patTester" placeholder="Name of the PAT tester">
+            <datalist id="pat-testers">
+              <option *ngFor="let r of repairers" [value]="r.name"></option>
+            </datalist>
+            <div class="pat-options">
+              <button class="pat-btn pass" [class.selected]="patResult === 'Pass'" (click)="patResult = 'Pass'">
+                <span class="pat-icon">✅</span><span>Passed</span>
+              </button>
+              <button class="pat-btn fail" [class.selected]="patResult === 'Fail'" (click)="patResult = 'Fail'">
+                <span class="pat-icon">⛔</span><span>Failed</span>
+              </button>
+              <button class="pat-btn none" [class.selected]="!patResult" (click)="patResult = ''">
+                <span class="pat-icon">⏳</span><span>Not tested yet</span>
+              </button>
+            </div>
+            <p class="field-hint" *ngIf="patResult === 'Fail'">A failed item must not be returned for use until it is made safe.</p>
           </div>
 
           <!-- Owner satisfaction -->
@@ -392,6 +413,24 @@ import { DialogService } from '../../services/dialog.service';
       color: #f1948a;
     }
 
+
+    .pat-options { display: flex; gap: 0.75rem; }
+    .pat-btn {
+      flex: 1; display: flex; flex-direction: column; align-items: center; gap: 0.3rem; padding: 0.8rem 0.5rem;
+      border-radius: 10px; border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.03);
+      color: rgba(255,255,255,0.55); cursor: pointer; font-size: 0.85rem; font-weight: 600; font-family: inherit; transition: all 0.15s;
+    }
+    .pat-btn:hover { background: rgba(255,255,255,0.07); color: white; }
+    .pat-btn.pass.selected { background: rgba(40,180,99,0.15); border-color: rgba(40,180,99,0.5); color: #58d68d; }
+    .pat-btn.fail.selected { background: rgba(231,76,60,0.12); border-color: rgba(231,76,60,0.45); color: #f1948a; }
+    .pat-btn.none.selected { background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.3); color: white; }
+    .pat-icon { font-size: 1.3rem; }
+    .pat-input {
+      background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.12); border-radius: 8px;
+      color: white; padding: 0.6rem 0.8rem; font-size: 0.95rem; outline: none; font-family: inherit;
+    }
+    .pat-input:focus { border-color: var(--accent-color); }
+
     /* Donation input */
     .donation-input-wrapper {
       display: flex;
@@ -552,6 +591,10 @@ export class RepairCompleteComponent implements OnInit {
   completionNotes: string = '';
 
   readonly outcomeOptions = OUTCOME_OPTIONS;
+  patTester = '';
+  patResult: 'Pass' | 'Fail' | '' = '';
+  repairers: { name: string }[] = [];
+  get isElectrical(): boolean { return isElectricalCategory(this.item?.category); }
   readonly statusLabel = statusLabel;
   readonly getStatusClass = statusClass;
 
@@ -559,6 +602,7 @@ export class RepairCompleteComponent implements OnInit {
     const id = this.route.snapshot.paramMap.get('id');
     if (!id) { this.loading = false; return; }
 
+    this.repairService.getRepairers().pipe(take(1)).subscribe((r: any[]) => { this.repairers = r; });
     this.repairService.getRepairItems().pipe(take(1)).subscribe(items => {
       this.item = items.find(i => i.id === id) ?? null;
       if (this.item) {
@@ -577,6 +621,8 @@ export class RepairCompleteComponent implements OnInit {
         if (this.item.completionNotes !== undefined) {
           this.completionNotes = this.item.completionNotes;
         }
+        this.patTester = this.item.patTester || '';
+        this.patResult = this.item.patResult || '';
       }
       this.loading = false;
     });
@@ -598,6 +644,7 @@ export class RepairCompleteComponent implements OnInit {
     const updates: Partial<RepairItem> = {
       status: this.collected ? 'Collected' : 'Completed',
       outcome: this.completionStatus,
+      ...(this.isElectrical ? patFields(this.item, this.patTester, this.patResult) : {}),
       ownerSatisfied: this.ownerSatisfied,
       donationAmount: (this.donationAmount && this.donationAmount > 0) ? this.donationAmount : 0,
       completionNotes: this.completionNotes.trim(),

@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { RepairService } from '../../services/repair.service';
 import { DialogService } from '../../services/dialog.service';
-import { RepairItem, toRepairPhoto } from '../../models/repair-item.model';
+import { RepairItem, toRepairPhoto, isElectricalCategory } from '../../models/repair-item.model';
 import { getOutcome, getStage, isDone, statusClass, statusLabel } from '../../models/repair-status';
 
 @Component({
@@ -66,6 +66,17 @@ import { getOutcome, getStage, isDone, statusClass, statusLabel } from '../../mo
                   {{ getPhotoType(photo) }}
                 </span>
               </div>
+            </div>
+          </section>
+
+          <section class="detail-section outcome-section" *ngIf="isElectrical">
+            <label>⚡ PAT Test</label>
+            <div class="outcome-row">
+              <span class="pat-badge pass" *ngIf="item.patResult === 'Pass'">✅ Passed</span>
+              <span class="pat-badge fail" *ngIf="item.patResult === 'Fail'">⛔ Failed</span>
+              <span class="pat-badge none" *ngIf="!item.patResult">⏳ Not tested yet</span>
+              <span class="outcome-chip" *ngIf="item.patTester">Tested by {{ item.patTester }}</span>
+              <span class="outcome-chip" *ngIf="item.patResult && item.patDate?.toDate">{{ item.patDate.toDate() | date:'d MMM yyyy' }}</span>
             </div>
           </section>
 
@@ -184,6 +195,10 @@ import { getOutcome, getStage, isDone, statusClass, statusLabel } from '../../mo
       color: rgba(255, 255, 255, 0.9);
       margin: 0;
     }
+    .pat-badge { font-size: 0.85rem; font-weight: 700; padding: 0.25rem 0.7rem; border-radius: 20px; }
+    .pat-badge.pass { background: rgba(40,180,99,0.12); color: #58d68d; border: 1px solid rgba(40,180,99,0.35); }
+    .pat-badge.fail { background: rgba(231,76,60,0.12); color: #f1948a; border: 1px solid rgba(231,76,60,0.35); }
+    .pat-badge.none { background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.6); border: 1px solid rgba(255,255,255,0.15); }
     .outcome-row { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
     .outcome-chip {
       font-size: 0.85rem; padding: 0.25rem 0.6rem; border-radius: 6px;
@@ -369,6 +384,7 @@ export class RepairDetailComponent implements OnInit {
   }
 
   get isCompleted(): boolean { return isDone(this.item); }
+  get isElectrical(): boolean { return isElectricalCategory(this.item?.category); }
   get stage() { return getStage(this.item); }
   readonly statusLabel = statusLabel;
   readonly getStatusClass = statusClass;

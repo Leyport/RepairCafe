@@ -1,3 +1,5 @@
+import { Timestamp } from '@angular/fire/firestore';
+
 export interface RepairPhoto {
   url: string;
   type: 'before' | 'after';
@@ -44,9 +46,25 @@ export interface RepairItem {
   donationAmount?: number;
   investigationNotes?: string;
   completionNotes?: string;
+  patTester?: string; // Electrical items: who carried out the PAT test
+  patResult?: 'Pass' | 'Fail' | ''; // '' or missing = not tested yet
+  patDate?: any; // Timestamp the result was recorded
   sequenceNumber?: number; // Permanent reference number, assigned once and never changed or reused
   importSource?: string; // Set on items imported from a spreadsheet, e.g. "Repair_Data 2025 row 3"
   aiReportUrl?: string;
+}
+
+/** Electrical items need a PAT (portable appliance) test. */
+export function isElectricalCategory(category: string | undefined | null): boolean {
+  return ['electrical', 'electronics'].includes((category || '').trim().toLowerCase());
+}
+
+/** Fields to save for a PAT test; the date is stamped when the result is first set or changes. */
+export function patFields(item: RepairItem | null | undefined, tester: string, result: 'Pass' | 'Fail' | ''): Partial<RepairItem> {
+  const fields: Partial<RepairItem> = { patTester: (tester || '').trim(), patResult: result };
+  if (result && result !== item?.patResult) fields.patDate = Timestamp.now();
+  if (!result) fields.patDate = null;
+  return fields;
 }
 
 export interface Owner {

@@ -6,7 +6,7 @@ import { HttpClient } from '@angular/common/http';
 import { APP_VERSION } from '../../constants/version';
 import { RepairService } from '../../services/repair.service';
 import { Observable, firstValueFrom } from 'rxjs';
-import { RepairItem, RepairPhoto, toRepairPhoto, Owner } from '../../models/repair-item.model';
+import { RepairItem, RepairPhoto, toRepairPhoto, Owner, isElectricalCategory, patFields } from '../../models/repair-item.model';
 import { OUTCOMES, fromStatusSelectValue, isDone, statusLabel, statusSelectValue } from '../../models/repair-status';
 import { Tag } from '../../models/tag.model';
 import { environment } from '../../../environments/environment';
@@ -405,6 +405,34 @@ interface ImageResult {
                 </div>
               </div>
 
+            </div>
+          </div>
+
+          <!-- ── PAT TEST (electrical only) ── -->
+          <div class="form-section" *ngIf="isElectrical">
+            <button type="button" class="section-hdr" (click)="toggleSection('pat')">
+              <span class="section-hdr-left"><span class="section-ico">⚡</span><span class="section-lbl">PAT Test</span></span>
+              <span class="section-chevron" [class.open]="sectionsOpen.pat">▼</span>
+            </button>
+            <div class="section-body" *ngIf="sectionsOpen.pat">
+              <div class="form-group">
+                <label for="patTester">PAT Tester</label>
+                <input id="patTester" formControlName="patTester" list="pat-testers-form" placeholder="Name of the PAT tester">
+                <datalist id="pat-testers-form">
+                  <option *ngFor="let r of allRepairers" [value]="r.name"></option>
+                </datalist>
+              </div>
+              <div class="form-group">
+                <label for="patResult">Result</label>
+                <div class="select-wrapper glass">
+                  <select id="patResult" formControlName="patResult">
+                    <option value="">Not tested yet</option>
+                    <option value="Pass">✅ Passed</option>
+                    <option value="Fail">⛔ Failed</option>
+                  </select>
+                  <div class="select-arrow">▼</div>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -838,7 +866,9 @@ export class RepairFormComponent implements OnInit, OnDestroy {
   private route = inject(ActivatedRoute);
   protected appVersion = APP_VERSION;
 
-  sectionsOpen = { session: true, item: true, visitor: true, repairer: true, outcome: true };
+  sectionsOpen = { session: true, item: true, visitor: true, repairer: true, pat: true, outcome: true };
+
+  get isElectrical(): boolean { return isElectricalCategory(this.repairForm.get('category')?.value); }
 
   toggleSection(section: string) {
     (this.sectionsOpen as any)[section] = !(this.sectionsOpen as any)[section];
@@ -994,6 +1024,8 @@ export class RepairFormComponent implements OnInit, OnDestroy {
       repairer: [''],
       status: ['New'],
       completionNotes: [''],
+      patTester: [''],
+      patResult: [''],
       RCDay: [defaultValue, Validators.required]
     });
 
@@ -1081,7 +1113,9 @@ export class RepairFormComponent implements OnInit, OnDestroy {
             owner: item.owner || '',
             repairer: item.repairer || '',
             status: statusSelectValue(item),
-            completionNotes: item.completionNotes || ''
+            completionNotes: item.completionNotes || '',
+            patTester: item.patTester || '',
+            patResult: item.patResult || ''
           };
           this.completionSummary = this.buildCompletionSummary(item);
           this.loadedItem = item;
@@ -1394,9 +1428,10 @@ export class RepairFormComponent implements OnInit, OnDestroy {
         });
         const newPhotos = await Promise.all(uploadPromises);
         const allPhotos: RepairPhoto[] = [...this.existingPhotos, ...newPhotos];
-        const { status: statusValue, ...formValues } = this.repairForm.value;
+        const { status: statusValue, patTester, patResult, ...formValues } = this.repairForm.value;
         const itemData = {
           ...formValues,
+          ...(this.isElectrical ? patFields(this.loadedItem, patTester, patResult) : {}),
           ...fromStatusSelectValue(statusValue || 'New', this.loadedItem),
           photos: allPhotos,
           tags: this.tags,
