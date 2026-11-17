@@ -222,6 +222,7 @@
 
     <div class="nav-section">Repairs</div>
     <ul>
+      <li><a href="#repair-list">Repair List</a></li>
       <li><a href="#new-repair">New Repair Record</a></li>
       <li><a href="#statuses">Repair Statuses</a></li>
       <li><a href="#ai-help">AI Repair Suggestions</a></li>
@@ -288,6 +289,24 @@
           <tr><td><strong>Admin</strong> (grid icon)</td><td>Opens the admin panel <em>(logged-in users only)</em></td></tr>
         </tbody>
       </table>
+    </section>
+
+    <!-- Repair list -->
+    <section id="repair-list">
+      <h2>Repair List</h2>
+      <p>The buttons at the top of the repair list choose which items are shown:</p>
+      <table>
+        <thead><tr><th>Button</th><th>Shows</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Active</strong></td><td>Open work for the latest repair cafe session &mdash; items that are <em>New</em> or <em>Investigating</em>. This is the default view.</td></tr>
+          <tr><td><strong>Taken Home</strong></td><td>Every item a volunteer currently has at home, <em>whichever session it came from</em>. The number on the button shows how many items are out. Use this at the start of a session to see what should be coming back.</td></tr>
+          <tr><td><strong>All</strong></td><td>Every item from every session, whatever its status</td></tr>
+          <tr><td><strong>Completed</strong></td><td>Items from the latest session that are <em>Completed</em> or <em>Collected</em></td></tr>
+        </tbody>
+      </table>
+      <div class="callout">
+        <strong>Taken Home items:</strong> set an item's status to <em>Taken Home</em> when a volunteer takes it away between sessions. It then leaves the Active list but stays tracked under <strong>Taken Home</strong>. When it comes back, change its status (for example to <em>Investigating</em>, or use <strong>Complete</strong>) and it moves out of the Taken Home list automatically.
+      </div>
     </section>
 
     <!-- New Repair -->

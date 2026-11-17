@@ -38,6 +38,21 @@ The header contains the following buttons (some only visible when logged in):
 
 ---
 
+## Repair List
+
+The buttons at the top of the repair list choose which items are shown:
+
+| Button | Shows |
+|--------|-------|
+| **Active** | Open work for the latest repair cafe session — items that are *New* or *Investigating*. This is the default view. |
+| **Taken Home** | Every item a volunteer currently has at home, *whichever session it came from*. The number on the button shows how many items are out. Use this at the start of a session to see what should be coming back. |
+| **All** | Every item from every session, whatever its status |
+| **Completed** | Items from the latest session that are *Completed* or *Collected* |
+
+> **Taken Home items:** set an item's status to *Taken Home* when a volunteer takes it away between sessions. It then leaves the Active list but stays tracked under **Taken Home**. When it comes back, change its status (for example to *Investigating*, or use **Complete**) and it moves out of the Taken Home list automatically.
+
+---
+
 ## Creating a Repair Record
 
 Click **New** in the header to open the new repair form.
