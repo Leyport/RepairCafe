@@ -35,7 +35,7 @@ The header contains the following buttons (some only visible when logged in):
 | **Sessions** (calendar icon) | Opens the session schedule |
 | **Analytics** (bar chart icon) | Opens the analytics dashboard: charts and totals across all sessions |
 | **Issues** (circle icon) | Opens the issue tracker *(approved users only)* |
-| **Notifications** (bell icon) | People waiting for approval, with an *Approve* button *(admins only)* |
+| **Notifications** (bell icon) | People waiting for approval, recent sign-ins and approvals, and a link to the full Notifications page *(admins only)* |
 | **Admin** (grid icon) | Opens the admin panel *(admins only)* |
 
 ---
@@ -337,7 +337,28 @@ Admins see a **bell** icon in the header. When someone new signs in and is waiti
 - a red number on the bell shows how many people are waiting;
 - if you are signed in at the time, a pop-up appears in the bottom-right corner — click it to review.
 
-Click the bell to see who is waiting and press **Approve** next to their name. They get in straight away, without needing to sign in again. Use **Open Admin → Users** for more options.
+Click the bell to see who is waiting and press **Approve** next to their name. They get in straight away, without needing to sign in again. Below that, **Recent** shows the last few people who signed in (👋) or were approved (✅). Use **See all notifications →** for the full list, or **Open Admin → Users** for more options.
+
+### Notifications Page
+
+The Notifications page lists everything, newest first and grouped by day (*Today*, *Yesterday*, then dates). Open it from the bell with **See all notifications →**. There are three kinds of notification:
+
+| Type | Shows |
+|------|-------|
+| **⏳ Waiting for approval** | Someone has signed in but can't see the repair records yet. Highlighted in orange, with an **Approve** button. |
+| **✅ Approved** | Who was approved, who approved them and when |
+| **👋 Signed in** | Each time someone opens the app, with their device (for example *iPhone · Safari*) and the time |
+
+**Filtering the list:**
+
+- **Type buttons** along the top (*All*, *Waiting for approval*, *Approved*, *Signed in*) show how many of each there are; click one to show only that type. The **Type** drop-down does the same.
+- **Person** — type part of a name or email address; names are suggested as you type. You can also click anyone's name in the list to show only their notifications.
+- **How old** — *Today*, *Last 7 days* (the default), *Last 30 days* or *Any time*.
+- **Clear filters** puts everything back.
+
+The page shows 50 notifications at a time; use **Show older** at the bottom to see more.
+
+> People **waiting for approval always show**, whatever the *How old* setting, because they still need dealing with. Sign-ins come from the activity log, which keeps 90 days, so older sign-ins are not listed.
 
 ### Version Manager
 

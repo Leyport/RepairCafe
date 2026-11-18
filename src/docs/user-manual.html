@@ -284,7 +284,7 @@
           <tr><td><strong>Sessions</strong> (calendar icon)</td><td>Opens the session schedule</td></tr>
           <tr><td><strong>Analytics</strong> (bar chart icon)</td><td>Opens the analytics dashboard: charts and totals across all sessions</td></tr>
           <tr><td><strong>Issues</strong> (circle icon)</td><td>Opens the issue tracker <em>(approved users only)</em></td></tr>
-          <tr><td><strong>Notifications</strong> (bell icon)</td><td>People waiting for approval, with an <em>Approve</em> button <em>(admins only)</em></td></tr>
+          <tr><td><strong>Notifications</strong> (bell icon)</td><td>People waiting for approval, recent sign-ins and approvals, and a link to the full Notifications page <em>(admins only)</em></td></tr>
           <tr><td><strong>Admin</strong> (grid icon)</td><td>Opens the admin panel <em>(admins only)</em></td></tr>
         </tbody>
       </table>
@@ -604,7 +604,29 @@
         <li>a red number on the bell shows how many people are waiting;</li>
         <li>if you are signed in at the time, a pop-up appears in the bottom-right corner &mdash; click it to review.</li>
       </ul>
-      <p>Click the bell to see who is waiting and press <strong>Approve</strong> next to their name. They get in straight away, without needing to sign in again. Use <strong>Open Admin &rarr; Users</strong> for more options.</p>
+      <p>Click the bell to see who is waiting and press <strong>Approve</strong> next to their name. They get in straight away, without needing to sign in again. Below that, <strong>Recent</strong> shows the last few people who signed in (👋) or were approved (✅). Use <strong>See all notifications &rarr;</strong> for the full list, or <strong>Open Admin &rarr; Users</strong> for more options.</p>
+
+      <h3>Notifications page</h3>
+      <p>The Notifications page lists everything, newest first and grouped by day (<em>Today</em>, <em>Yesterday</em>, then dates). Open it from the bell with <strong>See all notifications &rarr;</strong>. There are three kinds of notification:</p>
+      <table>
+        <thead><tr><th>Type</th><th>Shows</th></tr></thead>
+        <tbody>
+          <tr><td><strong>⏳ Waiting for approval</strong></td><td>Someone has signed in but can't see the repair records yet. Highlighted in orange, with an <strong>Approve</strong> button.</td></tr>
+          <tr><td><strong>✅ Approved</strong></td><td>Who was approved, who approved them and when</td></tr>
+          <tr><td><strong>👋 Signed in</strong></td><td>Each time someone opens the app, with their device (for example <em>iPhone &middot; Safari</em>) and the time</td></tr>
+        </tbody>
+      </table>
+      <p><strong>Filtering the list:</strong></p>
+      <ul>
+        <li><strong>Type buttons</strong> along the top (<em>All</em>, <em>Waiting for approval</em>, <em>Approved</em>, <em>Signed in</em>) show how many of each there are; click one to show only that type. The <strong>Type</strong> drop-down does the same.</li>
+        <li><strong>Person</strong> &mdash; type part of a name or email address; names are suggested as you type. You can also click anyone's name in the list to show only their notifications.</li>
+        <li><strong>How old</strong> &mdash; <em>Today</em>, <em>Last 7 days</em> (the default), <em>Last 30 days</em> or <em>Any time</em>.</li>
+        <li><strong>Clear filters</strong> puts everything back.</li>
+      </ul>
+      <p>The page shows 50 notifications at a time; use <strong>Show older</strong> at the bottom to see more.</p>
+      <div class="callout">
+        People <strong>waiting for approval always show</strong>, whatever the <em>How old</em> setting, because they still need dealing with. Sign-ins come from the activity log, which keeps 90 days, so older sign-ins are not listed.
+      </div>
 
       <h3>Version Manager</h3>
       <p>Displays the current application version and description. The version shown in the header and footer always reflects the latest deployed code automatically &mdash; no manual update needed after a deployment.</p>
