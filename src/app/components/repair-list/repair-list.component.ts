@@ -4,7 +4,8 @@ import { FormControl, ReactiveFormsModule, FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { RepairService } from '../../services/repair.service';
 import { DialogService } from '../../services/dialog.service';
-import { Observable, BehaviorSubject, combineLatest, startWith, map, shareReplay } from 'rxjs';
+import { AuthService } from '../../services/auth.service';
+import { Observable, BehaviorSubject, combineLatest, startWith, map, shareReplay, catchError, of, take } from 'rxjs';
 import { RepairItem, Owner, toRepairPhoto, isElectricalCategory } from '../../models/repair-item.model';
 import { rcDayKey, createdMonthKey, buildSessionFilterOptions, matchesSessionFilter, monthLabel } from '../../utils/rc-day';
 import { OUTCOMES, STAGES, fromStatusSelectValue, getStage, isDone, stageForRepairerChange, statusClass, statusLabel, statusSelectValue } from '../../models/repair-status';
@@ -37,7 +38,7 @@ const SORT_LABELS: Record<SortColumn, string> = {
   repairer: 'Repairer', session: 'RC Session', created: 'Created', status: 'Status'
 };
 
-type CompletionFilter = 'all' | 'active' | 'home' | 'completed';
+type CompletionFilter = 'mine' | 'all' | 'active' | 'home' | 'completed';
 
 
 interface RepairerGroup {
@@ -56,6 +57,10 @@ interface RepairerGroup {
         <h2>Repair Items</h2>
         <div class="header-controls">
           <div class="completion-toggle">
+            <button class="toggle-btn" *ngIf="myNames.length"
+                    [class.active]="completionControl.value === 'mine'"
+                    (click)="completionControl.setValue('mine')"
+                    [title]="'Every item where you (' + myNames[0] + ') are the lead or a secondary repairer, open and finished. The number is how many are still open.'">My Repairs<span class="toggle-count" *ngIf="myRepairsCount">{{ myRepairsCount }}</span></button>
             <button class="toggle-btn"
                     [class.active]="completionControl.value === 'active'"
                     (click)="completionControl.setValue('active')">Active</button>
@@ -325,6 +330,7 @@ interface RepairerGroup {
       </div>
       
       <div *ngIf="(filteredItems$ | async)?.length === 0" class="empty-state">
+        <p *ngIf="completionControl.value === 'mine'">You haven't been set as the repairer on any items yet. Pick up an item from <strong>Active</strong> by setting yourself as its repairer.</p>
         <p *ngIf="completionControl.value === 'active'">No active repair items.</p>
         <p *ngIf="completionControl.value === 'home'">No items are taken home at the moment.</p>
         <p *ngIf="completionControl.value === 'completed'">No completed repair items.</p>
@@ -1239,7 +1245,29 @@ export class RepairListComponent implements OnInit {
     sessions: [] as { key: string; label: string }[],
     createdMonths: [] as { key: string; label: string }[],
   };
-  completionControl = new FormControl<CompletionFilter>('active');
+  /** Starts on My Repairs; switches to Active if the signed-in person isn't a repairer. */
+  completionControl = new FormControl<CompletionFilter>('mine');
+
+  /** Repairer names that belong to the signed-in person (matched by email, then by name). */
+  myNames: string[] = [];
+  myRepairsCount = 0;
+  private authService = inject(AuthService);
+  private myNames$: Observable<string[]> = combineLatest([
+    this.authService.user$,
+    this.repairService.getRepairers().pipe(catchError(() => of([]))),
+  ]).pipe(
+    map(([user, repairers]) => {
+      if (!user) return [];
+      const norm = (v?: string | null) => (v || '').trim().toLowerCase();
+      const email = norm(user.email);
+      const display = norm(user.displayName);
+      const names = repairers
+        .filter(r => (email && norm(r.email) === email) || (display && norm(r.name) === display))
+        .map(r => r.name.trim());
+      return [...new Set(names)];
+    }),
+    shareReplay({ bufferSize: 1, refCount: true })
+  );
 
   owners: Owner[] = [];
   primaryRepairers: any[] = [];
@@ -1423,6 +1451,11 @@ export class RepairListComponent implements OnInit {
   private allItems$ = this.repairService.getRepairItems().pipe(shareReplay({ bufferSize: 1, refCount: true }));
 
   constructor() {
+    this.myNames$.subscribe(names => (this.myNames = names));
+    // Not a repairer (or not matched yet)? Fall back to the Active view instead of an empty list.
+    this.myNames$.pipe(take(1)).subscribe(names => {
+      if (!names.length && this.completionControl.value === 'mine') this.completionControl.setValue('active');
+    });
     this.allItems$.subscribe(items => {
       this.allItems = items;
       this.buildFilterOptions(items);
@@ -1475,6 +1508,13 @@ export class RepairListComponent implements OnInit {
     this.repairerGroups = null;
   }
 
+  /** True if any of the given names is the item's lead or a secondary repairer. */
+  private isMine(item: RepairItem, names: string[]): boolean {
+    const mine = new Set(names.map(n => n.toLowerCase()));
+    return [item.repairer, ...(item.additionalRepairers || [])]
+      .some(n => !!n && mine.has(n.trim().toLowerCase()));
+  }
+
   isSecondaryRepairer(item: RepairItem, name: string): boolean {
     return item.repairer !== name && (item.additionalRepairers || []).includes(name);
   }
@@ -1483,17 +1523,19 @@ export class RepairListComponent implements OnInit {
     this.allItems$,
     this.searchControl.valueChanges.pipe(startWith('')),
     this.sortControl.valueChanges.pipe(startWith(this.sortControl.value)),
-    this.completionControl.valueChanges.pipe(startWith('active' as CompletionFilter)),
-    this.filters$
+    this.completionControl.valueChanges.pipe(startWith(this.completionControl.value)),
+    this.filters$,
+    this.myNames$.pipe(startWith([] as string[])),
   ]).pipe(
-    map(([items, searchTerm, sortValue, completionFilter, filters]) => {
+    map(([items, searchTerm, sortValue, completionFilter, filters, myNames]) => {
       // Active / Completed only show the latest repair cafe session; "All" (or picking
       // a session in the column filter) goes back further.
       const latest = this.latestSessionKey(items);
       this.latestSessionLabel = latest ? this.sessionLabel(latest) : '';
       this.takenHomeCount = items.filter(item => getStage(item) === 'Taken Home').length;
+      this.myRepairsCount = myNames.length ? items.filter(item => !isDone(item) && this.isMine(item, myNames)).length : 0;
       // Taken Home spans sessions (items carry over until they come back), so it's never limited to one.
-      this.sessionLimited = !!latest && completionFilter !== 'all' && completionFilter !== 'home' && !filters.session;
+      this.sessionLimited = !!latest && completionFilter !== 'all' && completionFilter !== 'home' && completionFilter !== 'mine' && !filters.session;
       if (this.sessionLimited) {
         // Items taken home between sessions are followed into the next session.
         items = items.filter(item => rcDayKey(item.RCDay) === latest || item.id === this.recentId);
@@ -1505,6 +1547,8 @@ export class RepairListComponent implements OnInit {
         // Imported historic items are past records, never open work, even without a final outcome.
         // Taken Home items have their own tab, so they don't count as active work for the session.
         if (completionFilter === 'active') return (!done && !item.importSource && getStage(item) !== 'Taken Home') || item.id === this.recentId;
+        // My Repairs: everything I've worked on, from any session — open and finished.
+        if (completionFilter === 'mine') return this.isMine(item, myNames) || item.id === this.recentId;
         if (completionFilter === 'home') return getStage(item) === 'Taken Home' || item.id === this.recentId;
         if (completionFilter === 'completed') return done;
         return true;
