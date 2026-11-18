@@ -232,6 +232,7 @@
     <ul>
       <li><a href="#schedule">Session Schedule</a></li>
       <li><a href="#session-dashboard">Session Dashboard</a></li>
+      <li><a href="#analytics">Analytics</a></li>
     </ul>
 
     <div class="nav-section">People</div>
@@ -281,6 +282,7 @@
           <tr><td><strong>RepairCafe</strong> (title)</td><td>Returns to the home repair list</td></tr>
           <tr><td><strong>New</strong></td><td>Opens the form to create a new repair record</td></tr>
           <tr><td><strong>Sessions</strong> (calendar icon)</td><td>Opens the session schedule</td></tr>
+          <tr><td><strong>Analytics</strong> (bar chart icon)</td><td>Opens the analytics dashboard: charts and totals across all sessions</td></tr>
           <tr><td><strong>Issues</strong> (circle icon)</td><td>Opens the issue tracker <em>(approved users only)</em></td></tr>
           <tr><td><strong>Notifications</strong> (bell icon)</td><td>People waiting for approval, with an <em>Approve</em> button <em>(admins only)</em></td></tr>
           <tr><td><strong>Admin</strong> (grid icon)</td><td>Opens the admin panel <em>(admins only)</em></td></tr>
@@ -376,7 +378,7 @@
         <li><strong>Item details page</strong> &mdash; result, tester and date</li>
         <li><strong>Repair list</strong> &mdash; a <em>⚡ PAT ✓ / ✗ / ?</em> badge on each electrical item, and a <em>⚡ PAT</em> filter under <strong>⚲ Filters</strong> (see <a href="#repair-list">Repair List</a>)</li>
         <li><strong>Session dashboard</strong> &mdash; a <em>⚡ PAT Tests</em> card counting passed, failed and not tested, a <em>PAT</em> column in the items list, and a PAT line for each electrical item in the session report (see <a href="#session-dashboard">Session Dashboard</a>)</li>
-        <li><strong>Analytics</strong> &mdash; a <em>⚡ PAT Tests per Session</em> chart with a bar for each session (passed in green, failed in red, not tested in grey), plus totals and an overall pass rate. Use the year buttons to look at one year. It only appears on <em>Live App Data</em> and only counts electrical items entered in the app, because items imported from old spreadsheets have no PAT details. The pass rate is worked out from the items that were actually tested.</li>
+        <li><strong>Analytics</strong> (see <a href="#analytics">Analytics</a>) &mdash; a <em>⚡ PAT Tests per Session</em> chart with a bar for each session (passed in green, failed in red, not tested in grey), plus totals and an overall pass rate. Use the year buttons to look at one year. It only appears on <em>Live App Data</em> and only counts electrical items entered in the app, because items imported from old spreadsheets have no PAT details. The pass rate is worked out from the items that were actually tested.</li>
       </ul>
       <div class="callout">
         <strong>Failed PAT test:</strong> an item that fails must not be handed back for use until it has been made safe.
@@ -454,6 +456,60 @@
           <tr><td><strong>PAT</strong></td><td>Electrical items: <em>Passed</em>, <em>Failed</em> or <em>Not tested</em>, with the tester's name. Hover to see the date. Other items show &mdash;</td></tr>
         </tbody>
       </table>
+    </section>
+
+    <!-- Analytics -->
+    <section id="analytics">
+      <h2>Analytics</h2>
+      <p>The analytics dashboard shows how the Repair Caf&eacute; is doing over time: how many items come in, what happens to them, and how many people visit. Open it with the <strong>Analytics</strong> button (bar chart icon) in the header.</p>
+
+      <h3>Where the figures come from</h3>
+      <p>Two buttons at the top choose the data:</p>
+      <table>
+        <thead><tr><th>Button</th><th>What it shows</th></tr></thead>
+        <tbody>
+          <tr><td><strong>● Live App Data</strong></td><td>The normal view. Built from the repair records in the app, and updates by itself as items are added or changed. Sessions from before the app was used are filled in from imported spreadsheet figures (see below).</td></tr>
+          <tr><td><strong>Upload File</strong></td><td>Looks at an Excel spreadsheet instead, without changing anything in the app. Useful for checking old figures before importing them.</td></tr>
+        </tbody>
+      </table>
+      <p>On <em>Live App Data</em>, each session date uses one source only, in this order: items entered in the app, then imported monthly totals, then items imported from old spreadsheets. A session is never counted twice.</p>
+
+      <h3>Choosing a year</h3>
+      <p>The <strong>year buttons</strong> (<em>All years</em>, 2025, 2026&hellip;) narrow every total and chart to that year.</p>
+
+      <h3>Totals at the top</h3>
+      <table>
+        <thead><tr><th>Card</th><th>Shows</th></tr></thead>
+        <tbody>
+          <tr><td><strong>📅 Sessions</strong></td><td>Number of sessions, and the average number of items per session</td></tr>
+          <tr><td><strong>🔧 Items brought in</strong></td><td>Total items, and how many were fully repaired</td></tr>
+          <tr><td><strong>✅ Success rate</strong></td><td>Items repaired or partially repaired, as a percentage of all items brought in</td></tr>
+          <tr><td><strong>👥 Visitors</strong></td><td>On live data, the number of different owner names. From a spreadsheet, visitors with items, plus incidental visitors underneath.</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Charts</h3>
+      <table>
+        <thead><tr><th>Chart</th><th>Shows</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Items per Session</strong></td><td>A bar for each session, split by category (Electrical, Clothing &amp; Textile, Ornament&hellip;). Hover to see the date and the total.</td></tr>
+          <tr><td><strong>Repair Outcomes</strong></td><td>A donut chart of how items ended up: repaired, partially repaired, advice given, unable to repair, taken home (<em>Ongoing at Home</em>) and still in progress. Collected items count under the outcome they had.</td></tr>
+          <tr><td><strong>Items by Category</strong></td><td>The most common types of item, most frequent first</td></tr>
+          <tr><td><strong>Success Rate per Session</strong></td><td>The success rate for each session, as a line</td></tr>
+          <tr><td><strong>Attendance per Session</strong></td><td>Visitors for each session. Spreadsheet data also shows incidental visitors and volunteers, which the app does not record.</td></tr>
+          <tr><td><strong>⚡ PAT Tests per Session</strong></td><td>Electrical items passed, failed and not tested in each session, with totals and a pass rate. Live data only; see <a href="#statuses">PAT tests</a>.</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Importing old figures from a spreadsheet</h3>
+      <ol>
+        <li>Click <strong>Upload File</strong>, then drop your Excel file (.xlsx or .xls) onto the box, or click it to choose the file. The workbook needs sheets named <em>Monthly_Data</em> followed by the year, for example <em>Monthly_Data 2025</em>.</li>
+        <li>Check the charts look right. Use <strong>📂 New file</strong> to try a different file.</li>
+        <li>Click <strong>☁ Import to Firebase</strong>. When it says <em>✓ Imported</em>, switch back to <strong>Live App Data</strong> to see the old sessions alongside the app's own records.</li>
+      </ol>
+      <div class="callout">
+        Importing the same file again is safe: each session date is stored once, and importing again replaces it. Dates that already have items entered in the app keep using the app's figures.
+      </div>
     </section>
 
     <!-- Repairer Dashboard -->
