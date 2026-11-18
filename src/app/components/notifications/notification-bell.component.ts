@@ -1,36 +1,20 @@
 import { Component, ElementRef, HostListener, OnDestroy, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
-import { Subscription, combineLatest, firstValueFrom, map } from 'rxjs';
+import { Subscription, firstValueFrom } from 'rxjs';
 import { RepairService } from '../../services/repair.service';
 import { AuthService } from '../../services/auth.service';
 import { DialogService } from '../../services/dialog.service';
+import { AppNotification, NotificationService } from '../../services/notification.service';
 
-interface PendingUser {
-  id: string;
-  name: string;
-  email: string;
-  photoURL?: string;
-  lastSeen?: any;
-}
-
-interface PastNote {
-  id: string;
-  name: string;
-  photoURL?: string;
-  approvedAt: any;
-  approvedBy: string;
-}
-
-/** How many older notifications to show before "Show older". */
-const HISTORY_STEP = 10;
+/** How many recent sign-ins / approvals to show in the drop-down. */
+const RECENT_COUNT = 6;
 
 /**
  * Admin-only notification bell in the header. Shows people who have signed in and are
  * waiting for approval, updates live, and lets the admin approve them straight away.
  * A short pop-up also appears when someone new starts waiting while the admin is signed in.
- * Below that, "Earlier" lists past notifications that have been dealt with (who was approved,
- * by whom and when), built from the approval records so nothing extra needs storing.
+ * Below that are the latest sign-ins and approvals, with a link to the full Notifications page.
  */
 @Component({
   selector: 'app-notification-bell',
@@ -51,35 +35,33 @@ const HISTORY_STEP = 10;
       <div class="panel" *ngIf="open">
         <div class="panel-head">Waiting for approval</div>
         <div class="panel-empty" *ngIf="!pending.length">Nothing needs your attention.</div>
-        <div class="note" *ngFor="let u of pending">
+        <div class="note" *ngFor="let u of pending; trackBy: trackKey">
           <div class="avatar" [style.backgroundImage]="u.photoURL ? 'url(' + u.photoURL + ')' : 'none'">
             <span *ngIf="!u.photoURL">{{ u.name.charAt(0).toUpperCase() }}</span>
           </div>
           <div class="note-text">
             <strong>{{ u.name }}</strong> is waiting for approval
             <span class="note-sub" *ngIf="u.email && u.email !== u.name">{{ u.email }}</span>
-            <span class="note-sub" *ngIf="u.lastSeen?.toDate">Signed in {{ u.lastSeen.toDate() | date:'d MMM, HH:mm' }}</span>
+            <span class="note-sub" *ngIf="u.at">Signed in {{ u.at | date:'d MMM, HH:mm' }}</span>
           </div>
-          <button class="btn-approve" [disabled]="busy[u.id]" (click)="approve(u)">{{ busy[u.id] ? '…' : 'Approve' }}</button>
+          <button class="btn-approve" [disabled]="busy[u.uid]" (click)="approve(u)">{{ busy[u.uid] ? '…' : 'Approve' }}</button>
         </div>
-        <ng-container *ngIf="history.length">
-          <div class="panel-head earlier">Earlier</div>
-          <div class="note past" *ngFor="let h of history.slice(0, historyShown)">
-            <div class="avatar" [style.backgroundImage]="h.photoURL ? 'url(' + h.photoURL + ')' : 'none'">
-              <span *ngIf="!h.photoURL">{{ h.name.charAt(0).toUpperCase() }}</span>
+        <ng-container *ngIf="recent.length">
+          <div class="panel-head earlier">Recent</div>
+          <div class="note past" *ngFor="let n of recent; trackBy: trackKey">
+            <div class="avatar" [style.backgroundImage]="n.photoURL ? 'url(' + n.photoURL + ')' : 'none'">
+              <span *ngIf="!n.photoURL">{{ n.name.charAt(0).toUpperCase() }}</span>
             </div>
             <div class="note-text">
-              <strong>{{ h.name }}</strong> was approved
-              <span class="note-sub">{{ h.approvedBy ? 'by ' + h.approvedBy + ' · ' : '' }}{{ h.approvedAt.toDate() | date:'d MMM yyyy, HH:mm' }}</span>
+              <strong>{{ n.name }}</strong> {{ n.kind === 'signin' ? 'signed in' : 'was approved' }}
+              <span class="note-sub">{{ n.kind === 'approved' && n.by ? 'by ' + n.by + ' · ' : '' }}{{ n.kind === 'signin' && n.device ? n.device + ' · ' : '' }}{{ n.at | date:'d MMM, HH:mm' }}</span>
             </div>
-            <span class="done-tag">✓ Done</span>
+            <span class="kind-icon">{{ n.kind === 'signin' ? '👋' : '✅' }}</span>
           </div>
-          <button class="panel-more" *ngIf="history.length > historyShown" (click)="showOlder()">
-            Show older ({{ history.length - historyShown }} more)
-          </button>
         </ng-container>
 
-        <button class="panel-link" (click)="openUsers()">Open Admin → Users</button>
+        <button class="panel-link" (click)="openAll()">See all notifications →</button>
+        <button class="panel-link secondary" (click)="openUsers()">Open Admin → Users</button>
       </div>
     </div>
 
@@ -112,12 +94,8 @@ const HISTORY_STEP = 10;
     }
     .panel-head.earlier { margin-top: 0.4rem; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 0.8rem; }
     .note.past { opacity: 0.75; }
-    .done-tag { flex-shrink: 0; font-size: 0.74rem; font-weight: 700; color: rgba(129,199,132,0.85); }
-    .panel-more {
-      display: block; width: 100%; margin-top: 0.2rem; padding: 0.45rem; border: none; border-radius: 8px;
-      background: none; color: rgba(255,255,255,0.6); font-size: 0.8rem; cursor: pointer; font-family: inherit;
-    }
-    .panel-more:hover { color: white; background: rgba(255,255,255,0.05); }
+    .kind-icon { flex-shrink: 0; font-size: 0.95rem; }
+    .panel-link.secondary { color: rgba(255,255,255,0.6); background: none; margin-top: 0.1rem; }
     .panel-head { font-size: 0.75rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
       color: rgba(255,255,255,0.5); padding: 0.4rem 0.5rem 0.6rem; }
     .panel-empty { padding: 0.6rem 0.5rem 0.8rem; color: rgba(255,255,255,0.5); font-size: 0.88rem; }
@@ -153,15 +131,15 @@ const HISTORY_STEP = 10;
   `]
 })
 export class NotificationBellComponent implements OnInit, OnDestroy {
+  private notifications = inject(NotificationService);
   private repairService = inject(RepairService);
   private authService = inject(AuthService);
   private dialog = inject(DialogService);
   private router = inject(Router);
   private host = inject(ElementRef);
 
-  pending: PendingUser[] = [];
-  history: PastNote[] = [];
-  historyShown = HISTORY_STEP;
+  pending: AppNotification[] = [];
+  recent: AppNotification[] = [];
   open = false;
   toast = '';
   busy: Record<string, boolean> = {};
@@ -171,47 +149,16 @@ export class NotificationBellComponent implements OnInit, OnDestroy {
   private toastTimer?: ReturnType<typeof setTimeout>;
 
   ngOnInit() {
-    this.sub = combineLatest([
-      this.repairService.getUsers(),
-      this.repairService.getAdmins(),
-      this.repairService.getVolunteerRecords(),
-    ]).pipe(
-      map(([users, adminIds, records]) => {
-        const volunteerIds = records.map(r => r.id);
-        const byId = new Map(users.map(u => [u.id, u]));
-        const nameOf = (uid?: string | null) => {
-          const u = uid ? byId.get(uid) : undefined;
-          return u ? (u.displayName || u.email || '') : '';
-        };
-        this.history = records
-          .filter(r => r.approvedAt?.toDate)
-          .map((r): PastNote => ({
-            id: r.id,
-            name: nameOf(r.id) || 'Someone',
-            photoURL: byId.get(r.id)?.photoURL,
-            approvedAt: r.approvedAt,
-            approvedBy: nameOf(r.approvedBy),
-          }))
-          .sort((a, b) => b.approvedAt.toMillis() - a.approvedAt.toMillis());
-        return users
-        .filter(u => !adminIds.includes(u.id) && !volunteerIds.includes(u.id))
-        .map((u): PendingUser => ({
-          id: u.id,
-          name: u.displayName || u.email || 'Someone',
-          email: u.email || '',
-          photoURL: u.photoURL,
-          lastSeen: u.lastSeen,
-        }))
-        .sort((a, b) => (b.lastSeen?.toMillis?.() ?? 0) - (a.lastSeen?.toMillis?.() ?? 0));
-      })
-    ).subscribe({
-      next: pending => {
+    this.sub = this.notifications.all$.subscribe({
+      next: all => {
+        const pending = all.filter(n => n.kind === 'waiting');
         if (this.seen) {
-          const newcomer = pending.find(p => !this.seen!.has(p.id));
+          const newcomer = pending.find(p => !this.seen!.has(p.uid));
           if (newcomer) this.showToast(newcomer.name);
         }
-        this.seen = new Set(pending.map(p => p.id));
+        this.seen = new Set(pending.map(p => p.uid));
         this.pending = pending;
+        this.recent = all.filter(n => n.kind !== 'waiting').slice(0, RECENT_COUNT);
       },
       error: err => console.error('Notifications unavailable:', err),
     });
@@ -222,10 +169,9 @@ export class NotificationBellComponent implements OnInit, OnDestroy {
     clearTimeout(this.toastTimer);
   }
 
-  toggle() {
-    this.open = !this.open;
-    if (this.open) this.historyShown = HISTORY_STEP;
-  }
+  toggle() { this.open = !this.open; }
+
+  trackKey = (_: number, n: AppNotification) => n.key;
 
   /** Close the panel when clicking anywhere else on the page. */
   @HostListener('document:click', ['$event'])
@@ -233,24 +179,27 @@ export class NotificationBellComponent implements OnInit, OnDestroy {
     if (this.open && !this.host.nativeElement.contains(event.target)) this.open = false;
   }
 
-  showOlder() { this.historyShown += HISTORY_STEP; }
-
   openPanelFromToast() {
     this.toast = '';
     this.open = true;
   }
 
-  async approve(u: PendingUser) {
-    this.busy[u.id] = true;
+  async approve(u: AppNotification) {
+    this.busy[u.uid] = true;
     try {
       const me = await firstValueFrom(this.authService.user$);
-      await this.repairService.setVolunteerStatus(u.id, true, me?.uid);
+      await this.repairService.setVolunteerStatus(u.uid, true, me?.uid);
     } catch (e) {
       console.error('Approve failed:', e);
       this.dialog.error(`Couldn't approve ${u.name}. Please try again from Admin → Users.`);
     } finally {
-      this.busy[u.id] = false;
+      this.busy[u.uid] = false;
     }
+  }
+
+  openAll() {
+    this.open = false;
+    this.router.navigate(['/notifications']);
   }
 
   openUsers() {

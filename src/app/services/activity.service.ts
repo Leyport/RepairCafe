@@ -48,6 +48,7 @@ const PAGE_NAMES: [RegExp, string][] = [
     [/^\/admin\/version/, 'Admin · Version'],
     [/^\/admin/, 'Admin'],
     [/^\/issues/, 'Issues'],
+    [/^\/notifications/, 'Notifications'],
     [/^\/schedule/, 'Schedule'],
     [/^\/rcd-dashboard/, 'Session dashboard'],
     [/^\/repairer-dashboard/, 'Repairer dashboard'],

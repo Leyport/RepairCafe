@@ -6,6 +6,12 @@ import { RepairListComponent } from './components/repair-list/repair-list.compon
 import { RepairFormComponent } from './components/repair-form/repair-form.component';
 import { RepairCompleteComponent } from './components/repair-complete/repair-complete.component';
 
+/** Admins only — anyone else is sent back to the repair list. */
+const adminOnly = () => {
+  const router = inject(Router);
+  return inject(AuthService).isAdmin$.pipe(take(1), map(isAdmin => isAdmin || router.createUrlTree(['/repairs'])));
+};
+
 export const routes: Routes = [
   { path: '', loadComponent: () => import('./components/landing/landing.component').then(m => m.LandingComponent) },
   { path: 'repairs', component: RepairListComponent },
@@ -17,11 +23,7 @@ export const routes: Routes = [
   { path: 'complete/:id', component: RepairCompleteComponent },
   {
     path: 'admin',
-    // Admins only — anyone else is sent back to the repair list.
-    canActivate: [() => {
-      const router = inject(Router);
-      return inject(AuthService).isAdmin$.pipe(take(1), map(isAdmin => isAdmin || router.createUrlTree(['/repairs'])));
-    }],
+    canActivate: [adminOnly],
     loadComponent: () => import('./components/admin/admin-panel/admin-panel.component').then(m => m.AdminPanelComponent),
     children: [
       {
@@ -57,6 +59,11 @@ export const routes: Routes = [
         loadComponent: () => import('./components/admin/version-manager/version-manager.component').then(m => m.VersionManagerComponent)
       }
     ]
+  },
+  {
+    path: 'notifications',
+    canActivate: [adminOnly],
+    loadComponent: () => import('./components/notifications/notifications-page.component').then(m => m.NotificationsPageComponent)
   },
   {
     path: 'issues',
