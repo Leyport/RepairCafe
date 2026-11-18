@@ -9,7 +9,7 @@ import {
   Firestore, collection, collectionData, writeBatch, doc, Timestamp
 } from '@angular/fire/firestore';
 import { RepairService } from '../../services/repair.service';
-import { RepairItem } from '../../models/repair-item.model';
+import { RepairItem, isElectricalCategory } from '../../models/repair-item.model';
 
 import { DialogService } from '../../services/dialog.service';
 import { getStage, reportKey } from '../../models/repair-status';
@@ -51,7 +51,10 @@ interface Session {
   totalItems: number;
   outcomes: SessionOutcomes;
   categories: SessionCategories;
+  pat?: SessionPat;   // live app data only — electrical items entered in the app
 }
+
+interface SessionPat { pass: number; fail: number; untested: number; }
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
@@ -238,6 +241,26 @@ interface Session {
         </div>
       </div>
 
+      <div class="chart-card chart-full" *ngIf="patTotals">
+        <div class="chart-card-header pat-header">
+          <div>
+            <h3>⚡ PAT Tests per Session</h3>
+            <span class="chart-sub">Electrical items entered in the app — passed, failed and not yet tested</span>
+          </div>
+          <div class="pat-chips">
+            <span class="pat-chip pat-pass">✓ {{ patTotals.pass }} passed</span>
+            <span class="pat-chip pat-fail">✗ {{ patTotals.fail }} failed</span>
+            <span class="pat-chip pat-none">? {{ patTotals.untested }} not tested</span>
+            <span class="pat-chip pat-rate" *ngIf="patTotals.pass + patTotals.fail">
+              {{ patPassRate }}% pass rate
+            </span>
+          </div>
+        </div>
+        <div class="chart-wrap" style="height:260px">
+          <canvas id="chart-pat"></canvas>
+        </div>
+      </div>
+
     </div>
   </div>
 </div>
@@ -363,6 +386,13 @@ interface Session {
     .chart-card-header h3 { font-size: 0.9rem; font-weight: 800; color: var(--accent-color,#00f2ff); margin: 0 0 3px; }
     .chart-sub    { font-size: 0.72rem; color: rgba(255,255,255,0.38); }
     .chart-wrap   { position: relative; }
+    .pat-header   { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
+    .pat-chips    { display: flex; gap: 6px; flex-wrap: wrap; }
+    .pat-chip     { font-size: 0.75rem; font-weight: 700; padding: 3px 10px; border-radius: 99px; border: 1px solid; white-space: nowrap; }
+    .pat-pass     { color: #81c784; border-color: rgba(102,187,106,0.5); background: rgba(102,187,106,0.12); }
+    .pat-fail     { color: #ef9a9a; border-color: rgba(239,83,80,0.5);  background: rgba(239,83,80,0.12); }
+    .pat-none     { color: rgba(255,255,255,0.6); border-color: rgba(255,255,255,0.2); background: rgba(255,255,255,0.05); }
+    .pat-rate     { color: #00f2ff; border-color: rgba(0,242,255,0.4); background: rgba(0,242,255,0.08); }
 
     @media (max-width: 1100px) { .chart-row-3 { grid-template-columns: 1fr 1fr; } }
     @media (max-width: 860px)  { .kpi-row { grid-template-columns: 1fr 1fr; } .chart-row-3 { grid-template-columns: 1fr; } }
@@ -388,6 +418,10 @@ export class AnalyticsDashboardComponent implements OnInit, OnDestroy {
   kpiItems    = 0; kpiItemsSub    = '';
   kpiSuccess  = '0%'; kpiSuccessSub = '';
   kpiVisitors = 0; kpiVisitorsSub = '';
+
+  // PAT summary (live data only; null hides the PAT chart)
+  patTotals: SessionPat | null = null;
+  patPassRate = 0;
 
   // Import state
   importStatus: 'idle' | 'importing' | 'done' | 'error' = 'idle';
@@ -571,6 +605,13 @@ export class AnalyticsDashboardComponent implements OnInit, OnDestroy {
 
       const cnt = (key: string) => dayItems.filter(i => reportKey(i) === key).length;
 
+      const electrical = dayItems.filter(i => !i.importSource && isElectricalCategory(i.category));
+      const pat: SessionPat | undefined = electrical.length ? {
+        pass:     electrical.filter(i => i.patResult === 'Pass').length,
+        fail:     electrical.filter(i => i.patResult === 'Fail').length,
+        untested: electrical.filter(i => i.patResult !== 'Pass' && i.patResult !== 'Fail').length,
+      } : undefined;
+
       sessions.push({
         date,
         dateKey:            this.toDateKey(date),
@@ -593,6 +634,7 @@ export class AnalyticsDashboardComponent implements OnInit, OnDestroy {
           inProgress:   dayItems.filter(i => ['New', 'Investigating'].includes(getStage(i))).length,
         },
         categories: cats,
+        pat,
       });
     });
 
@@ -759,6 +801,7 @@ export class AnalyticsDashboardComponent implements OnInit, OnDestroy {
 
   private renderDashboard(sessions: Session[]) {
     this.updateKPIs(sessions);
+    this.cdr.detectChanges(); // so the PAT chart's canvas exists before drawing
     this.renderAllCharts(sessions);
   }
 
@@ -778,6 +821,15 @@ export class AnalyticsDashboardComponent implements OnInit, OnDestroy {
     this.kpiSuccess     = successRate + '%';
     this.kpiSuccessSub  = `${totalSuccessful} of ${totalItems} items`;
     this.kpiVisitors    = totalVisitors;
+    const patSessions = sessions.filter(s => s.pat);
+    this.patTotals = patSessions.length ? {
+      pass:     patSessions.reduce((n, s) => n + s.pat!.pass, 0),
+      fail:     patSessions.reduce((n, s) => n + s.pat!.fail, 0),
+      untested: patSessions.reduce((n, s) => n + s.pat!.untested, 0),
+    } : null;
+    const tested = this.patTotals ? this.patTotals.pass + this.patTotals.fail : 0;
+    this.patPassRate = tested ? Math.round(this.patTotals!.pass / tested * 100) : 0;
+
     this.kpiVisitorsSub = this.dataSource === 'live'
       ? 'by distinct visitor name'
       : `+ ${totalIncidental} incidental visitors`;
@@ -791,6 +843,7 @@ export class AnalyticsDashboardComponent implements OnInit, OnDestroy {
     this.renderCategoriesChart(sessions);
     this.renderSuccessChart(sessions);
     this.renderVisitorsChart(sessions);
+    this.renderPatChart(sessions);
   }
 
   private destroyChart(id: string) { const c = this.chartInstances.get(id); if (c) { c.destroy(); this.chartInstances.delete(id); } }
@@ -929,6 +982,40 @@ export class AnalyticsDashboardComponent implements OnInit, OnDestroy {
         scales: {
           x: { grid: { color: this.gridColor }, ticks: { color: this.tickColor } },
           y: { beginAtZero: true, grid: { color: this.gridColor }, ticks: { color: this.tickColor } }
+        }
+      }
+    }));
+  }
+
+  private renderPatChart(sessions: Session[]) {
+    this.destroyChart('pat');
+    const ctx = this.ctx('chart-pat'); if (!ctx) return;
+    const withPat   = sessions.filter(s => s.pat);
+    const labels    = withPat.map(s => s.monthLabel);
+    const fullDates = withPat.map(s => s.fullLabel);
+    const ds = (label: string, key: keyof SessionPat, color: string) => ({
+      label, data: withPat.map(s => s.pat![key]), backgroundColor: color, stack: 'pat', borderWidth: 0,
+    });
+
+    this.chartInstances.set('pat', new Chart(ctx, {
+      type: 'bar',
+      data: { labels, datasets: [
+        ds('Passed', 'pass', '#66BB6A'),
+        ds('Failed', 'fail', '#EF5350'),
+        ds('Not tested', 'untested', '#78909C'),
+      ]},
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: {
+          legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 }, color: this.legendColor } },
+          tooltip: { mode: 'index', callbacks: {
+            title:  items => fullDates[items[0].dataIndex],
+            footer: items => 'Electrical items: ' + items.reduce((s, i) => s + (i.raw as number), 0),
+          }}
+        },
+        scales: {
+          x: { stacked: true, grid: { color: this.gridColor }, ticks: { color: this.tickColor } },
+          y: { stacked: true, beginAtZero: true, grid: { color: this.gridColor }, ticks: { color: this.tickColor, precision: 0 }, title: { display: true, text: 'Items', color: this.tickColor } }
         }
       }
     }));
