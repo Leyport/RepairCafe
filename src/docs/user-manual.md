@@ -124,6 +124,7 @@ Every item in the **Electrical** category has a **⚡ PAT Test** section showing
 - **Item details page** — result, tester and date
 - **Repair list** — a *⚡ PAT ✓ / ✗ / ?* badge on each electrical item, and a *⚡ PAT* filter under **⚲ Filters** (see Repair List)
 - **Session dashboard** — a *⚡ PAT Tests* card counting passed, failed and not tested, a *PAT* column in the items list, and a PAT line for each electrical item in the session report (see Session Dashboard)
+- **Analytics** — a *⚡ PAT Tests per Session* chart with a bar for each session (passed in green, failed in red, not tested in grey), plus totals and an overall pass rate. Use the year buttons to look at one year. It only appears on *Live App Data* and only counts electrical items entered in the app, because items imported from old spreadsheets have no PAT details. The pass rate is worked out from the items that were actually tested.
 
 > **Failed PAT test:** an item that fails must not be handed back for use until it has been made safe.
 
