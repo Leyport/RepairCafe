@@ -360,6 +360,18 @@ The page shows 50 notifications at a time; use **Show older** at the bottom to s
 
 > People **waiting for approval always show**, whatever the *How old* setting, because they still need dealing with. Sign-ins come from the activity log, which keeps 90 days, so older sign-ins are not listed.
 
+### Notification History
+
+Notifications don't disappear once you've seen or dealt with them, so you can always look back at what has happened:
+
+- When someone is approved, their *⏳ Waiting for approval* notification turns into an *✅ Approved* one, showing who approved them and when. It stays in the list from then on.
+- Approvals go back to the very first person approved, including people approved before the notification history was added.
+- Sign-ins go back 90 days.
+
+To look back, open the Notifications page and set **How old** to *Any time*. Choose a type, such as *Approved*, to narrow it down, and use **Show older** to keep going back. The bell drop-down only shows the most recent few under **Recent**.
+
+> If an admin **removes someone's approval** in Admin → Users, their *Approved* notification is removed too. If they sign in again, they show as *Waiting for approval* once more.
+
 ### Version Manager
 
 Shows the current application version and allows the description to be updated. The version displayed on the home page always reflects the latest deployed version automatically.
