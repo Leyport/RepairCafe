@@ -46,10 +46,13 @@ The buttons at the top of the repair list choose which items are shown:
 
 | Button | Shows |
 |--------|-------|
-| **Active** | Open work for the latest repair cafe session — items that are *New* or *Investigating*. This is the default view. |
+| **My Repairs** | Every item where *you* are the lead or a secondary repairer, from every session, both open and finished — a record of everything you have worked on. Newest first. The number on the button shows how many of your items are still open. **This is the default view** for repairers. |
+| **Active** | Open work for the latest repair cafe session — items that are *New* or *Investigating*. This is the default view if you aren't a repairer. |
 | **Taken Home** | Every item a volunteer currently has at home, *whichever session it came from*. The number on the button shows how many items are out. Use this at the start of a session to see what should be coming back. |
 | **All** | Every item from every session, whatever its status |
 | **Completed** | Items from the latest session that are *Completed* or *Collected* |
+
+> **Not seeing My Repairs?** The app links you to a repairer by your Google email, or else by your Google name matching your repairer name. If neither matches (for example your repairer name is "Bob" but your Google name is "Robert Smith"), ask an admin to add your email to your repairer record in **Admin → Repairers**. To pick up a new item, set yourself as its repairer and it will appear in My Repairs.
 
 > **Taken Home items:** set an item's status to *Taken Home* when a volunteer takes it away between sessions. It then leaves the Active list but stays tracked under **Taken Home**. When it comes back, change its status (for example to *Investigating*, or use **Complete**) and it moves out of the Taken Home list automatically.
 
