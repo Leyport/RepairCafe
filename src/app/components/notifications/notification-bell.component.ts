@@ -14,10 +14,23 @@ interface PendingUser {
   lastSeen?: any;
 }
 
+interface PastNote {
+  id: string;
+  name: string;
+  photoURL?: string;
+  approvedAt: any;
+  approvedBy: string;
+}
+
+/** How many older notifications to show before "Show older". */
+const HISTORY_STEP = 10;
+
 /**
  * Admin-only notification bell in the header. Shows people who have signed in and are
  * waiting for approval, updates live, and lets the admin approve them straight away.
  * A short pop-up also appears when someone new starts waiting while the admin is signed in.
+ * Below that, "Earlier" lists past notifications that have been dealt with (who was approved,
+ * by whom and when), built from the approval records so nothing extra needs storing.
  */
 @Component({
   selector: 'app-notification-bell',
@@ -36,7 +49,7 @@ interface PendingUser {
       </button>
 
       <div class="panel" *ngIf="open">
-        <div class="panel-head">Notifications</div>
+        <div class="panel-head">Waiting for approval</div>
         <div class="panel-empty" *ngIf="!pending.length">Nothing needs your attention.</div>
         <div class="note" *ngFor="let u of pending">
           <div class="avatar" [style.backgroundImage]="u.photoURL ? 'url(' + u.photoURL + ')' : 'none'">
@@ -49,7 +62,24 @@ interface PendingUser {
           </div>
           <button class="btn-approve" [disabled]="busy[u.id]" (click)="approve(u)">{{ busy[u.id] ? '…' : 'Approve' }}</button>
         </div>
-        <button class="panel-link" *ngIf="pending.length" (click)="openUsers()">Open Admin → Users</button>
+        <ng-container *ngIf="history.length">
+          <div class="panel-head earlier">Earlier</div>
+          <div class="note past" *ngFor="let h of history.slice(0, historyShown)">
+            <div class="avatar" [style.backgroundImage]="h.photoURL ? 'url(' + h.photoURL + ')' : 'none'">
+              <span *ngIf="!h.photoURL">{{ h.name.charAt(0).toUpperCase() }}</span>
+            </div>
+            <div class="note-text">
+              <strong>{{ h.name }}</strong> was approved
+              <span class="note-sub">{{ h.approvedBy ? 'by ' + h.approvedBy + ' · ' : '' }}{{ h.approvedAt.toDate() | date:'d MMM yyyy, HH:mm' }}</span>
+            </div>
+            <span class="done-tag">✓ Done</span>
+          </div>
+          <button class="panel-more" *ngIf="history.length > historyShown" (click)="showOlder()">
+            Show older ({{ history.length - historyShown }} more)
+          </button>
+        </ng-container>
+
+        <button class="panel-link" (click)="openUsers()">Open Admin → Users</button>
       </div>
     </div>
 
@@ -78,7 +108,16 @@ interface PendingUser {
       position: absolute; right: 0; top: calc(100% + 8px); z-index: 1500; width: 320px; max-width: calc(100vw - 32px);
       background: #14182a; border: 1px solid rgba(255,255,255,0.12); border-radius: 12px;
       box-shadow: 0 12px 32px rgba(0,0,0,0.5); padding: 0.5rem; text-align: left;
+      max-height: min(70vh, 560px); overflow-y: auto;
     }
+    .panel-head.earlier { margin-top: 0.4rem; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 0.8rem; }
+    .note.past { opacity: 0.75; }
+    .done-tag { flex-shrink: 0; font-size: 0.74rem; font-weight: 700; color: rgba(129,199,132,0.85); }
+    .panel-more {
+      display: block; width: 100%; margin-top: 0.2rem; padding: 0.45rem; border: none; border-radius: 8px;
+      background: none; color: rgba(255,255,255,0.6); font-size: 0.8rem; cursor: pointer; font-family: inherit;
+    }
+    .panel-more:hover { color: white; background: rgba(255,255,255,0.05); }
     .panel-head { font-size: 0.75rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
       color: rgba(255,255,255,0.5); padding: 0.4rem 0.5rem 0.6rem; }
     .panel-empty { padding: 0.6rem 0.5rem 0.8rem; color: rgba(255,255,255,0.5); font-size: 0.88rem; }
@@ -121,6 +160,8 @@ export class NotificationBellComponent implements OnInit, OnDestroy {
   private host = inject(ElementRef);
 
   pending: PendingUser[] = [];
+  history: PastNote[] = [];
+  historyShown = HISTORY_STEP;
   open = false;
   toast = '';
   busy: Record<string, boolean> = {};
@@ -133,9 +174,26 @@ export class NotificationBellComponent implements OnInit, OnDestroy {
     this.sub = combineLatest([
       this.repairService.getUsers(),
       this.repairService.getAdmins(),
-      this.repairService.getVolunteers(),
+      this.repairService.getVolunteerRecords(),
     ]).pipe(
-      map(([users, adminIds, volunteerIds]) => users
+      map(([users, adminIds, records]) => {
+        const volunteerIds = records.map(r => r.id);
+        const byId = new Map(users.map(u => [u.id, u]));
+        const nameOf = (uid?: string | null) => {
+          const u = uid ? byId.get(uid) : undefined;
+          return u ? (u.displayName || u.email || '') : '';
+        };
+        this.history = records
+          .filter(r => r.approvedAt?.toDate)
+          .map((r): PastNote => ({
+            id: r.id,
+            name: nameOf(r.id) || 'Someone',
+            photoURL: byId.get(r.id)?.photoURL,
+            approvedAt: r.approvedAt,
+            approvedBy: nameOf(r.approvedBy),
+          }))
+          .sort((a, b) => b.approvedAt.toMillis() - a.approvedAt.toMillis());
+        return users
         .filter(u => !adminIds.includes(u.id) && !volunteerIds.includes(u.id))
         .map((u): PendingUser => ({
           id: u.id,
@@ -144,7 +202,8 @@ export class NotificationBellComponent implements OnInit, OnDestroy {
           photoURL: u.photoURL,
           lastSeen: u.lastSeen,
         }))
-        .sort((a, b) => (b.lastSeen?.toMillis?.() ?? 0) - (a.lastSeen?.toMillis?.() ?? 0)))
+        .sort((a, b) => (b.lastSeen?.toMillis?.() ?? 0) - (a.lastSeen?.toMillis?.() ?? 0));
+      })
     ).subscribe({
       next: pending => {
         if (this.seen) {
@@ -163,13 +222,18 @@ export class NotificationBellComponent implements OnInit, OnDestroy {
     clearTimeout(this.toastTimer);
   }
 
-  toggle() { this.open = !this.open; }
+  toggle() {
+    this.open = !this.open;
+    if (this.open) this.historyShown = HISTORY_STEP;
+  }
 
   /** Close the panel when clicking anywhere else on the page. */
   @HostListener('document:click', ['$event'])
   onDocumentClick(event: Event) {
     if (this.open && !this.host.nativeElement.contains(event.target)) this.open = false;
   }
+
+  showOlder() { this.historyShown += HISTORY_STEP; }
 
   openPanelFromToast() {
     this.toast = '';

@@ -644,6 +644,11 @@ export class RepairService {
         );
     }
 
+    /** Volunteer approval records (uid, approvedAt, approvedBy) — used for the notification history. */
+    getVolunteerRecords(): Observable<{ id: string; approvedAt?: any; approvedBy?: string | null }[]> {
+        return collectionData(collection(this.firestore, 'volunteers'), { idField: 'id' }) as Observable<any[]>;
+    }
+
     /** Approve (or remove approval for) a signed-in account to use the repair data. */
     async setVolunteerStatus(uid: string, approved: boolean, approvedBy?: string): Promise<void> {
         const ref = doc(this.firestore, 'volunteers', uid);
