@@ -155,7 +155,22 @@ Every item in the **Electrical** category has a **⚡ PAT Test** section showing
 
 ## AI Repair Suggestions
 
-The AI helper can suggest what might be wrong with an item and how to fix it. To use it, choose **Investigate (AI)** from the ⋯ menu next to an item in the repair list, then press **Ask AI**.
+The AI helper can suggest what might be wrong with an item and how to fix it. It's best kept for tricky faults — most repairs don't need it. There are two ways to open it:
+
+- On the **Edit Repair Item** screen, under the Fault box: *Stuck on a tricky fault?* **🤖 Get repair ideas**. Any changes you've made are saved first, so the AI sees the latest fault.
+- From the ⋯ menu next to an item in the repair list, choose **🤖 Repair ideas (AI)**.
+
+### Check saved answers first
+
+Every AI answer is saved with its item, so before you ask the AI it's worth seeing if a similar item has already been answered. The repair ideas page shows:
+
+- **📌 Already asked for this item** — the answer (and any follow-ups) from an earlier visit.
+- **💡 Similar items with a saved AI answer** — up to three items whose description, fault, make or model match this one.
+- **A search box** — search every saved answer by item, make, model, fault or anything in the answer, for example *kettle*, *Dyson* or *no power*.
+
+Press **Show** to read a saved answer. If it fits, press **Use this answer for this item**: it is copied to this item (noting which item it came from) without asking the AI again, and you can still ask follow-up questions. If none of them help, press **Ask AI** for a fresh answer.
+
+> **Why check first?** Searching saved answers is instant and free; each **Ask AI** is a new request to the AI service.
 
 ### What is sent to the AI
 
@@ -169,6 +184,12 @@ The AI looks at the photos and says what it can see, so a clear picture of the f
 ### Asking follow-up questions
 
 After the first answer you can type a follow-up question. Use the camera or file button beside the question box to add a new photo first — it is saved to the item and sent with your question, together with the item's other photos.
+
+### Saving the AI response
+
+Press **Save AI Response** to save the answer as a report you can open or send to the owner by WhatsApp. The button is at the **top** of the AI card and again at the **bottom**, so you don't need to scroll back up after reading. Once saved, an **Open report** link appears beside it.
+
+A report includes the follow-up questions asked so far. If you ask more afterwards, press **Save AI Response** again to include them.
 
 ---
 
