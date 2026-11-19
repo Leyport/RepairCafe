@@ -353,9 +353,24 @@ Manage the list of volunteer repairers.
 
 A full view of all repair records across all sessions.
 
-- Search and filter records
+- Choose a collection on the left (Repair Items, Repairers, Visitors, Tags and so on) to see its records
 - Click a row to open the full repair detail
 - Print a repair receipt (PDF) using the print icon on each row
+
+**Finding records:**
+
+- **🔍 Search** — searches every field of every record, including the record ID, notes and outcome. Type several words to find records containing all of them.
+- **⚲ Column filters** (Repair Items only) — a row of filters under the column headings for number, description, visitor, item type, repairer, session, date created and status.
+- **⚙ Field filter** (any collection) — pick a *field*, a *condition* (*contains*, *is exactly*, *does not contain*, *is empty* or *is not empty*) and a *value*. The field list shows every field that collection has.
+- **🦽 Physical, 👁️ Visual, 🦻 Hearing** (Visitors only) — show only visitors who need that kind of assistance. Pick more than one to find visitors who need all of them.
+- **Clear all filters** resets everything. While a filter is on, the count at the top shows *X of Y records*.
+
+> **Field filter tips:** write dates as *2026-11-19*, or just *2026-11* with *contains* for a whole month. Tick-box fields are matched as *yes* or *no*. Useful examples:
+> - Repair Items → *outcome* *is empty* — items with no outcome recorded
+> - Repair Items → *patResult* *is exactly* *Fail* — items that failed their PAT test
+> - Repairers → *email* *is empty* — repairers without an email address
+>
+> The field filter resets when you choose a different collection, because each collection has different fields.
 
 ### User Manager
 

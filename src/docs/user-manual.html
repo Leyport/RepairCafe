@@ -623,7 +623,24 @@
       </div>
 
       <h3>Database Explorer</h3>
-      <p>A full searchable view of all repair records across every session. Click a row to open the full repair detail. Use the print icon on a row to generate a PDF repair receipt in a new window.</p>
+      <p>A full searchable view of all repair records across every session. Click a row to open the full repair detail. Use the print icon on a row to generate a PDF repair receipt in a new window. Choose a collection on the left (Repair Items, Repairers, Visitors, Tags and so on) to see its records.</p>
+      <p><strong>Finding records:</strong></p>
+      <ul>
+        <li><strong>🔍 Search</strong> &mdash; searches every field of every record, including the record ID, notes and outcome. Type several words to find records containing all of them.</li>
+        <li><strong>⚲ Column filters</strong> (Repair Items only) &mdash; a row of filters under the column headings for number, description, visitor, item type, repairer, session, date created and status.</li>
+        <li><strong>⚙ Field filter</strong> (any collection) &mdash; pick a <em>field</em>, a <em>condition</em> (<em>contains</em>, <em>is exactly</em>, <em>does not contain</em>, <em>is empty</em> or <em>is not empty</em>) and a <em>value</em>. The field list shows every field that collection has.</li>
+        <li><strong>🦽 Physical, 👁️ Visual, 🦻 Hearing</strong> (Visitors only) &mdash; show only visitors who need that kind of assistance. Pick more than one to find visitors who need all of them.</li>
+        <li><strong>Clear all filters</strong> resets everything. While a filter is on, the count at the top shows <em>X of Y records</em>.</li>
+      </ul>
+      <div class="callout">
+        <strong>Field filter tips:</strong> write dates as <em>2026-11-19</em>, or just <em>2026-11</em> with <em>contains</em> for a whole month. Tick-box fields are matched as <em>yes</em> or <em>no</em>. Useful examples:
+        <ul style="margin:0.4rem 0 0 1.2rem">
+          <li>Repair Items &rarr; <em>outcome</em> <em>is empty</em> &mdash; items with no outcome recorded</li>
+          <li>Repair Items &rarr; <em>patResult</em> <em>is exactly</em> <em>Fail</em> &mdash; items that failed their PAT test</li>
+          <li>Repairers &rarr; <em>email</em> <em>is empty</em> &mdash; repairers without an email address</li>
+        </ul>
+        The field filter resets when you choose a different collection, because each collection has different fields.
+      </div>
 
       <h3>User Manager</h3>
       <p>Lists every user who has ever logged in. People waiting for approval are shown first &mdash; press <strong>Approve</strong> to let them see the repair records. Admins can also grant or revoke admin access here.</p>
