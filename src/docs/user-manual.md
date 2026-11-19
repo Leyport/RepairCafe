@@ -348,6 +348,8 @@ Admins see a **bell** icon in the header. When someone new signs in and is waiti
 
 Click the bell to see who is waiting and press **Approve** next to their name. They get in straight away, without needing to sign in again. Below that, **Recent** shows the last few people who signed in (👋) or were approved (✅). Use **See all notifications →** for the full list, or **Open Admin → Users** for more options.
 
+**On a phone**, the list opens across the full width of the screen, just below the bell. If it is long, scroll inside the list to see the rest. Scrolling the page, or tapping anywhere outside the list, closes it.
+
 ### Notifications Page
 
 The Notifications page lists everything, newest first and grouped by day (*Today*, *Yesterday*, then dates). Open it from the bell with **See all notifications →**. There are three kinds of notification:
