@@ -3,7 +3,7 @@ import { NavigationEnd, Router } from '@angular/router';
 import { Auth, user } from '@angular/fire/auth';
 import {
     Firestore, addDoc, collection, collectionData, doc, getDocs, limit, orderBy, query,
-    setDoc, Timestamp, where, writeBatch
+    Timestamp, updateDoc, where, writeBatch
 } from '@angular/fire/firestore';
 import { Observable, filter } from 'rxjs';
 
@@ -142,9 +142,11 @@ export class ActivityService {
         this.write('page', label, { path, itemId: itemIdFromPath(path) });
         // Also keep "last seen / last page" on their profile for the Users list.
         const u = this.auth.currentUser;
-        setDoc(doc(this.firestore, 'users', u.uid), {
+        // updateDoc (not setDoc) so a deleted account that is still open somewhere can't
+        // recreate itself as a nameless "waiting for approval" user. Signing in creates the doc.
+        updateDoc(doc(this.firestore, 'users', u.uid), {
             lastSeen: Timestamp.now(), lastPage: label, lastDevice: this.device
-        }, { merge: true }).catch(() => { });
+        }).catch(() => { });
     }
 
     private async write(type: ActivityEntry['type'], label: string, extra: Partial<ActivityEntry> = {}) {

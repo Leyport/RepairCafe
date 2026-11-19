@@ -9,6 +9,10 @@ import { AppNotification, NotificationService } from '../../services/notificatio
 
 /** How many recent sign-ins / approvals to show in the drop-down. */
 const RECENT_COUNT = 6;
+/** Wait this long before announcing someone, so a half-loaded list doesn't cause a false alarm. */
+const CONFIRM_MS = 6000;
+/** Only announce people who signed in recently — a genuinely new person has just signed in. */
+const NEW_SIGNIN_MS = 30 * 60 * 1000;
 
 /**
  * Admin-only notification bell in the header. Shows people who have signed in and are
@@ -69,7 +73,7 @@ const RECENT_COUNT = 6;
     <div class="toast" *ngIf="toast" (click)="openPanelFromToast()">
       <span class="toast-icon">🔔</span>
       <span><strong>{{ toast }}</strong> is waiting for approval. <u>Review</u></span>
-      <button class="toast-close" (click)="$event.stopPropagation(); toast = ''">✕</button>
+      <button class="toast-close" (click)="$event.stopPropagation(); hideToast()">✕</button>
     </div>
   `,
   styles: [`
@@ -150,16 +154,28 @@ export class NotificationBellComponent implements OnInit, OnDestroy {
   private sub?: Subscription;
   private seen: Set<string> | null = null; // null until the first load, so existing waiters don't pop up
   private toastTimer?: ReturnType<typeof setTimeout>;
+  private toastUid = '';
+  private confirmTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
   ngOnInit() {
     this.sub = this.notifications.all$.subscribe({
       next: all => {
         const pending = all.filter(n => n.kind === 'waiting');
+        const pendingIds = new Set(pending.map(p => p.uid));
+        // The lists (users, volunteers, admins) load separately, so for a moment an approved
+        // volunteer can look like they're waiting. Only announce someone who is still waiting a
+        // few seconds later and who has just signed in.
         if (this.seen) {
-          const newcomer = pending.find(p => !this.seen!.has(p.uid));
-          if (newcomer) this.showToast(newcomer.name);
+          for (const p of pending) {
+            if (!this.seen.has(p.uid) && !this.confirmTimers.has(p.uid)) this.confirmNewcomer(p);
+          }
         }
-        this.seen = new Set(pending.map(p => p.uid));
+        for (const [uid, t] of this.confirmTimers) {
+          if (!pendingIds.has(uid)) { clearTimeout(t); this.confirmTimers.delete(uid); }
+        }
+        // Take the pop-up down as soon as that person is no longer waiting.
+        if (this.toast && this.toastUid && !pendingIds.has(this.toastUid)) this.hideToast();
+        this.seen = pendingIds;
         this.pending = pending;
         this.recent = all.filter(n => n.kind !== 'waiting').slice(0, RECENT_COUNT);
       },
@@ -170,6 +186,16 @@ export class NotificationBellComponent implements OnInit, OnDestroy {
   ngOnDestroy() {
     this.sub?.unsubscribe();
     clearTimeout(this.toastTimer);
+    this.confirmTimers.forEach(t => clearTimeout(t));
+  }
+
+  private confirmNewcomer(p: AppNotification) {
+    this.confirmTimers.set(p.uid, setTimeout(() => {
+      this.confirmTimers.delete(p.uid);
+      const still = this.pending.find(x => x.uid === p.uid);
+      const recent = !!still?.at && Date.now() - still.at.getTime() < NEW_SIGNIN_MS;
+      if (still && recent) this.showToast(still);
+    }, CONFIRM_MS));
   }
 
   /** Screen position for the panel on phones (null = normal drop-down under the bell). */
@@ -203,7 +229,7 @@ export class NotificationBellComponent implements OnInit, OnDestroy {
   }
 
   openPanelFromToast() {
-    this.toast = '';
+    this.hideToast();
     this.open = true;
     this.placePanel();
   }
@@ -231,9 +257,16 @@ export class NotificationBellComponent implements OnInit, OnDestroy {
     this.router.navigate(['/admin/users']);
   }
 
-  private showToast(name: string) {
-    this.toast = name;
+  private showToast(n: AppNotification) {
+    this.toast = n.name;
+    this.toastUid = n.uid;
     clearTimeout(this.toastTimer);
-    this.toastTimer = setTimeout(() => (this.toast = ''), 15000);
+    this.toastTimer = setTimeout(() => this.hideToast(), 15000);
+  }
+
+  hideToast() {
+    this.toast = '';
+    this.toastUid = '';
+    clearTimeout(this.toastTimer);
   }
 }
