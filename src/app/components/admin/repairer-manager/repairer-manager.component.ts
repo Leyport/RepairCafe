@@ -1,5 +1,7 @@
 import { Component, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
+import { BehaviorSubject, combineLatest, map } from 'rxjs';
 import { Router } from '@angular/router';
 import { RepairService } from '../../../services/repair.service';
 import { AuthService } from '../../../services/auth.service';
@@ -7,10 +9,12 @@ import { Repairer } from '../../../models/repairer.model';
 import { RepairerFormComponent } from '../repairer-form/repairer-form.component';
 
 import { DialogService } from '../../../services/dialog.service';
+type TypeFilter = 'all' | 'primary' | 'secondary';
+
 @Component({
   selector: 'app-repairer-manager',
   standalone: true,
-  imports: [CommonModule, RepairerFormComponent],
+  imports: [CommonModule, FormsModule, RepairerFormComponent],
   // RouterModule not needed — navigation is via Router.navigate()
   template: `
     <div class="manager-section">
@@ -21,12 +25,36 @@ import { DialogService } from '../../../services/dialog.service';
         </button>
       </div>
 
+      <ng-container *ngIf="view$ | async as v">
+      <div class="filters">
+        <div class="chips">
+          <button class="chip" *ngFor="let t of typeOptions" [class.active]="type === t.value" (click)="setType(t.value)">
+            {{ t.label }} <span class="n">{{ v.counts[t.value] }}</span>
+          </button>
+        </div>
+        <div class="filter-row">
+          <input type="search" class="f-input" placeholder="Search name, email or phone" autocomplete="off"
+                 [ngModel]="search" (ngModelChange)="setSearch($event)">
+          <select class="f-input f-select" [ngModel]="emailFilter" (ngModelChange)="setEmail($event)"
+                  title="An email lets My Repairs recognise the repairer when they sign in">
+            <option value="">Email: any</option>
+            <option value="has">Has an email</option>
+            <option value="none">No email</option>
+          </select>
+          <button class="btn-clear" *ngIf="isFiltered" (click)="clearFilters()">Clear</button>
+        </div>
+        <div class="f-summary" *ngIf="isFiltered">Showing {{ v.list.length }} of {{ v.total }} repairers</div>
+      </div>
+
       <div class="repairer-list">
-        <div *ngIf="(repairers$ | async)?.length === 0" class="empty-state">
+        <div *ngIf="v.total === 0" class="empty-state">
           No repairers added yet.
         </div>
+        <div *ngIf="v.total > 0 && v.list.length === 0" class="empty-state">
+          No repairers match these filters.
+        </div>
 
-        <div class="repairer-row" *ngFor="let repairer of repairers$ | async" (click)="openEditForm(repairer)">
+        <div class="repairer-row" *ngFor="let repairer of v.list" (click)="openEditForm(repairer)">
           <div class="repairer-info">
             <div class="avatar" [style.backgroundImage]="repairer.photoUrl ? 'url(' + repairer.photoUrl + ')' : 'none'">
               <span *ngIf="!repairer.photoUrl">{{ repairer.name.charAt(0) }}</span>
@@ -62,6 +90,7 @@ import { DialogService } from '../../../services/dialog.service';
           </div>
         </div>
       </div>
+      </ng-container>
     </div>
 
     <app-repairer-form
@@ -74,6 +103,26 @@ import { DialogService } from '../../../services/dialog.service';
     </app-repairer-form>
   `,
   styles: [`
+    .filters { margin-bottom: 1rem; display: flex; flex-direction: column; gap: 0.6rem; }
+    .chips { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+    .chip {
+      background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.12); color: rgba(255,255,255,0.8);
+      border-radius: 99px; padding: 0.35rem 0.8rem; font-size: 0.84rem; cursor: pointer; font-family: inherit;
+    }
+    .chip.active { background: rgba(0,242,255,0.12); border-color: rgba(0,242,255,0.5); color: #00f2ff; font-weight: 700; }
+    .chip .n { opacity: 0.6; margin-left: 0.2rem; font-weight: 400; }
+    .filter-row { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+    .f-input {
+      flex: 1 1 200px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.15); color: white;
+      border-radius: 8px; padding: 0.5rem 0.65rem; font-size: 0.9rem; font-family: inherit;
+    }
+    .f-select { flex: 0 1 170px; }
+    .f-select option { background: #14182a; }
+    .btn-clear {
+      background: none; border: 1px solid rgba(255,255,255,0.2); color: rgba(255,255,255,0.75);
+      border-radius: 8px; padding: 0.5rem 0.8rem; cursor: pointer; font-family: inherit; font-size: 0.85rem;
+    }
+    .f-summary { font-size: 0.8rem; color: rgba(255,255,255,0.5); }
     .manager-section {
       max-width: 600px;
     }
@@ -253,6 +302,42 @@ export class RepairerManagerComponent {
   repairers$ = this.repairService.getRepairers();
   isAdmin$ = this.authService.isAdmin$;
 
+  // ---- Filters ----
+  readonly typeOptions: { value: TypeFilter; label: string }[] = [
+    { value: 'all', label: 'All' },
+    { value: 'primary', label: 'Primary' },
+    { value: 'secondary', label: 'Secondary' },
+  ];
+  type: TypeFilter = 'all';
+  search = '';
+  emailFilter: '' | 'has' | 'none' = '';
+  private filter$ = new BehaviorSubject<void>(undefined);
+
+  get isFiltered(): boolean { return this.type !== 'all' || !!this.search.trim() || !!this.emailFilter; }
+  setType(v: TypeFilter) { this.type = v; this.filter$.next(); }
+  setSearch(v: string) { this.search = v || ''; this.filter$.next(); }
+  setEmail(v: '' | 'has' | 'none') { this.emailFilter = v; this.filter$.next(); }
+  clearFilters() { this.type = 'all'; this.search = ''; this.emailFilter = ''; this.filter$.next(); }
+
+  view$ = combineLatest([this.repairers$, this.filter$]).pipe(
+    map(([repairers]) => {
+      const term = this.search.trim().toLowerCase();
+      const digits = /[a-z]/.test(term) ? '' : term.replace(/\D/g, ''); // phone search only for number-like input
+      const base = repairers.filter(r => {
+        const hasEmail = !!(r.email || '').trim();
+        if (this.emailFilter === 'has' && !hasEmail) return false;
+        if (this.emailFilter === 'none' && hasEmail) return false;
+        if (!term) return true;
+        return (r.name || '').toLowerCase().includes(term) ||
+          (r.email || '').toLowerCase().includes(term) ||
+          (!!digits && (r.telephone || '').replace(/\D/g, '').includes(digits));
+      });
+      const matches = (r: Repairer, t: TypeFilter) => t === 'all' || (t === 'primary') === !!r.isPrimary;
+      const counts = Object.fromEntries(this.typeOptions.map(o => [o.value, base.filter(r => matches(r, o.value)).length])) as Record<TypeFilter, number>;
+      return { list: base.filter(r => matches(r, this.type)), counts, total: repairers.length };
+    })
+  );
+
   showForm = false;
   selectedRepairer: Repairer | null = null;
   loading: { [id: string]: boolean } = {};
@@ -288,7 +373,7 @@ export class RepairerManagerComponent {
           telephone: event.telephone
         });
       } else {
-        await this.repairService.addRepairer(event.name, event.photoUrl, event.isPrimary, event.telephone);
+        await this.repairService.addRepairer(event.name, event.photoUrl, event.isPrimary, event.telephone, event.email);
       }
       this.closeForm();
     } catch (error) {
