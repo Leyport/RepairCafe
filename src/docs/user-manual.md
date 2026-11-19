@@ -52,7 +52,16 @@ The buttons at the top of the repair list choose which items are shown:
 | **All** | Every item from every session, whatever its status |
 | **Completed** | Items from the latest session that are *Completed* or *Collected* |
 
-> **Not seeing My Repairs?** The app links you to a repairer by your Google email, or else by your Google name matching your repairer name. If neither matches (for example your repairer name is "Bob" but your Google name is "Robert Smith"), ask an admin to add your email to your repairer record in **Admin → Repairers**. To pick up a new item, set yourself as its repairer and it will appear in My Repairs.
+> **How My Repairs knows who you are:** the app links your sign-in to a repairer name in this order:
+> 1. the name you picked yourself (see below);
+> 2. any of the email addresses on your repairer record;
+> 3. your Google name matching your repairer name exactly.
+>
+> **"Which repairer are you?"** If the app can't tell (for example you sign in with a different email address, or your repairer name is "Bob" but your Google name is "Robert Smith"), clicking **My Repairs** asks *Which repairer are you?* Choose your name from the list and press **This is me**. The app remembers it for your sign-in, so you only do this once.
+>
+> **Wrong person, or no items?** At the top of My Repairs it says *Showing repairs for …*. Click **Not you? Change** and pick the name your repairs are recorded under.
+>
+> To pick up a new item, set yourself as its repairer and it will appear in My Repairs.
 
 > **Taken Home items:** set an item's status to *Taken Home* when a volunteer takes it away between sessions. It then leaves the Active list but stays tracked under **Taken Home**. When it comes back, change its status (for example to *Investigating*, or use **Complete**) and it moves out of the Taken Home list automatically.
 
@@ -313,7 +322,7 @@ The admin panel is available to admins only, via the **Admin** (grid) icon. Othe
 
 Manage the list of volunteer repairers.
 
-- **Add New Repairer** — enter a name and optional photo URL
+- **Add New Repairer** — enter a name and optional photo URL, email and telephone. If the repairer uses **more than one email address**, enter them all separated by commas; signing in with any of them links them to their *My Repairs*.
 - **Make Primary / Make Secondary** — toggle whether a repairer appears in the primary repairer list on repair forms
 - **Dashboard icon** — view the individual repairer's dashboard
 - **Delete** — remove the repairer
