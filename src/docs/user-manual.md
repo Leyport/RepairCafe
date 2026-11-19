@@ -423,6 +423,24 @@ To look back, open the Notifications page and set **How old** to *Any time*. Cho
 
 > If an admin **removes someone's approval** in Admin → Users, their *Approved* notification is removed too. If they sign in again, they show as *Waiting for approval* once more.
 
+### Activity
+
+**Admin → Activity** shows who has been using the app, when, on what device and which parts they used. Only admins can see it, and entries are kept for 90 days.
+
+- **People** — a card for each person shows when they were last active, their device, how many days they have used the app and the part they use most. Click a card to show only that person; click it again (or *show everyone*) to go back.
+- **Timeline** — everything that happened, newest first and grouped by day: 🔓 sign-ins, 🔒 sign-outs, 📄 pages opened and changes such as ➕ registering, ✅ completing, 🗑️ deleting an item or 🤖 asking the AI. Click an item name to open it.
+
+**Filtering the activity:**
+
+- **Type buttons** — *Everything*, *Sign-ins*, *Changes made* or *Pages opened*, each showing how many entries it has.
+- **Search** — type part of a name, email, page, item or device.
+- **When** — *Today*, *Yesterday*, *Last 7 days*, *Last 30 days*, or everything kept.
+- **Part of the app** — pick a page (for example *Repair list* or *Ask AI*) to see who has been opening it.
+- **Device** — for example *iPhone · Safari* or *Windows PC · Chrome*.
+- **Clear** resets all the filters, including the selected person. While a filter is on, the screen shows *Showing X of Y entries*.
+
+> *Part of the app* matches pages that were opened, so it shows visits to that page, not changes made there. Filters can be combined: for example, pick a person and *Changes made* with *Last 7 days* to see what they changed this week.
+
 ### Version Manager
 
 Shows the current application version and allows the description to be updated. The version displayed on the home page always reflects the latest deployed version automatically.
