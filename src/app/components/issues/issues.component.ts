@@ -18,6 +18,8 @@ interface IssueStats {
   fixedPct: number;
 }
 
+type StatusFilter = 'all' | 'open' | 'New' | 'Assigned' | 'Fixed';
+
 @Component({
   selector: 'app-issues',
   standalone: true,
@@ -122,6 +124,38 @@ interface IssueStats {
         </div>
       </div>
 
+      <!-- Filters -->
+      <div class="issue-filters" *ngIf="(issues$ | async)?.length">
+        <div class="chips">
+          <button class="chip" *ngFor="let o of statusOptions" [class.active]="fStatus === o.value" (click)="setFilter('fStatus', o.value)">
+            {{ o.label }} <span class="n">{{ (filterCounts$ | async)?.[o.value] ?? 0 }}</span>
+          </button>
+        </div>
+        <div class="filter-row">
+          <input type="search" class="f-input f-search" placeholder="Search issues, fixes and replies" autocomplete="off"
+                 [ngModel]="fSearch" (ngModelChange)="setFilter('fSearch', $event)">
+          <select class="f-input" [ngModel]="fRaisedBy" (ngModelChange)="setFilter('fRaisedBy', $event)">
+            <option value="">Raised by: anyone</option>
+            <option value="__me">Raised by me</option>
+            <option *ngFor="let n of raisedByOptions$ | async" [value]="n">{{ n }}</option>
+          </select>
+          <select class="f-input" [ngModel]="fAge" (ngModelChange)="setFilter('fAge', $event)">
+            <option value="">Raised: any time</option>
+            <option value="7">In the last 7 days</option>
+            <option value="30">In the last 30 days</option>
+            <option value="90">In the last 90 days</option>
+            <option value="old">More than 90 days ago</option>
+          </select>
+          <label class="f-check">
+            <input type="checkbox" [ngModel]="fUnread" (ngModelChange)="setFilter('fUnread', $event)"> 💬 New replies only
+          </label>
+          <button class="btn-clear" *ngIf="isFiltered" (click)="clearFilters()">Clear</button>
+        </div>
+        <div class="f-summary" *ngIf="isFiltered">
+          Showing {{ (sortedIssues$ | async)?.length ?? 0 }} of {{ (issues$ | async)?.length ?? 0 }} issues
+        </div>
+      </div>
+
       <!-- Issues List -->
       <div class="issues-list table-container glass" *ngIf="(issueNumbers$ | async) as numMap">
         <table *ngIf="(issues$ | async)?.length; else emptyState">
@@ -219,6 +253,9 @@ interface IssueStats {
               </td>
             </tr>
             </ng-container>
+            <tr *ngIf="(sortedIssues$ | async)?.length === 0">
+              <td colspan="7" class="no-match">No issues match these filters. <button class="link-btn" (click)="clearFilters()">Clear filters</button></td>
+            </tr>
           </tbody>
         </table>
         
@@ -231,6 +268,29 @@ interface IssueStats {
     </div>
   `,
   styles: [`
+    .issue-filters { margin: -0.5rem 0 1rem; display: flex; flex-direction: column; gap: 0.6rem; }
+    .issue-filters .chips { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+    .issue-filters .chip {
+      background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.12); color: rgba(255,255,255,0.8);
+      border-radius: 99px; padding: 0.35rem 0.8rem; font-size: 0.84rem; cursor: pointer; font-family: inherit;
+    }
+    .issue-filters .chip.active { background: rgba(0,242,255,0.12); border-color: rgba(0,242,255,0.5); color: #00f2ff; font-weight: 700; }
+    .issue-filters .chip .n { opacity: 0.6; margin-left: 0.2rem; font-weight: 400; }
+    .issue-filters .filter-row { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
+    .issue-filters .f-input {
+      flex: 0 1 190px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.15); color: white;
+      border-radius: 8px; padding: 0.5rem 0.65rem; font-size: 0.88rem; font-family: inherit;
+    }
+    .issue-filters .f-search { flex: 1 1 220px; }
+    .issue-filters select option { background: #14182a; }
+    .issue-filters .f-check { display: flex; align-items: center; gap: 0.35rem; font-size: 0.85rem; color: rgba(255,255,255,0.75); cursor: pointer; }
+    .issue-filters .btn-clear {
+      background: none; border: 1px solid rgba(255,255,255,0.2); color: rgba(255,255,255,0.75);
+      border-radius: 8px; padding: 0.5rem 0.8rem; cursor: pointer; font-family: inherit; font-size: 0.85rem;
+    }
+    .issue-filters .f-summary { font-size: 0.8rem; color: rgba(255,255,255,0.5); }
+    .no-match { text-align: center; padding: 2rem 1rem !important; color: rgba(255,255,255,0.5); }
+    .link-btn { background: none; border: none; color: #00f2ff; cursor: pointer; text-decoration: underline; font: inherit; padding: 0; }
     .issues-container {
       padding: 2rem;
       max-width: 800px;
@@ -760,8 +820,72 @@ export class IssuesComponent implements OnDestroy {
 
   private statusOrder = ['New', 'Assigned', 'Fixed'];
 
-  sortedIssues$ = combineLatest([this.issues$, this.sortDir$]).pipe(
-    map(([issues, dir]) => [...issues].sort((a, b) => {
+  // --- Filters ---
+  readonly statusOptions: { value: StatusFilter; label: string }[] = [
+    { value: 'all', label: 'All' },
+    { value: 'open', label: 'Open' },
+    { value: 'New', label: 'New' },
+    { value: 'Assigned', label: 'Assigned' },
+    { value: 'Fixed', label: 'Fixed' },
+  ];
+  fStatus: StatusFilter = 'all';
+  fSearch = '';
+  fRaisedBy = '';
+  fAge: '' | '7' | '30' | '90' | 'old' = '';
+  fUnread = false;
+  private filters$ = new BehaviorSubject<void>(undefined);
+
+  get isFiltered(): boolean {
+    return this.fStatus !== 'all' || !!this.fSearch.trim() || !!this.fRaisedBy || !!this.fAge || this.fUnread;
+  }
+
+  setFilter<K extends 'fStatus' | 'fSearch' | 'fRaisedBy' | 'fAge' | 'fUnread'>(key: K, value: this[K]) {
+    this[key] = value;
+    this.filters$.next();
+  }
+
+  clearFilters() {
+    this.fStatus = 'all'; this.fSearch = ''; this.fRaisedBy = ''; this.fAge = ''; this.fUnread = false;
+    this.filters$.next();
+  }
+
+  raisedByOptions$ = this.issues$.pipe(
+    map(issues => [...new Set(issues.map(i => (i.raisedBy || '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b)))
+  );
+
+  private matchesStatus(issue: Issue, s: StatusFilter): boolean {
+    if (s === 'all') return true;
+    if (s === 'open') return issue.status !== 'Fixed';
+    return issue.status === s;
+  }
+
+  /** Every filter except status (so the status buttons can show counts). */
+  private matchesOtherFilters(issue: Issue): boolean {
+    if (this.fRaisedBy === '__me') { if (!this.isMine(issue.raisedByUid)) return false; }
+    else if (this.fRaisedBy && (issue.raisedBy || '').trim() !== this.fRaisedBy) return false;
+    if (this.fAge) {
+      const days = issue.dateRaised?.toMillis ? (Date.now() - issue.dateRaised.toMillis()) / 86400000 : Infinity;
+      if (this.fAge === 'old' ? days <= 90 : days > Number(this.fAge)) return false;
+    }
+    if (this.fUnread && !this.hasUnread(issue)) return false;
+    const term = this.fSearch.trim().toLowerCase();
+    if (term) {
+      const text = [issue.description, issue.fix, issue.raisedBy, ...(issue.messages || []).map(m => m.text + ' ' + m.by)]
+        .join(' ').toLowerCase();
+      if (!text.includes(term)) return false;
+    }
+    return true;
+  }
+
+  filterCounts$ = combineLatest([this.issues$, this.filters$]).pipe(
+    map(([issues]) => {
+      const base = issues.filter(i => this.matchesOtherFilters(i));
+      return Object.fromEntries(this.statusOptions.map(o => [o.value, base.filter(i => this.matchesStatus(i, o.value)).length])) as Record<string, number>;
+    })
+  );
+
+  sortedIssues$ = combineLatest([this.issues$, this.sortDir$, this.filters$]).pipe(
+    map(([issues, dir]) => issues.filter(i => this.matchesStatus(i, this.fStatus) && this.matchesOtherFilters(i)).sort((a, b) => {
       const ai = this.statusOrder.indexOf(a.status);
       const bi = this.statusOrder.indexOf(b.status);
       return dir === 'asc' ? ai - bi : bi - ai;
