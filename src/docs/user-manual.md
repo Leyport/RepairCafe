@@ -327,6 +327,15 @@ Manage the list of volunteer repairers.
 - **Dashboard icon** — view the individual repairer's dashboard
 - **Delete** — remove the repairer
 
+**Finding a repairer:** filters at the top of the list:
+
+- **Type buttons** — *All*, *Primary* or *Secondary*, each showing how many repairers it has.
+- **Search** — type part of a name, email address or phone number. Spaces in phone numbers don't matter.
+- **Email** — *Has an email* or *No email*.
+- **Clear** resets the filters. While a filter is on, the screen shows *Showing X of Y repairers*.
+
+> **Tip:** use *No email* to find repairers without an email address and add one. With their email on record, My Repairs recognises them automatically when they sign in. Several addresses can be entered, separated by commas.
+
 ### Database Explorer
 
 A full view of all repair records across all sessions.
