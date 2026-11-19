@@ -257,6 +257,26 @@ const words = (text: string): string[] =>
                 </button>
               </div>
             </div>
+
+            <!-- Second Save button at the bottom, so there's no need to scroll back up after reading -->
+            <div class="save-bottom" *ngIf="aiSuggestions && !aiLoading">
+              <span class="save-bottom-note" *ngIf="currentReportUrl && !savingReport">
+                {{ reportUrl ? 'Report saved.' : 'A saved report exists.' }}
+                <a class="report-link" [href]="currentReportUrl" target="_blank">Open report</a>
+                <span *ngIf="followUps.length"> · Save again to include the latest follow-ups.</span>
+              </span>
+              <button class="btn-save-report" [disabled]="savingReport || followUpLoading" (click)="saveAIReport()">
+                <span *ngIf="!savingReport">
+                  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                    <polyline points="7 10 12 15 17 10"></polyline>
+                    <line x1="12" y1="15" x2="12" y2="3"></line>
+                  </svg>
+                  Save AI Response
+                </span>
+                <span class="loading-row" *ngIf="savingReport"><span class="spinner-sm"></span> Saving… </span>
+              </button>
+            </div>
           </div>
 
         </div>
@@ -361,6 +381,8 @@ const words = (text: string): string[] =>
     .ai-error { color: #f1948a; font-size: .88rem; background: #e74c3c1a; border: 1px solid rgba(231,76,60,.25); border-radius: 8px; padding: .7rem 1rem; }
     .ai-placeholder { color: #ffffff4d; font-size: .88rem; padding: 1.5rem 0; text-align: center; }
     .ai-placeholder strong { color: #ffffff99; }
+    .save-bottom { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: .75rem; margin-top: 1rem; padding-top: 1rem; border-top: 1px solid rgba(255,255,255,.08); }
+    .save-bottom-note { font-size: .8rem; color: #ffffff73; }
     .bank { margin-top: .25rem; }
     .bank-title { margin: 1rem 0 .1rem; font-size: .75rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: #ffffff80; }
     .bank-search { margin-top: 1rem; }
