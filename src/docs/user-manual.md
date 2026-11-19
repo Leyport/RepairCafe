@@ -339,6 +339,13 @@ A full view of all repair records across all sessions.
 
 Lists all users who have logged in. People waiting for approval are shown first — press **Approve** to let them see the repair records. Admins can also grant or revoke admin access.
 
+**Finding someone:** filters at the top of the list help when there are a lot of users:
+
+- **Status buttons** — *All*, *⏳ Waiting* (not yet approved), *✅ Approved* (approved volunteers) and *🛡 Admins*. Each shows how many people it has.
+- **Search** — type part of a name or email address.
+- **Last seen** — people seen in the last 7, 30 or 90 days, or *Not seen for 90+ days*. Use that last one to find old accounts you may want to remove or delete.
+- **Clear** resets the filters. While a filter is on, the screen shows *Showing X of Y users*.
+
 **Deleting a user:** press the red **🗑** button on their row, then **Delete user** to confirm. Use this when someone asks for their data to be deleted, or to remove an account that shouldn't be there. Deleting a user removes:
 
 - their Google sign-in for the app;
