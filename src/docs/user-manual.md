@@ -487,6 +487,23 @@ To look back, open the Notifications page and set **How old** to *Any time*. Cho
 
 > *Part of the app* matches pages that were opened, so it shows visits to that page, not changes made there. Filters can be combined: for example, pick a person and *Changes made* with *Last 7 days* to see what they changed this week.
 
+### Backup & Restore
+
+**Admin → Backup & Restore** saves the whole app to a spreadsheet, or puts data back from one.
+
+- **⬇️ Download** — give the backup a name and press **Download Backup**. Every collection is saved to one Excel file, one sheet per collection.
+- **⬆️ Restore** — choose a backup file, name the upload, tick the collections to restore and pick *Replace* (make them exactly match the backup) or *Merge* (overwrite matching records, keep everything else). Sensitive collections such as users and admins start unticked, and you can download a safety backup of the current data first.
+
+**Backup history** lists every download, restore and *Clear Data* run, with who did it, when and how many records. To find an entry:
+
+- **Type buttons** — *All*, *⬇️ Downloads*, *⬆️ Uploads* (restores) or *🧹 Cleared*, each showing how many entries it has.
+- **Search** — type part of the backup name or file name.
+- **By** — show only the backups done by one person.
+- **When** — *Last 7 days*, *Last 30 days*, *Last 12 months* or *More than 12 months ago*. For restores this is when the restore happened, not when the file was first downloaded.
+- **Clear** resets the filters. While a filter is on, the screen shows *Showing X of Y entries*; if nothing matches it says *No backups match these filters*.
+
+> **Tip:** to find the most recent backup before restoring, choose *⬇️ Downloads* — the newest is at the top.
+
 ### Version Manager
 
 Shows the current application version and allows the description to be updated. The version displayed on the home page always reflects the latest deployed version automatically.

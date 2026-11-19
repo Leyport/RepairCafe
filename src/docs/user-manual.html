@@ -811,6 +811,24 @@
         <em>Part of the app</em> matches pages that were opened, so it shows visits to that page, not changes made there. Filters can be combined: for example, pick a person and <em>Changes made</em> with <em>Last 7 days</em> to see what they changed this week.
       </div>
 
+      <h3>Backup &amp; Restore</h3>
+      <p><strong>Admin &rarr; Backup &amp; Restore</strong> saves the whole app to a spreadsheet, or puts data back from one.</p>
+      <ul>
+        <li><strong>&#11015;&#65039; Download</strong> &mdash; give the backup a name and press <strong>Download Backup</strong>. Every collection is saved to one Excel file, one sheet per collection.</li>
+        <li><strong>&#11014;&#65039; Restore</strong> &mdash; choose a backup file, name the upload, tick the collections to restore and pick <em>Replace</em> (make them exactly match the backup) or <em>Merge</em> (overwrite matching records, keep everything else). Sensitive collections such as users and admins start unticked, and you can download a safety backup of the current data first.</li>
+      </ul>
+      <p><strong>Backup history</strong> lists every download, restore and <em>Clear Data</em> run, with who did it, when and how many records. To find an entry:</p>
+      <ul>
+        <li><strong>Type buttons</strong> &mdash; <em>All</em>, <em>&#11015;&#65039; Downloads</em>, <em>&#11014;&#65039; Uploads</em> (restores) or <em>&#129529; Cleared</em>, each showing how many entries it has.</li>
+        <li><strong>Search</strong> &mdash; type part of the backup name or file name.</li>
+        <li><strong>By</strong> &mdash; show only the backups done by one person.</li>
+        <li><strong>When</strong> &mdash; <em>Last 7 days</em>, <em>Last 30 days</em>, <em>Last 12 months</em> or <em>More than 12 months ago</em>. For restores this is when the restore happened, not when the file was first downloaded.</li>
+        <li><strong>Clear</strong> resets the filters. While a filter is on, the screen shows <em>Showing X of Y entries</em>; if nothing matches it says <em>No backups match these filters</em>.</li>
+      </ul>
+      <div class="callout">
+        <strong>Tip:</strong> to find the most recent backup before restoring, choose <em>&#11015;&#65039; Downloads</em> &mdash; the newest is at the top.
+      </div>
+
       <h3>Version Manager</h3>
       <p>Displays the current application version and description. The version shown in the header and footer always reflects the latest deployed code automatically &mdash; no manual update needed after a deployment.</p>
     </section>
