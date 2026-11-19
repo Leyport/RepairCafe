@@ -55,13 +55,34 @@ type Kind = 'all' | 'signin' | 'page' | 'action';
         <!-- Filters -->
         <div class="filters">
           <div class="chips">
-            <button *ngFor="let k of kinds" [class.on]="kind === k.value" (click)="setKind(k.value)">{{ k.label }}</button>
+            <button *ngFor="let k of kinds" [class.on]="kind === k.value" (click)="setKind(k.value)">{{ k.label }} <span class="n">{{ v.counts[k.value] }}</span></button>
           </div>
           <span class="showing" *ngIf="person">
             Showing {{ nameOf(v.people, person) }} only ·
             <a (click)="togglePerson(person)">show everyone</a>
           </span>
         </div>
+        <div class="filter-row">
+          <input type="search" class="f-input f-search" placeholder="Search person, page or item" autocomplete="off"
+                 [ngModel]="search" (ngModelChange)="search = $event; refresh$.next()">
+          <select class="f-input" [ngModel]="when" (ngModelChange)="when = $event; refresh$.next()">
+            <option value="">When: last {{ keepDays }} days</option>
+            <option value="today">Today</option>
+            <option value="yesterday">Yesterday</option>
+            <option value="7">Last 7 days</option>
+            <option value="30">Last 30 days</option>
+          </select>
+          <select class="f-input" [ngModel]="part" (ngModelChange)="part = $event; refresh$.next()">
+            <option value="">Part of the app: any</option>
+            <option *ngFor="let p of v.parts" [value]="p">{{ p }}</option>
+          </select>
+          <select class="f-input" [ngModel]="device" (ngModelChange)="device = $event; refresh$.next()">
+            <option value="">Device: any</option>
+            <option *ngFor="let d of v.devices" [value]="d">{{ d }}</option>
+          </select>
+          <button class="btn-clear" *ngIf="isFiltered" (click)="clearFilters()">Clear</button>
+        </div>
+        <div class="f-summary" *ngIf="isFiltered">Showing {{ v.shown }} of {{ v.total }} entries</div>
 
         <!-- Timeline -->
         <div class="empty" *ngIf="v.days.length === 0 && v.people.length > 0">Nothing matches these filters.</div>
@@ -107,6 +128,17 @@ type Kind = 'all' | 'signin' | 'page' | 'action';
     .chips button { padding: 0.35rem 0.8rem; border-radius: 20px; border: 1px solid rgba(255,255,255,0.15);
       background: transparent; color: rgba(255,255,255,0.7); cursor: pointer; font-size: 0.82rem; }
     .chips button.on { background: rgba(0,242,255,0.12); border-color: var(--accent-color, #00f2ff); color: var(--accent-color, #00f2ff); }
+    .chips button .n { opacity: 0.6; margin-left: 0.15rem; }
+    .filter-row { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.6rem; }
+    .f-input {
+      flex: 0 1 180px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.15); color: white;
+      border-radius: 8px; padding: 0.45rem 0.6rem; font-size: 0.86rem; font-family: inherit;
+    }
+    .f-search { flex: 1 1 220px; }
+    .f-input option { background: #14182a; }
+    .btn-clear { background: none; border: 1px solid rgba(255,255,255,0.2); color: rgba(255,255,255,0.75);
+      border-radius: 8px; padding: 0.45rem 0.8rem; cursor: pointer; font-family: inherit; font-size: 0.85rem; }
+    .f-summary { margin-top: 0.5rem; font-size: 0.8rem; color: rgba(255,255,255,0.5); }
     .showing { font-size: 0.82rem; color: rgba(255,255,255,0.6); }
     .showing a { color: var(--accent-color, #00f2ff); cursor: pointer; text-decoration: underline; }
     .row { display: flex; gap: 0.6rem; align-items: baseline; padding: 0.35rem 0.5rem; border-radius: 6px; font-size: 0.88rem; }
@@ -135,10 +167,26 @@ export class ActivityLogComponent implements OnInit {
   ];
   kind: Kind = 'all';
   person: string | null = null;
+  search = '';
+  when: '' | 'today' | 'yesterday' | '7' | '30' = '';
+  part = '';
+  device = '';
 
-  private refresh$ = new BehaviorSubject<void>(undefined);
+  refresh$ = new BehaviorSubject<void>(undefined);
 
-  view$!: Observable<{ people: PersonSummary[]; days: DayGroup[] }>;
+  view$!: Observable<{
+    people: PersonSummary[]; days: DayGroup[]; parts: string[]; devices: string[];
+    counts: Record<Kind, number>; shown: number; total: number;
+  }>;
+
+  get isFiltered(): boolean {
+    return this.kind !== 'all' || !!this.person || !!this.search.trim() || !!this.when || !!this.part || !!this.device;
+  }
+
+  clearFilters() {
+    this.kind = 'all'; this.person = null; this.search = ''; this.when = ''; this.part = ''; this.device = '';
+    this.refresh$.next();
+  }
 
   ngOnInit() {
     // Quietly remove entries older than the keep period.
@@ -150,10 +198,23 @@ export class ActivityLogComponent implements OnInit {
     );
 
     this.view$ = combineLatest([this.activity.recent(1000), itemNames$, this.refresh$]).pipe(
-      map(([entries, names]) => ({
-        people: this.summarise(entries),
-        days: this.group(entries, names),
-      }))
+      map(([entries, names]) => {
+        const distinct = (vals: (string | undefined | null)[]) =>
+          [...new Set(vals.filter((v): v is string => !!v))].sort((a, b) => a.localeCompare(b));
+        // Everything except the type filter, so the type buttons can show counts.
+        const base = entries.filter(e => this.matchesOthers(e, names));
+        const counts = Object.fromEntries(this.kinds.map(k => [k.value, base.filter(e => this.matchesKind(e, k.value)).length])) as Record<Kind, number>;
+        const filtered = base.filter(e => this.matchesKind(e, this.kind));
+        return {
+          people: this.summarise(entries),
+          days: this.group(filtered, names),
+          parts: distinct(entries.filter(e => e.type === 'page').map(e => e.label)),
+          devices: distinct(entries.map(e => e.device)),
+          counts,
+          shown: filtered.length,
+          total: entries.length,
+        };
+      })
     );
   }
 
@@ -186,13 +247,39 @@ export class ActivityLogComponent implements OnInit {
     }).sort((a, b) => b.lastAt.getTime() - a.lastAt.getTime());
   }
 
+  private matchesKind(e: ActivityEntry, k: Kind): boolean {
+    if (k === 'all') return true;
+    if (k === 'signin') return e.type === 'signin' || e.type === 'signout';
+    return e.type === k;
+  }
+
+  private matchesOthers(e: ActivityEntry, names: Map<string, string>): boolean {
+    if (this.person && e.uid !== this.person) return false;
+    if (this.device && e.device !== this.device) return false;
+    if (this.part && !(e.type === 'page' && e.label === this.part)) return false;
+    if (this.when) {
+      const start = new Date(); start.setHours(0, 0, 0, 0);
+      const at = e.at.toMillis();
+      if (this.when === 'today') { if (at < start.getTime()) return false; }
+      else if (this.when === 'yesterday') {
+        const y = start.getTime() - 86400000;
+        if (at < y || at >= start.getTime()) return false;
+      } else if (at < start.getTime() - (Number(this.when) - 1) * 86400000) return false;
+    }
+    const term = this.search.trim().toLowerCase();
+    if (term) {
+      const item = (e.itemId && names.get(e.itemId)) || e.itemText || '';
+      const text = [e.name, e.email, e.label, item, e.device].join(' ').toLowerCase();
+      if (!text.includes(term)) return false;
+    }
+    return true;
+  }
+
   private group(entries: ActivityEntry[], names: Map<string, string>): DayGroup[] {
     const groups: DayGroup[] = [];
     const today = new Date().toDateString();
     const yesterday = new Date(Date.now() - 86400000).toDateString();
     for (const e of entries) {
-      if (this.person && e.uid !== this.person) continue;
-      if (this.kind === 'signin' ? !(e.type === 'signin' || e.type === 'signout') : this.kind !== 'all' && e.type !== this.kind) continue;
       const when = e.at.toDate();
       const ds = when.toDateString();
       const label = ds === today ? 'Today' : ds === yesterday ? 'Yesterday'
