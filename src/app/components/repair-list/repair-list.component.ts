@@ -5,7 +5,7 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { RepairService } from '../../services/repair.service';
 import { DialogService } from '../../services/dialog.service';
 import { AuthService } from '../../services/auth.service';
-import { Observable, BehaviorSubject, combineLatest, startWith, map, shareReplay, catchError, of, take } from 'rxjs';
+import { Observable, BehaviorSubject, combineLatest, startWith, map, shareReplay, catchError, of, take, switchMap, firstValueFrom } from 'rxjs';
 import { RepairItem, Owner, toRepairPhoto, isElectricalCategory } from '../../models/repair-item.model';
 import { rcDayKey, createdMonthKey, buildSessionFilterOptions, matchesSessionFilter, monthLabel } from '../../utils/rc-day';
 import { OUTCOMES, STAGES, fromStatusSelectValue, getStage, isDone, stageForRepairerChange, statusClass, statusLabel, statusSelectValue } from '../../models/repair-status';
@@ -57,10 +57,10 @@ interface RepairerGroup {
         <h2>Repair Items</h2>
         <div class="header-controls">
           <div class="completion-toggle">
-            <button class="toggle-btn" *ngIf="myNames.length"
+            <button class="toggle-btn"
                     [class.active]="completionControl.value === 'mine'"
                     (click)="completionControl.setValue('mine')"
-                    [title]="'Every item where you (' + myNames[0] + ') are the lead or a secondary repairer, open and finished. The number is how many are still open.'">My Repairs<span class="toggle-count" *ngIf="myRepairsCount">{{ myRepairsCount }}</span></button>
+                    title="Every item where you are the lead or a secondary repairer, open and finished. The number is how many are still open.">My Repairs<span class="toggle-count" *ngIf="myRepairsCount">{{ myRepairsCount }}</span></button>
             <button class="toggle-btn"
                     [class.active]="completionControl.value === 'active'"
                     (click)="completionControl.setValue('active')">Active</button>
@@ -109,6 +109,26 @@ interface RepairerGroup {
         </div>
       </div>
       
+      <!-- My Repairs: who "me" is, and a way to set it when the app can't tell -->
+      <div class="filter-summary" *ngIf="completionControl.value === 'mine' && myNames.length && !pickingRepairer">
+        Showing repairs for <strong>{{ myNames.join(' / ') }}</strong>
+        · <button class="link-btn" (click)="startPickRepairer()">Not you? Change</button>
+      </div>
+      <div class="me-picker glass" *ngIf="completionControl.value === 'mine' && (!myNames.length || pickingRepairer)">
+        <p *ngIf="!myNames.length"><strong>Which repairer are you?</strong> The app couldn't match your sign-in to a repairer
+          (for example because you use a different email address). Pick your name once and My Repairs will remember it.</p>
+        <p *ngIf="myNames.length"><strong>Which repairer are you?</strong></p>
+        <div class="me-picker-row">
+          <select [(ngModel)]="pickedRepairer">
+            <option value="">Choose your name…</option>
+            <option *ngFor="let n of repairerChoices" [value]="n">{{ n }}</option>
+          </select>
+          <button class="me-save" [disabled]="!pickedRepairer || savingRepairer" (click)="saveMyRepairer()">
+            {{ savingRepairer ? 'Saving…' : 'This is me' }}</button>
+          <button class="link-btn" *ngIf="pickingRepairer" (click)="pickingRepairer = false">Cancel</button>
+        </div>
+      </div>
+
       <div class="filter-summary" *ngIf="sessionLimited && latestSessionLabel">
         Showing the <strong>{{ latestSessionLabel }}</strong> repair cafe only
         · <button class="link-btn" (click)="completionControl.setValue('all')">Show all sessions</button>
@@ -330,7 +350,7 @@ interface RepairerGroup {
       </div>
       
       <div *ngIf="(filteredItems$ | async)?.length === 0" class="empty-state">
-        <p *ngIf="completionControl.value === 'mine'">You haven't been set as the repairer on any items yet. Pick up an item from <strong>Active</strong> by setting yourself as its repairer.</p>
+        <p *ngIf="completionControl.value === 'mine' && myNames.length">You haven't been set as the repairer on any items yet. Pick up an item from <strong>Active</strong> by setting yourself as its repairer.</p>
         <p *ngIf="completionControl.value === 'active'">No active repair items.</p>
         <p *ngIf="completionControl.value === 'home'">No items are taken home at the moment.</p>
         <p *ngIf="completionControl.value === 'completed'">No completed repair items.</p>
@@ -602,6 +622,19 @@ interface RepairerGroup {
       white-space: nowrap;
     }
     .filter-toggle.active { background: rgba(99, 102, 241, 0.25); color: var(--accent-color); border-color: rgba(0, 242, 255, 0.3); }
+    .me-picker { padding: 0.9rem 1rem; margin: -0.5rem 0 1rem; border-radius: 12px; border: 1px solid rgba(0,242,255,0.3); }
+    .me-picker p { margin: 0 0 0.6rem; font-size: 0.9rem; color: rgba(255,255,255,0.8); line-height: 1.4; }
+    .me-picker-row { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
+    .me-picker select {
+      flex: 1 1 200px; max-width: 320px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.2);
+      color: white; border-radius: 8px; padding: 0.5rem 0.6rem; font-family: inherit; font-size: 0.9rem;
+    }
+    .me-picker select option { background: #14182a; }
+    .me-save {
+      background: rgba(0,242,255,0.15); border: 1px solid rgba(0,242,255,0.5); color: #00f2ff; font-weight: 700;
+      border-radius: 8px; padding: 0.5rem 0.9rem; cursor: pointer; font-family: inherit;
+    }
+    .me-save:disabled { opacity: 0.5; cursor: default; }
     .filter-summary {
       margin: -1rem 0 0.75rem;
       font-size: 0.85rem;
@@ -1245,29 +1278,66 @@ export class RepairListComponent implements OnInit {
     sessions: [] as { key: string; label: string }[],
     createdMonths: [] as { key: string; label: string }[],
   };
-  /** Starts on My Repairs; switches to Active if the signed-in person isn't a repairer. */
+  /** Starts on My Repairs; switches to Active if the app can't tell which repairer this is. */
   completionControl = new FormControl<CompletionFilter>('mine');
 
-  /** Repairer names that belong to the signed-in person (matched by email, then by name). */
+  /**
+   * Repairer names that belong to the signed-in person. Matched, in order, by:
+   *  1. the name they picked themselves ("Which repairer are you?", saved on users/{uid}.repairerName)
+   *  2. any of the email addresses on their repairer record (several can be entered, comma-separated)
+   *  3. their Google name matching a repairer name
+   */
   myNames: string[] = [];
   myRepairsCount = 0;
+  repairerRecordNames: string[] = [];
+  pickingRepairer = false;
+  pickedRepairer = '';
+  savingRepairer = false;
   private authService = inject(AuthService);
-  private myNames$: Observable<string[]> = combineLatest([
-    this.authService.user$,
-    this.repairService.getRepairers().pipe(catchError(() => of([]))),
-  ]).pipe(
-    map(([user, repairers]) => {
-      if (!user) return [];
+  private myNames$: Observable<string[]> = this.authService.user$.pipe(
+    switchMap(user => !user ? of([] as string[]) : combineLatest([
+      this.repairService.getUserProfile(user.uid),
+      this.repairService.getRepairers().pipe(catchError(() => of([]))),
+    ]).pipe(map(([profile, repairers]) => {
+      this.repairerRecordNames = repairers.map(r => (r.name || '').trim()).filter(Boolean);
+      const linked = (profile?.repairerName || '').trim();
+      if (linked) return [linked];
       const norm = (v?: string | null) => (v || '').trim().toLowerCase();
       const email = norm(user.email);
       const display = norm(user.displayName);
+      const emailsOf = (r: { email?: string }) => (r.email || '').split(/[,;\s]+/).map(norm).filter(Boolean);
       const names = repairers
-        .filter(r => (email && norm(r.email) === email) || (display && norm(r.name) === display))
+        .filter(r => (email && emailsOf(r).includes(email)) || (display && norm(r.name) === display))
         .map(r => r.name.trim());
       return [...new Set(names)];
-    }),
+    }))),
     shareReplay({ bufferSize: 1, refCount: true })
   );
+
+  /** Names to choose from: repairer records plus any names used on items. */
+  get repairerChoices(): string[] {
+    return [...new Set([...this.repairerRecordNames, ...this.filterOptions.repairers])].sort((a, b) => a.localeCompare(b));
+  }
+
+  startPickRepairer() {
+    this.pickedRepairer = this.myNames[0] || '';
+    this.pickingRepairer = true;
+  }
+
+  async saveMyRepairer() {
+    if (!this.pickedRepairer) return;
+    this.savingRepairer = true;
+    try {
+      const me = await firstValueFrom(this.authService.user$);
+      if (me) await this.repairService.setMyRepairerName(me.uid, this.pickedRepairer);
+      this.pickingRepairer = false;
+    } catch (e) {
+      console.error('Could not save repairer link:', e);
+      this.dialog.error('Sorry, that could not be saved. Please try again.');
+    } finally {
+      this.savingRepairer = false;
+    }
+  }
 
   owners: Owner[] = [];
   primaryRepairers: any[] = [];

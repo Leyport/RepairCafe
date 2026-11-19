@@ -78,12 +78,13 @@ import { DialogService } from '../../../services/dialog.service';
             placeholder="Enter repairer name"
             autofocus>
 
-          <label for="repairerEmail">Email Address</label>
+          <label for="repairerEmail">Email Address(es)</label>
           <input
             type="email"
+            multiple
             id="repairerEmail"
             [(ngModel)]="email"
-            placeholder="Enter email address">
+            placeholder="Enter email address — separate several with commas">
 
           <label for="repairerTelephone">Telephone</label>
           <input

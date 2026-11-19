@@ -626,6 +626,19 @@ export class RepairService {
     }
 
     // Users
+    /** The signed-in person's own profile (users/{uid}); null if it doesn't exist yet. */
+    getUserProfile(uid: string): Observable<any | null> {
+        return docData(doc(this.firestore, 'users', uid)).pipe(
+            map(d => d ?? null),
+            catchError(() => of(null))
+        );
+    }
+
+    /** Link a signed-in account to the repairer name used on items (for My Repairs). '' unlinks. */
+    async setMyRepairerName(uid: string, name: string): Promise<void> {
+        await setDoc(doc(this.firestore, 'users', uid), { repairerName: name || null }, { merge: true });
+    }
+
     getUsers(): Observable<any[]> {
         const usersCollection = collection(this.firestore, 'users');
         return collectionData(usersCollection, { idField: 'id' }) as Observable<any[]>;
