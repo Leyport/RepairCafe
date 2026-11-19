@@ -1,11 +1,14 @@
 import { Component, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { BackupService, ParsedBackup } from '../../../services/backup.service';
+import { BackupService, ParsedBackup, BackupLogEntry } from '../../../services/backup.service';
+import { BehaviorSubject, combineLatest, map } from 'rxjs';
 
 import { DialogService } from '../../../services/dialog.service';
 // Restoring these could lock admins out or overwrite login records, so they start unticked.
 const SENSITIVE_COLLECTIONS = ['admins', 'volunteers', 'users', 'sys_settings'];
+
+type HistoryType = 'all' | 'download' | 'upload' | 'clear';
 
 @Component({
   selector: 'app-backup-manager',
@@ -85,13 +88,39 @@ const SENSITIVE_COLLECTIONS = ['admins', 'volunteers', 'users', 'sys_settings'];
       <div class="panel">
         <h4>📜 Backup history</h4>
         <div class="empty-state" *ngIf="(log$ | async)?.length === 0">No backups downloaded or uploaded yet.</div>
-        <div class="table-wrap" *ngIf="(log$ | async)?.length">
+        <ng-container *ngIf="history$ | async as h">
+        <div class="h-filters" *ngIf="h.total">
+          <div class="chips">
+            <button class="chip" *ngFor="let t of typeOptions" [class.active]="fType === t.value" (click)="setF('fType', t.value)">
+              {{ t.label }} <span class="n">{{ h.counts[t.value] }}</span>
+            </button>
+          </div>
+          <div class="row f-row">
+            <input type="search" class="f-input" placeholder="Search name or file" autocomplete="off"
+                   [ngModel]="fSearch" (ngModelChange)="setF('fSearch', $event)">
+            <select class="f-input f-select" [ngModel]="fBy" (ngModelChange)="setF('fBy', $event)">
+              <option value="">By: anyone</option>
+              <option *ngFor="let p of h.people" [value]="p">{{ p }}</option>
+            </select>
+            <select class="f-input f-select" [ngModel]="fWhen" (ngModelChange)="setF('fWhen', $event)">
+              <option value="">When: any time</option>
+              <option value="7">Last 7 days</option>
+              <option value="30">Last 30 days</option>
+              <option value="365">Last 12 months</option>
+              <option value="old">More than 12 months ago</option>
+            </select>
+            <button class="btn ghost" *ngIf="hFiltered" (click)="clearF()">Clear</button>
+          </div>
+          <p class="f-summary" *ngIf="hFiltered">Showing {{ h.list.length }} of {{ h.total }} entries</p>
+        </div>
+        <div class="empty-state" *ngIf="h.total && !h.list.length">No backups match these filters.</div>
+        <div class="table-wrap" *ngIf="h.list.length">
           <table>
             <thead>
               <tr><th>Type</th><th>Name</th><th>Downloaded</th><th>Uploaded</th><th>By</th><th>Records</th></tr>
             </thead>
             <tbody>
-              <tr *ngFor="let e of log$ | async">
+              <tr *ngFor="let e of h.list">
                 <td><span class="badge" [class.up]="e.type === 'upload'" [class.clear]="e.type === 'clear'">{{ e.type === 'upload' ? 'Upload' : e.type === 'clear' ? 'Cleared' : 'Download' }}</span></td>
                 <td>{{ e.name }}<div class="sub">{{ e.fileName }}</div></td>
                 <td>{{ e.downloadedAt ? (e.downloadedAt.toDate() | date:'medium') : '—' }}</td>
@@ -102,6 +131,7 @@ const SENSITIVE_COLLECTIONS = ['admins', 'volunteers', 'users', 'sys_settings'];
             </tbody>
           </table>
         </div>
+        </ng-container>
       </div>
     </div>
   `,
@@ -156,6 +186,23 @@ const SENSITIVE_COLLECTIONS = ['admins', 'volunteers', 'users', 'sys_settings'];
     .count { color: rgba(255, 255, 255, 0.4); }
     .warn { font-size: 0.7rem; color: #ffb347; border: 1px solid rgba(255, 179, 71, 0.4); border-radius: 10px; padding: 0 0.4rem; }
     .table-wrap { overflow-x: auto; }
+    .h-filters { margin-bottom: 0.75rem; }
+    .chips { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+    .chip {
+      background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.12); color: rgba(255,255,255,0.8);
+      border-radius: 99px; padding: 0.35rem 0.8rem; font-size: 0.84rem; cursor: pointer; font-family: inherit;
+    }
+    .chip.active { background: rgba(0,242,255,0.12); border-color: rgba(0,242,255,0.5); color: #00f2ff; font-weight: 700; }
+    .chip .n { opacity: 0.6; margin-left: 0.2rem; font-weight: 400; }
+    .f-row { margin-top: 0.6rem; }
+    .f-input {
+      padding: 0.5rem 0.7rem; border-radius: 6px; border: 1px solid rgba(255,255,255,0.15);
+      background: rgba(0,0,0,0.2); color: white; font-size: 0.9rem; font-family: inherit;
+    }
+    input.f-input { flex: 1 1 200px; min-width: 0; }
+    .f-select { flex: 0 1 180px; }
+    .f-select option { background: #14182a; }
+    .f-summary { margin: 0.5rem 0 0; font-size: 0.8rem; color: rgba(255,255,255,0.5); }
     table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
     th, td { text-align: left; padding: 0.5rem; border-bottom: 1px solid rgba(255, 255, 255, 0.06); vertical-align: top; }
     th { color: rgba(255, 255, 255, 0.5); font-weight: 600; }
@@ -177,6 +224,48 @@ export class BackupManagerComponent {
   private backupService = inject(BackupService);
 
   log$ = this.backupService.getBackupLog();
+
+  // ---- History filters ----
+  readonly typeOptions: { value: HistoryType; label: string }[] = [
+    { value: 'all', label: 'All' },
+    { value: 'download', label: '⬇️ Downloads' },
+    { value: 'upload', label: '⬆️ Uploads' },
+    { value: 'clear', label: '🧹 Cleared' },
+  ];
+  fType: HistoryType = 'all';
+  fSearch = '';
+  fBy = '';
+  fWhen: '' | '7' | '30' | '365' | 'old' = '';
+  private hFilter$ = new BehaviorSubject<void>(undefined);
+
+  get hFiltered(): boolean { return this.fType !== 'all' || !!this.fSearch.trim() || !!this.fBy || !!this.fWhen; }
+  setF<K extends 'fType' | 'fSearch' | 'fBy' | 'fWhen'>(key: K, value: this[K]) { this[key] = value; this.hFilter$.next(); }
+  clearF() { this.fType = 'all'; this.fSearch = ''; this.fBy = ''; this.fWhen = ''; this.hFilter$.next(); }
+
+  /** When the entry happened: restore time for restores, otherwise when it was logged/downloaded. */
+  private entryTime(e: BackupLogEntry): number {
+    const t = (e.type === 'upload' ? e.uploadedAt : null) || e.loggedAt || e.downloadedAt;
+    return t?.toMillis ? t.toMillis() : 0;
+  }
+
+  history$ = combineLatest([this.log$, this.hFilter$]).pipe(
+    map(([entries]) => {
+      const term = this.fSearch.trim().toLowerCase();
+      const now = Date.now();
+      const base = entries.filter(e => {
+        if (this.fBy && e.performedBy !== this.fBy) return false;
+        if (this.fWhen) {
+          const days = (now - this.entryTime(e)) / 86400000;
+          if (this.fWhen === 'old' ? days <= 365 : days > Number(this.fWhen)) return false;
+        }
+        return !term || `${e.name} ${e.fileName}`.toLowerCase().includes(term);
+      });
+      const is = (e: BackupLogEntry, t: HistoryType) => t === 'all' || (e.type || 'download') === t;
+      const counts = Object.fromEntries(this.typeOptions.map(o => [o.value, base.filter(e => is(e, o.value)).length])) as Record<HistoryType, number>;
+      const people = [...new Set(entries.map(e => e.performedBy).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+      return { list: base.filter(e => is(e, this.fType)), counts, people, total: entries.length };
+    })
+  );
 
   busy = false;
   downloadName = this.defaultName();
