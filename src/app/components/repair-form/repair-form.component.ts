@@ -123,6 +123,11 @@ interface ImageResult {
               <div class="form-group">
                 <label for="fault">Fault</label>
                 <textarea id="fault" formControlName="fault" placeholder="Describe the fault (e.g. Does not power on)"></textarea>
+                <p class="ai-hint" *ngIf="isEdit && editItemId">
+                  Stuck on a tricky fault?
+                  <button type="button" class="ai-hint-link" (click)="goToAI()" [disabled]="isUploading">🤖 Get repair ideas</button>
+                  <span class="ai-hint-note">— shows AI answers already saved for similar items before asking the AI.</span>
+                </p>
               </div>
 
               <div class="form-group">
@@ -582,6 +587,13 @@ interface ImageResult {
     .optional-label { font-weight: 400; opacity: 0.6; }
     label { display: block; margin-bottom: 0.5rem; font-weight: 500; color: rgba(255, 255, 255, 0.8); }
     .required { color: #ff4444; margin-left: 2px; }
+    .ai-hint { margin: 0.4rem 0 0; font-size: 0.8rem; color: rgba(255, 255, 255, 0.45); }
+    .ai-hint-link {
+      background: none; border: none; padding: 0; font: inherit; font-weight: 600;
+      color: #c39bd3; cursor: pointer; text-decoration: underline; text-underline-offset: 2px;
+    }
+    .ai-hint-link:hover { color: #e1bee7; }
+    .ai-hint-note { color: rgba(255, 255, 255, 0.35); }
     .hint { display: block; font-size: 0.8rem; color: rgba(255, 255, 255, 0.4); margin-top: 0.3rem; }
     .outcome-hint {
       font-size: 0.82rem; color: rgba(255,255,255,0.4);
@@ -1492,5 +1504,15 @@ export class RepairFormComponent implements OnInit, OnDestroy {
       if (!ok) return;
     }
     this.router.navigate(['/complete', this.editItemId]);
+  }
+
+  /** Open the AI repair ideas page, saving any changes first so the AI sees the latest fault. */
+  async goToAI() {
+    if (!this.editItemId || this.isUploading) return;
+    if (this.hasChanges && this.repairForm.valid) {
+      const ok = await this.onSubmit(false);
+      if (!ok) return;
+    }
+    this.router.navigate(['/investigate', this.editItemId]);
   }
 }

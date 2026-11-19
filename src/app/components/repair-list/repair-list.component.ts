@@ -340,7 +340,7 @@ interface RepairerGroup {
                     (click)="$event.stopPropagation()"
                     [value]="''">
               <option value="" disabled>⋯</option>
-              <option value="investigate">Investigate (AI)</option>
+              <option value="investigate">🤖 Repair ideas (AI)</option>
               <option value="additional">Edit</option>
               <option value="complete">Complete</option>
               <option value="delete">Delete</option>

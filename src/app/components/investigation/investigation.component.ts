@@ -22,6 +22,32 @@ interface FollowUp {
   html: string;
 }
 
+/** An AI answer saved earlier in an item's investigation notes. */
+interface SavedAnswer {
+  itemId: string;
+  key: string;             // start of the answer, to spot the same answer re-used
+  own: boolean;            // saved on the item we're looking at
+  displayNumber: string;
+  description: string;
+  makeModel: string;
+  fault: string;
+  category: string;
+  date: string;
+  answer: string;          // the first AI answer
+  html: string;            // answer plus any follow-ups, ready to show
+  searchText: string;      // lower-case, for the search box
+  score?: number;
+}
+
+/** Words too common to say anything about whether two repairs are alike. */
+const STOP_WORDS = new Set(('the and for with not but are was has have its from that this when will does dont doesnt wont ' +
+  'cant isnt work works working there into just only very some then than also been after before item still keep keeps ' +
+  'make made model new old one two all any can get got off out side top').split(' '));
+
+const words = (text: string): string[] =>
+  [...new Set((text || '').toLowerCase().replace(/[’']/g, '').split(/[^a-z0-9]+/)
+    .filter(w => w.length >= 3 && !STOP_WORDS.has(w)))];
+
 @Component({
   selector: 'app-investigation',
   standalone: true,
@@ -130,8 +156,56 @@ interface FollowUp {
             <div class="ai-error" *ngIf="aiError">{{ aiError }}</div>
 
             <div class="ai-placeholder" *ngIf="!aiSuggestions && !aiLoading && !aiError">
-              Press <strong>Ask AI</strong> to get repair suggestions based on this item's details.
+              <ng-container *ngIf="ownSaved.length || similarSaved.length; else nothingSaved">
+                Check the answers below first. If none of them help, press <strong>Ask AI</strong> for a fresh one.
+              </ng-container>
+              <ng-template #nothingSaved>
+                Press <strong>Ask AI</strong> to get repair suggestions based on this item's details.
+              </ng-template>
             </div>
+
+            <!-- Answer bank: AI answers already saved on items, so we don't ask twice -->
+            <div class="bank" *ngIf="!aiSuggestions && !aiLoading">
+              <ng-container *ngIf="ownSaved.length">
+                <div class="bank-title">📌 Already asked for this item</div>
+                <ng-container *ngTemplateOutlet="bankList; context: { $implicit: ownSaved }"></ng-container>
+              </ng-container>
+
+              <ng-container *ngIf="similarSaved.length && !bankSearch.trim()">
+                <div class="bank-title">💡 Similar items with a saved AI answer</div>
+                <ng-container *ngTemplateOutlet="bankList; context: { $implicit: similarSaved }"></ng-container>
+              </ng-container>
+
+              <div class="bank-search">
+                <input type="search" [(ngModel)]="bankSearch" (ngModelChange)="runBankSearch()"
+                       [placeholder]="'Search ' + bankSize + ' saved AI answers (e.g. kettle, Dyson, no power)'">
+              </div>
+              <ng-container *ngIf="bankSearch.trim()">
+                <ng-container *ngIf="searchResults.length; else noResults">
+                  <ng-container *ngTemplateOutlet="bankList; context: { $implicit: searchResults }"></ng-container>
+                </ng-container>
+                <ng-template #noResults><p class="bank-empty">No saved answers match “{{ bankSearch.trim() }}”.</p></ng-template>
+              </ng-container>
+            </div>
+
+            <ng-template #bankList let-list>
+              <details class="ai-fold bank-entry" *ngFor="let s of list">
+                <summary>
+                  <span class="fold-title">
+                    <span class="fq-label">{{ s.own ? 'This item' : '#' + s.displayNumber }} · {{ s.date }}</span>
+                    {{ s.description }}<span class="bank-make" *ngIf="s.makeModel"> — {{ s.makeModel }}</span>
+                    <span class="bank-fault" *ngIf="s.fault">Fault: {{ s.fault }}</span>
+                  </span>
+                  <span class="fold-hint show">Show</span><span class="fold-hint hide">Hide</span>
+                </summary>
+                <div class="ai-result" [innerHTML]="s.html"></div>
+                <div class="bank-use">
+                  <button class="btn-use" (click)="useSaved(s)">
+                    {{ s.own ? 'Carry on with this answer' : 'Use this answer for this item' }}</button>
+                  <span>You can then ask follow-up questions.</span>
+                </div>
+              </details>
+            </ng-template>
 
             <details class="ai-fold" *ngIf="aiSuggestions">
               <summary>
@@ -286,6 +360,19 @@ interface FollowUp {
     .loading-row { display: flex; align-items: center; gap: .4rem; }
     .ai-error { color: #f1948a; font-size: .88rem; background: #e74c3c1a; border: 1px solid rgba(231,76,60,.25); border-radius: 8px; padding: .7rem 1rem; }
     .ai-placeholder { color: #ffffff4d; font-size: .88rem; padding: 1.5rem 0; text-align: center; }
+    .ai-placeholder strong { color: #ffffff99; }
+    .bank { margin-top: .25rem; }
+    .bank-title { margin: 1rem 0 .1rem; font-size: .75rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: #ffffff80; }
+    .bank-search { margin-top: 1rem; }
+    .bank-search input { width: 100%; box-sizing: border-box; background: #ffffff0a; border: 1px solid rgba(255,255,255,.12); color: #fff; border-radius: 8px; padding: .6rem .8rem; font-size: .88rem; font-family: inherit; }
+    .bank-search input:focus { outline: none; border-color: var(--accent-color); }
+    .bank-empty { color: #ffffff59; font-size: .85rem; margin: .75rem 0 0; }
+    .bank-entry .fold-title { font-weight: 600; }
+    .bank-make { color: #ffffff99; font-weight: 400; }
+    .bank-fault { font-size: .78rem; font-weight: 400; color: #ffffff73; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .bank-use { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem; padding: 0 1rem 1rem; font-size: .78rem; color: #ffffff59; }
+    .btn-use { background: #00f2ff14; border: 1px solid rgba(0,242,255,.35); color: var(--accent-color); padding: .45rem .9rem; border-radius: 7px; cursor: pointer; font-size: .82rem; font-weight: 700; font-family: inherit; }
+    .btn-use:hover { background: #00f2ff26; }
     .ai-result { font-size: .9rem; color: #ffffffd9; line-height: 1.6; white-space: pre-wrap; }
     .ai-result strong { color: #fff; }
     .btn-save:hover:not(:disabled) { background: #ffffff0f; color: #fff; }
@@ -403,6 +490,115 @@ export class InvestigationComponent implements OnInit, OnDestroy {
     this.sub = this.repairService.getRepairItems().subscribe(items => {
       this.item = items.find(i => i.id === id) ?? null;
       this.loading = false;
+      this.buildBank(items);
+    });
+  }
+
+  // --- Answer bank: AI answers already saved on other items ---
+
+  bank: SavedAnswer[] = [];
+  ownSaved: SavedAnswer[] = [];
+  similarSaved: SavedAnswer[] = [];
+  searchResults: SavedAnswer[] = [];
+  bankSearch = '';
+  get bankSize() { return this.bank.length + this.ownSaved.length; }
+
+  /** Pull every AI answer out of the items' investigation notes (where Ask AI saves them). */
+  private buildBank(items: RepairItem[]) {
+    const all: SavedAnswer[] = [];
+    const seen = new Set<string>();
+    for (const it of items) {
+      if (!it.id || !it.investigationNotes) continue;
+      for (const seg of it.investigationNotes.split(/\n\n---\n\n/)) {
+        const m = seg.match(/^AI suggestions \(([^)]*)\):\n([\s\S]+)$/);
+        if (!m) continue;
+        const body = m[2].trim();
+        const qAt = body.search(/\n\nQ: /);
+        const answer = (qAt >= 0 ? body.slice(0, qAt) : body).trim();
+        const key = answer.slice(0, 300);
+        const own = it.id === this.item?.id;
+        if (!answer || (!own && seen.has(key))) continue; // the same answer re-used on another item
+        if (!own) seen.add(key);
+        const followUpsHtml = qAt >= 0
+          ? body.slice(qAt).split(/\n\nQ: /).filter(Boolean).map(qa => {
+              const [q, ...a] = qa.split(/\nA: /);
+              return `<p style="margin:1em 0 .3em;color:#c39bd3"><strong>Follow-up: ${this.escapeHtml(q.trim())}</strong></p>` +
+                this.renderMarkdown(a.join('\nA: ').trim());
+            }).join('')
+          : '';
+        const makeModel = [it.make, it.model].filter(v => v && v.trim()).join(' ');
+        all.push({
+          itemId: it.id, own, key,
+          displayNumber: String(it.displayNumber ?? ''),
+          description: it.itemDescription || 'Item', makeModel, fault: (it.fault || '').trim(),
+          category: (it.category || '').toLowerCase(),
+          date: m[1].replace(/, from item.*$/, ''),
+          answer, html: this.renderMarkdown(answer) + followUpsHtml,
+          searchText: [it.itemDescription, makeModel, it.fault, it.category, answer].join(' ').toLowerCase(),
+        });
+      }
+    }
+    this.ownSaved = all.filter(s => s.own).reverse(); // newest first
+    const ownKeys = new Set(this.ownSaved.map(s => s.key));
+    this.bank = all.filter(s => !s.own && !ownKeys.has(s.key));
+    this.similarSaved = this.findSimilar();
+    this.runBankSearch();
+  }
+
+  /** The few saved answers whose items look most like this one. */
+  private findSimilar(): SavedAnswer[] {
+    const i = this.item;
+    if (!i) return [];
+    const desc = words(i.itemDescription || '');
+    const fault = words(i.fault || '');
+    const make = (i.make || '').trim().toLowerCase();
+    const model = (i.model || '').trim().toLowerCase();
+    const category = (i.category || '').toLowerCase();
+    return this.bank
+      .map(s => {
+        const sDesc = words(s.description);
+        const sFault = words(s.fault);
+        const sMake = s.makeModel.toLowerCase();
+        let score = 0;
+        score += desc.filter(w => sDesc.includes(w)).length * 3;
+        score += fault.filter(w => sFault.includes(w)).length * 2;
+        if (make && sMake.includes(make)) score += 3;
+        if (model && model.length >= 3 && sMake.includes(model)) score += 4;
+        // Same category only helps once something more specific already matches.
+        if (score > 0 && category && s.category === category) score += 1;
+        return { ...s, score };
+      })
+      .filter(s => (s.score ?? 0) >= 3)
+      .sort((a, b) => (b.score ?? 0) - (a.score ?? 0))
+      .slice(0, 3);
+  }
+
+  runBankSearch() {
+    const terms = this.bankSearch.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    this.searchResults = terms.length
+      ? [...this.ownSaved, ...this.bank].filter(s => terms.every(t => s.searchText.includes(t))).slice(0, 20)
+      : [];
+  }
+
+  /** Take a saved answer as this item's AI suggestions, without asking the AI again. */
+  async useSaved(s: SavedAnswer) {
+    if (!this.item) return;
+    this.aiError = '';
+    this.aiSuggestions = s.answer;
+    this.formattedSuggestions = this.renderMarkdown(s.answer);
+    this.followUps = [];
+    const extra = this.extraDetailsText();
+    this.chatHistory = [
+      { role: 'user', content: `Repair item: ${this.item.itemDescription || ''}. Fault: ${this.item.fault || ''}${extra ? '\n\n' + extra : ''}` },
+      { role: 'assistant', content: s.answer }
+    ];
+    if (s.own || !this.item.id) return; // already in this item's notes
+    this.activity.log('Used a saved AI answer', this.item.id, this.item.itemDescription);
+    await this.repairService.updateRepairItem(this.item.id, {
+      status: 'Investigating',
+      investigationNotes: (this.item.investigationNotes || '') +
+        (this.item.investigationNotes ? '\n\n---\n\n' : '') +
+        `AI suggestions (${new Date().toLocaleDateString()}, from item #${s.displayNumber}):\n${s.answer}`
     });
   }
 
