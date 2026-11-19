@@ -5,6 +5,8 @@ import { RepairService } from '../../../services/repair.service';
 import { AuthService } from '../../../services/auth.service';
 
 import { DialogService } from '../../../services/dialog.service';
+import { Functions } from '@angular/fire/functions';
+import { httpsCallable } from 'firebase/functions';
 interface UserRow {
   id: string;
   displayName: string | null;
@@ -64,6 +66,8 @@ interface UserRow {
               [disabled]="loading[user.id]">
               {{ loading[user.id] ? '...' : (user.isAdmin ? 'Revoke Admin' : 'Make Admin') }}
             </button>
+            <button *ngIf="user.id !== myUid" class="btn-delete" (click)="deleteUser(user)"
+                    [disabled]="loading[user.id]" title="Delete this user">🗑</button>
           </div>
         </div>
       </div>
@@ -188,6 +192,13 @@ interface UserRow {
       opacity: 0.5;
       cursor: not-allowed;
     }
+    .user-actions { flex-wrap: wrap; }
+    .btn-delete {
+      padding: 0.4rem 0.6rem; border-radius: 6px; border: 1px solid rgba(255, 89, 89, 0.35);
+      background: none; color: #ff5959; font-size: 0.95rem; cursor: pointer; line-height: 1;
+    }
+    .btn-delete:hover:not(:disabled) { background: rgba(255, 89, 89, 0.15); }
+    .btn-delete:disabled { opacity: 0.5; cursor: not-allowed; }
     .intro { margin: -0.75rem 0 1.25rem; font-size: 0.88rem; color: rgba(255,255,255,0.55); line-height: 1.5; }
     .intro strong { color: white; }
     .pending-badge {
@@ -216,7 +227,11 @@ export class UserManagerComponent implements OnInit {
   private repairService = inject(RepairService);
   private authService = inject(AuthService);
 
+  private functions = inject(Functions);
+
   loading: { [uid: string]: boolean } = {};
+  /** The signed-in admin — they can't delete themselves. */
+  myUid: string | null = null;
 
   users$: Observable<UserRow[]> = combineLatest([
     this.repairService.getUsers(),
@@ -241,7 +256,30 @@ export class UserManagerComponent implements OnInit {
     )
   );
 
-  ngOnInit() {}
+  ngOnInit() {
+    this.authService.user$.subscribe(u => (this.myUid = u?.uid ?? null));
+  }
+
+  async deleteUser(user: UserRow) {
+    const name = user.displayName || user.email || 'this user';
+    const ok = await this.dialog.confirm({
+      title: `Delete ${name}?`,
+      message: 'This deletes their sign-in account, their approval' + (user.isAdmin ? ' and admin access' : '') +
+        ' and their entries in the activity log. Repair records they worked on are kept.\n\n' +
+        'If they sign in again with Google they will appear as a new person waiting for approval.',
+      confirmText: 'Delete user', danger: true,
+    });
+    if (!ok) return;
+    this.loading[user.id] = true;
+    try {
+      await httpsCallable(this.functions, 'deleteUserAccount')({ uid: user.id });
+    } catch (error: any) {
+      console.error('Error deleting user:', error);
+      this.dialog.error(error?.message ? `Couldn't delete ${name}: ${error.message}` : `Couldn't delete ${name}. Please try again.`);
+    } finally {
+      this.loading[user.id] = false;
+    }
+  }
 
   async toggleApproved(user: UserRow) {
     if (user.isApproved && !(await this.dialog.confirm({

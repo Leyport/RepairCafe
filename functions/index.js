@@ -15,6 +15,9 @@
 const { onCall, HttpsError } = require('firebase-functions/v2/https');
 const { defineSecret } = require('firebase-functions/params');
 const logger = require('firebase-functions/logger');
+const admin = require('firebase-admin');
+
+admin.initializeApp();
 
 const GEMINI_API_KEY = defineSecret('GEMINI_API_KEY');
 
@@ -187,3 +190,47 @@ exports.getRepairSuggestions = onCall(
     return { suggestions };
   }
 );
+
+/**
+ * deleteUserAccount — admin-only. Deletes a person's sign-in account and the personal data the
+ * app holds about them: their profile (users), approval (volunteers), admin record (admins) and
+ * their entries in the activity log. Repair records are left alone (they belong to the café).
+ * Called from Admin → Users with { uid }.
+ */
+exports.deleteUserAccount = onCall({ region: 'us-central1' }, async (request) => {
+  const callerUid = request.auth?.uid;
+  if (!callerUid) throw new HttpsError('unauthenticated', 'Please sign in.');
+  const db = admin.firestore();
+  const callerIsAdmin = (await db.doc(`admins/${callerUid}`).get()).exists;
+  if (!callerIsAdmin) throw new HttpsError('permission-denied', 'Only admins can delete users.');
+
+  const uid = typeof request.data?.uid === 'string' ? request.data.uid.trim() : '';
+  if (!uid) throw new HttpsError('invalid-argument', 'No user given.');
+  if (uid === callerUid) throw new HttpsError('failed-precondition', "You can't delete your own account here.");
+
+  // Sign-in account (may already be gone, e.g. if only the profile was left behind).
+  try {
+    await admin.auth().deleteUser(uid);
+  } catch (e) {
+    if (e.code !== 'auth/user-not-found') {
+      logger.error('Auth delete failed', { uid, error: String(e) });
+      throw new HttpsError('internal', 'Could not delete the sign-in account.');
+    }
+  }
+
+  await Promise.all(['users', 'volunteers', 'admins'].map(col => db.doc(`${col}/${uid}`).delete()));
+
+  // Activity log entries, in batches.
+  let removed = 0;
+  for (;;) {
+    const snap = await db.collection('activity').where('uid', '==', uid).limit(400).get();
+    if (snap.empty) break;
+    const batch = db.batch();
+    snap.docs.forEach(d => batch.delete(d.ref));
+    await batch.commit();
+    removed += snap.size;
+  }
+
+  logger.info('User deleted', { uid, by: callerUid, activityRemoved: removed });
+  return { ok: true, activityRemoved: removed };
+});
