@@ -300,6 +300,19 @@ Each issue has its own conversation, so the person who raised it and the person 
 
 Your own messages appear on the right, everyone else's on the left. A red **New** label on the 💬 button means someone has replied since you last opened that conversation on this device.
 
+### Finding an Issue
+
+Filters above the list help you find issues quickly:
+
+- **Status buttons** — *All*, *Open* (anything not yet fixed), *New*, *Assigned* or *Fixed*. Each shows how many issues it has.
+- **Search** — looks through the description, the fix, who raised it and the replies in the conversation.
+- **Raised by** — anyone, *Raised by me*, or a particular person.
+- **Raised** — in the last 7, 30 or 90 days, or *More than 90 days ago*. The last option helps find old issues that may have been forgotten.
+- **💬 New replies only** — issues where someone else has replied since you last opened the conversation.
+- **Clear** resets the filters. While a filter is on, the screen shows *Showing X of Y issues*.
+
+Clicking the **Status** column heading still sorts the list.
+
 ### Managing Issues
 
 | Action | How |
