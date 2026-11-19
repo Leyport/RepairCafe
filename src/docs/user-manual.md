@@ -4,6 +4,16 @@
 
 RepairCafe is a web application for tracking repair items at Repair Cafe sessions. It allows volunteers to record items brought in for repair, assign repairers, track repair status, and review session statistics.
 
+### Listening to This Manual
+
+The online manual (`/docs/user-manual.html`) can be read aloud. Use the **🔊 Read aloud** bar at the top of the page:
+
+- **From the beginning** — press **▶ Read** to hear the whole manual.
+- **A chosen section** — pick it in the drop-down and press **▶ Read**. It carries on to the end unless you tick **Just this section**. Or press the **🔊 Read** button next to any section heading to hear just that section.
+- **⏸ Pause** / **▶ Resume** and **⏹ Stop** control the reading, and the speed drop-down makes it slower or faster.
+
+The part being read is highlighted and the page scrolls to follow it. Reading uses your browser's own voice, so nothing is sent anywhere.
+
 ---
 
 ## Getting Started

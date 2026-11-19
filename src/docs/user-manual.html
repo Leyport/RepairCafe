@@ -185,6 +185,43 @@
     }
     ol.steps li { margin-bottom: 0.5rem; }
 
+    /* ── Read aloud ── */
+    .read-bar {
+      position: sticky; top: 0; z-index: 50;
+      display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem;
+      margin: -1.5rem 0 2rem; padding: 0.7rem 0.9rem;
+      background: rgba(20,14,40,0.96); border: 1px solid rgba(0,242,255,0.25); border-radius: 12px;
+      backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+      box-shadow: 0 6px 20px rgba(0,0,0,0.35);
+    }
+    .read-bar .rb-title { font-weight: 700; color: #00f2ff; font-size: 0.9rem; margin-right: 0.2rem; }
+    .read-bar select, .read-bar button {
+      font: inherit; font-size: 0.88rem; color: white; border-radius: 8px;
+      background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.18); padding: 0.4rem 0.6rem;
+    }
+    .read-bar select { max-width: 100%; }
+    .read-bar select option { background: #1a1230; }
+    .read-bar button { cursor: pointer; font-weight: 600; }
+    .read-bar button:hover:not(:disabled) { background: rgba(255,255,255,0.14); }
+    .read-bar button:disabled { opacity: 0.4; cursor: default; }
+    .read-bar .rb-play { background: rgba(0,242,255,0.15); border-color: rgba(0,242,255,0.5); color: #00f2ff; }
+    .read-bar label { display: flex; align-items: center; gap: 0.3rem; font-size: 0.84rem; color: rgba(255,255,255,0.7); cursor: pointer; }
+    .read-bar .rb-status { flex-basis: 100%; font-size: 0.78rem; color: rgba(255,255,255,0.5); }
+    .read-bar .rb-status:empty { display: none; }
+    .read-bar.unsupported { border-color: rgba(255,255,255,0.15); }
+    h2 .read-here {
+      margin-left: 0.6rem; vertical-align: middle; font-size: 0.8rem; font-weight: 600;
+      color: rgba(255,255,255,0.7); background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.15); border-radius: 99px; padding: 0.15rem 0.6rem; cursor: pointer;
+    }
+    h2 .read-here:hover { color: #00f2ff; border-color: rgba(0,242,255,0.5); }
+    .reading {
+      background: rgba(0,242,255,0.10) !important; outline: 2px solid rgba(0,242,255,0.45);
+      outline-offset: 3px; border-radius: 4px;
+    }
+    section { scroll-margin-top: 6rem; }
+    @media print { .read-bar, .read-here { display: none !important; } }
+
     /* ── Responsive ── */
     @media (max-width: 720px) {
       nav { display: none; }
@@ -255,11 +292,40 @@
       <p>RepairCafe &mdash; repair tracking for a sustainable future &mdash; v1.24</p>
     </div>
 
+    <!-- Read aloud (uses the browser's built-in speech; nothing is sent anywhere) -->
+    <div class="read-bar" id="readBar" role="region" aria-label="Read aloud">
+      <span class="rb-title">🔊 Read aloud</span>
+      <select id="rbSection" aria-label="Where to start reading">
+        <option value="">From the beginning</option>
+      </select>
+      <label title="Stop at the end of the chosen section instead of carrying on">
+        <input type="checkbox" id="rbOnly"> Just this section
+      </label>
+      <button class="rb-play" id="rbPlay">▶ Read</button>
+      <button id="rbPause" disabled>⏸ Pause</button>
+      <button id="rbStop" disabled>⏹ Stop</button>
+      <select id="rbRate" aria-label="Reading speed" title="Reading speed">
+        <option value="0.8">Slower</option>
+        <option value="1" selected>Normal speed</option>
+        <option value="1.2">Faster</option>
+        <option value="1.4">Fastest</option>
+      </select>
+      <span class="rb-status" id="rbStatus" aria-live="polite"></span>
+    </div>
+
     <!-- Overview -->
     <section id="overview">
       <h2>Overview</h2>
       <p>RepairCafe is a web application for tracking repair items at Repair Cafe sessions. Volunteers use it to register items brought in for repair, assign repairers, record outcomes, and review how each session went.</p>
       <p>The app is hosted online and works on any modern browser &mdash; no installation needed.</p>
+      <h3>Listening to this manual</h3>
+      <p>This manual can be read aloud. Use the <strong>🔊 Read aloud</strong> bar at the top of the page; it stays in view as you scroll.</p>
+      <ul>
+        <li><strong>From the beginning</strong> &mdash; press <strong>▶ Read</strong> to hear the whole manual.</li>
+        <li><strong>A chosen section</strong> &mdash; pick it in the drop-down (<em>From: Analytics</em>, for example) and press <strong>▶ Read</strong>. It carries on to the end unless you tick <strong>Just this section</strong>. Or press the <strong>🔊 Read</strong> button next to any section heading to hear just that section.</li>
+        <li><strong>⏸ Pause</strong> / <strong>▶ Resume</strong> and <strong>⏹ Stop</strong> control the reading, and the speed drop-down makes it slower or faster.</li>
+      </ul>
+      <p>The part being read is highlighted, and the page scrolls to follow it. Reading uses your browser's own voice, so nothing is sent anywhere. It works in Chrome, Edge and Safari on computers and phones. On a phone, check the volume and that the phone isn't on silent.</p>
     </section>
 
     <!-- Login -->
@@ -743,5 +809,241 @@
 
   </main>
 </div>
+
+<script>
+/* Read the manual aloud with the browser's speech (Web Speech API). Works offline in most
+   browsers; reads one paragraph / list item / table row at a time, highlighting it. */
+(function () {
+  var bar = document.getElementById('readBar');
+  var synth = window.speechSynthesis;
+  if (!synth || typeof SpeechSynthesisUtterance === 'undefined') {
+    bar.classList.add('unsupported');
+    bar.innerHTML = '<span class="rb-title">🔊 Read aloud</span>' +
+      '<span style="font-size:0.85rem;color:rgba(255,255,255,0.6)">Your browser can\'t read pages aloud. Try Chrome, Edge or Safari.</span>';
+    return;
+  }
+
+  var sectionSel = document.getElementById('rbSection');
+  var onlyBox = document.getElementById('rbOnly');
+  var playBtn = document.getElementById('rbPlay');
+  var pauseBtn = document.getElementById('rbPause');
+  var stopBtn = document.getElementById('rbStop');
+  var rateSel = document.getElementById('rbRate');
+  var statusEl = document.getElementById('rbStatus');
+  var sections = Array.prototype.slice.call(document.querySelectorAll('main section[id]'));
+
+  var queue = [];      // [{el, text, section}]
+  var pos = 0;
+  var state = 'idle';  // idle | playing | paused
+  var runId = 0;       // ignores events from cancelled utterances
+  var voice = null;
+
+  function pickVoice() {
+    var voices = synth.getVoices();
+    voice = voices.find(function (v) { return /en-GB/i.test(v.lang); }) ||
+            voices.find(function (v) { return /^en/i.test(v.lang); }) || null;
+  }
+  pickVoice();
+  if ('onvoiceschanged' in synth) synth.onvoiceschanged = pickVoice;
+
+  // Section list and a "Read" button on each heading
+  sections.forEach(function (sec) {
+    var h2 = sec.querySelector('h2');
+    if (!h2) return;
+    var opt = document.createElement('option');
+    opt.value = sec.id;
+    opt.textContent = 'From: ' + h2.textContent.trim();
+    sectionSel.appendChild(opt);
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'read-here';
+    btn.textContent = '🔊 Read';
+    btn.title = 'Read this section aloud';
+    btn.addEventListener('click', function () {
+      sectionSel.value = sec.id;
+      onlyBox.checked = true;
+      start();
+    });
+    h2.appendChild(btn);
+  });
+
+  /** Speakable text: drop emoji and our own buttons, say symbols in words. */
+  function clean(text) {
+    return text
+      .replace(/🔊 Read/g, '')
+      .replace(/[→➡]/g, ' to ')
+      .replace(/[·•]/g, ', ')
+      .replace(/—|–/g, ', ')
+      .replace(/[…]/g, '...')
+      .replace(/\p{Extended_Pictographic}|️|‍/gu, '')
+      .replace(/\s+/g, ' ')
+      .replace(/\s+([,.;:])/g, '$1')
+      .replace(/^[,\s]+/, '')
+      .trim();
+  }
+
+  /** Own text of an element, leaving out nested block elements (they are read separately). */
+  function ownText(el, skip) {
+    var copy = el.cloneNode(true);
+    copy.querySelectorAll('.read-here').forEach(function (n) { n.remove(); });
+    Array.prototype.slice.call(copy.children).forEach(function (c) {
+      if (skip.test(c.tagName)) c.remove();
+    });
+    return copy.textContent;
+  }
+
+  var BLOCKS = /^(P|UL|OL|TABLE|DIV|SECTION|H[1-6])$/;
+
+  function collect(el, section, out) {
+    Array.prototype.forEach.call(el.children, function (c) {
+      var tag = c.tagName;
+      if (c.classList.contains('read-here')) return;
+      if (/^H[1-6]$/.test(tag) || tag === 'P') {
+        push(out, c, ownText(c, /^$/), section);
+      } else if (tag === 'LI') {
+        push(out, c, ownText(c, /^(UL|OL)$/), section);
+        collect(c, section, out);
+      } else if (tag === 'TABLE') {
+        var heads = Array.prototype.map.call(c.querySelectorAll('thead th'), function (th) { return th.textContent.trim(); });
+        Array.prototype.forEach.call(c.querySelectorAll('tbody tr'), function (tr) {
+          var cells = Array.prototype.map.call(tr.children, function (td) { return td.textContent.trim(); });
+          // Two columns read naturally as "Name: description".
+          var text = cells.length === 2 ? cells[0] + ': ' + cells[1] + '.' : cells.map(function (t, i) {
+            return (heads[i] ? heads[i] + ', ' : '') + t;
+          }).join('. ') + '.';
+          push(out, tr, text, section);
+        });
+      } else if (/^(UL|OL|SECTION)$/.test(tag)) {
+        collect(c, section, out);
+      } else if (Array.prototype.some.call(c.children, function (k) { return BLOCKS.test(k.tagName); })) {
+        push(out, c, ownText(c, BLOCKS), section);
+        collect(c, section, out);
+      } else {
+        push(out, c, c.textContent, section);
+      }
+    });
+  }
+
+  /** Long paragraphs are split into sentences (some browsers stop speaking after ~15 seconds). */
+  function push(out, el, raw, section) {
+    var text = clean(raw);
+    if (!text) return;
+    var parts = text.length > 220 ? (text.match(/[^.!?]+[.!?]+["')]*\s*|[^.!?]+$/g) || [text]) : [text];
+    var buf = '';
+    parts.forEach(function (p) {
+      if ((buf + p).length > 220 && buf) { out.push({ el: el, text: buf.trim(), section: section }); buf = ''; }
+      buf += p;
+    });
+    if (buf.trim()) out.push({ el: el, text: buf.trim(), section: section });
+  }
+
+  function build() {
+    var from = sectionSel.value;
+    var list = [];
+    var started = !from;
+    var header = document.querySelector('.page-header');
+    if (!from) push(list, header.querySelector('h1'), 'RepairCafe User Manual.', null);
+    for (var i = 0; i < sections.length; i++) {
+      var sec = sections[i];
+      if (!started && sec.id === from) started = true;
+      if (!started) continue;
+      collect(sec, sec, list);
+      if (from && onlyBox.checked) break;
+    }
+    return list;
+  }
+
+  var highlighted = null;
+  function highlight(el) {
+    if (highlighted) highlighted.classList.remove('reading');
+    highlighted = el;
+    if (!el) return;
+    el.classList.add('reading');
+    var r = el.getBoundingClientRect();
+    if (r.top < 90 || r.bottom > window.innerHeight - 40) el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  }
+
+  function sectionName(sec) {
+    var h = sec && sec.querySelector('h2');
+    return h ? clean(h.textContent) : 'the manual';
+  }
+
+  function speakNext() {
+    if (state !== 'playing') return;
+    if (pos >= queue.length) { finish('Finished reading.'); return; }
+    var item = queue[pos];
+    highlight(item.el);
+    statusEl.textContent = 'Reading: ' + sectionName(item.section);
+    var u = new SpeechSynthesisUtterance(item.text);
+    u.lang = 'en-GB';
+    if (voice) u.voice = voice;
+    u.rate = parseFloat(rateSel.value) || 1;
+    var myRun = runId;
+    u.onend = function () { if (myRun !== runId) return; pos++; speakNext(); };
+    u.onerror = function (e) {
+      if (myRun !== runId || e.error === 'interrupted' || e.error === 'canceled') return;
+      pos++; speakNext();
+    };
+    synth.speak(u);
+  }
+
+  function start() {
+    stop(true);
+    queue = build();
+    pos = 0;
+    if (!queue.length) { statusEl.textContent = 'Nothing to read here.'; return; }
+    state = 'playing';
+    runId++;
+    updateButtons();
+    speakNext();
+  }
+
+  // Pause by cancelling and remembering our place (pause() is unreliable on phones).
+  function pause() {
+    if (state === 'playing') {
+      state = 'paused'; runId++; synth.cancel();
+      statusEl.textContent = 'Paused. Press Resume to carry on.';
+    } else if (state === 'paused') {
+      state = 'playing'; runId++; speakNext();
+    }
+    updateButtons();
+  }
+
+  function stop(silent) {
+    runId++;
+    synth.cancel();
+    state = 'idle';
+    highlight(null);
+    if (!silent) statusEl.textContent = '';
+    updateButtons();
+  }
+
+  function finish(msg) {
+    stop(true);
+    statusEl.textContent = msg;
+  }
+
+  function updateButtons() {
+    pauseBtn.disabled = state === 'idle';
+    stopBtn.disabled = state === 'idle';
+    pauseBtn.textContent = state === 'paused' ? '▶ Resume' : '⏸ Pause';
+    playBtn.textContent = state === 'idle' ? '▶ Read' : '↺ Restart';
+  }
+
+  playBtn.addEventListener('click', start);
+  pauseBtn.addEventListener('click', pause);
+  stopBtn.addEventListener('click', function () { stop(false); });
+  sectionSel.addEventListener('change', function () { if (!sectionSel.value) onlyBox.checked = false; });
+  onlyBox.addEventListener('change', function () { if (onlyBox.checked && !sectionSel.value && sections[0]) sectionSel.value = sections[0].id; });
+  rateSel.addEventListener('change', function () {
+    // Apply the new speed straight away by restarting the current paragraph.
+    if (state === 'playing') { runId++; synth.cancel(); speakNext(); }
+  });
+  window.addEventListener('pagehide', function () { synth.cancel(); });
+  // Start from a section's link, e.g. user-manual.html?read=analytics
+  var m = /[?&]read=([\w-]+)/.exec(location.search);
+  if (m && document.getElementById(m[1])) { sectionSel.value = m[1]; statusEl.textContent = 'Press Read to start at ' + sectionName(document.getElementById(m[1])) + '.'; }
+})();
+</script>
 </body>
 </html>
