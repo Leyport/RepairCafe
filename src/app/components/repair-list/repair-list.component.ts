@@ -504,6 +504,18 @@ interface RepairerGroup {
       .header-controls {
         width: 100%;
       }
+      /* Phone portrait: the five list buttons don't fit on one line, so let them wrap
+         instead of being cut off at the edge of the screen. */
+      .completion-toggle {
+        width: 100%;
+        flex-wrap: wrap;
+      }
+      .toggle-btn {
+        flex: 1 1 auto;
+        padding: 0.55rem 0.7rem;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      }
+      .filter-toggle { width: 100%; }
     }
     .sort-select {
       background: transparent;
