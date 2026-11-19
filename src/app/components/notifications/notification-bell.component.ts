@@ -32,7 +32,8 @@ const RECENT_COUNT = 6;
         <span class="bell-count" *ngIf="pending.length">{{ pending.length }}</span>
       </button>
 
-      <div class="panel" *ngIf="open">
+      <div class="panel" *ngIf="open" [class.mobile]="mobileTop !== null"
+           [style.top.px]="mobileTop" [style.maxHeight]="mobileTop !== null ? 'calc(100dvh - ' + (mobileTop + 12) + 'px)' : null">
         <div class="panel-head">Waiting for approval</div>
         <div class="panel-empty" *ngIf="!pending.length">Nothing needs your attention.</div>
         <div class="note" *ngFor="let u of pending; trackBy: trackKey">
@@ -92,6 +93,8 @@ const RECENT_COUNT = 6;
       box-shadow: 0 12px 32px rgba(0,0,0,0.5); padding: 0.5rem; text-align: left;
       max-height: min(70vh, 560px); overflow-y: auto;
     }
+    /* Phones: the bell isn't at the right-hand edge, so pin the panel to the screen instead of the bell. */
+    .panel.mobile { position: fixed; left: 12px; right: 12px; width: auto; max-width: none; }
     .panel-head.earlier { margin-top: 0.4rem; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 0.8rem; }
     .note.past { opacity: 0.75; }
     .kind-icon { flex-shrink: 0; font-size: 0.95rem; }
@@ -169,7 +172,27 @@ export class NotificationBellComponent implements OnInit, OnDestroy {
     clearTimeout(this.toastTimer);
   }
 
-  toggle() { this.open = !this.open; }
+  /** Screen position for the panel on phones (null = normal drop-down under the bell). */
+  mobileTop: number | null = null;
+
+  toggle() {
+    this.open = !this.open;
+    if (this.open) this.placePanel();
+  }
+
+  /** On narrow screens, place the panel full-width just below the bell. */
+  private placePanel() {
+    if (window.innerWidth > 600) { this.mobileTop = null; return; }
+    const rect = (this.host.nativeElement as HTMLElement).getBoundingClientRect();
+    this.mobileTop = Math.max(8, Math.round(rect.bottom + 8));
+  }
+
+  @HostListener('window:resize')
+  onResize() { if (this.open) this.placePanel(); }
+
+  /** A fixed panel would float away from the bell when the page scrolls, so close it. */
+  @HostListener('window:scroll')
+  onScroll() { if (this.open && this.mobileTop !== null) this.open = false; }
 
   trackKey = (_: number, n: AppNotification) => n.key;
 
@@ -182,6 +205,7 @@ export class NotificationBellComponent implements OnInit, OnDestroy {
   openPanelFromToast() {
     this.toast = '';
     this.open = true;
+    this.placePanel();
   }
 
   async approve(u: AppNotification) {
