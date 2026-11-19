@@ -194,11 +194,40 @@ const DATE_COLUMNS = new Set(['RCDay', 'creationDate', 'createdAt', 'firstSeen']
                     (click)="showFilters = !showFilters">
               ⚲ Column filters<span *ngIf="columnFilterCount() > 0"> ({{ columnFilterCount() }})</span>
             </button>
+            <button class="filter-toggle" [class.active]="showFieldFilter || fieldFilterOn()"
+                    (click)="showFieldFilter = !showFieldFilter"
+                    title="Filter on any field in this collection">
+              ⚙ Field filter<span *ngIf="fieldFilterOn()"> (1)</span>
+            </button>
+            <ng-container *ngIf="currentSchema === 'owners'">
+              <button *ngFor="let a of assistOptions" class="filter-toggle assist-chip" [class.active]="assistFilter.has(a.key)"
+                      (click)="toggleAssist(a.key)" [title]="'Only visitors who need ' + a.label.toLowerCase() + ' assistance'">
+                {{ a.icon }} {{ a.label }}
+              </button>
+            </ng-container>
             <button *ngIf="isFiltering()" class="link-btn" (click)="clearFilters()">Clear all filters</button>
             <button *ngIf="missingSeqCount > 0" class="filter-toggle seq-btn" [disabled]="numbering" (click)="assignReferenceNumbers()"
                     title="Give each item without one a permanent reference number, oldest session first">
               🔢 {{ numbering ? numberingStatus : 'Give ' + missingSeqCount + ' item(s) a reference number' }}
             </button>
+          </div>
+
+          <div class="field-filter" *ngIf="showFieldFilter || fieldFilterOn()">
+            <select class="ff-input" [ngModel]="fieldKey" (ngModelChange)="setFieldFilter('fieldKey', $event)">
+              <option value="">Choose a field…</option>
+              <option *ngFor="let k of fieldOptions" [value]="k">{{ k }}</option>
+            </select>
+            <select class="ff-input" [ngModel]="fieldOp" (ngModelChange)="setFieldFilter('fieldOp', $event)">
+              <option value="contains">contains</option>
+              <option value="equals">is exactly</option>
+              <option value="not">does not contain</option>
+              <option value="blank">is empty</option>
+              <option value="notblank">is not empty</option>
+            </select>
+            <input *ngIf="fieldOp !== 'blank' && fieldOp !== 'notblank'" class="ff-input ff-value" type="text"
+                   placeholder="Value (dates as 2026-11-19, yes/no)" [ngModel]="fieldValue"
+                   (ngModelChange)="setFieldFilter('fieldValue', $event)">
+            <button *ngIf="fieldFilterOn()" class="link-btn" (click)="clearFieldFilter()">Remove</button>
           </div>
 
           <div class="records-container custom-scrollbar" *ngIf="data$ | async as data; else loading">
@@ -895,6 +924,14 @@ const DATE_COLUMNS = new Set(['RCDay', 'creationDate', 'createdAt', 'firstSeen']
     }
     .filter-toggle.active { background: rgba(99, 102, 241, 0.25); color: var(--accent-color); border-color: rgba(0, 242, 255, 0.3); }
     .link-btn { background: none; border: none; padding: 0; color: var(--accent-color); cursor: pointer; font-size: 0.85rem; text-decoration: underline; }
+    .assist-chip { font-weight: 500; }
+    .field-filter { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin: -0.4rem 0 1rem; }
+    .ff-input {
+      background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.15); color: white;
+      border-radius: 8px; padding: 0.45rem 0.6rem; font-size: 0.86rem; font-family: inherit; min-width: 0;
+    }
+    .ff-input option { background: #14182a; }
+    .ff-value { flex: 1 1 200px; max-width: 320px; }
     .data-table .filter-row th { padding-top: 0.25rem; padding-bottom: 0.5rem; text-transform: none; letter-spacing: 0; }
     .filter-input, .filter-select {
       width: 100%;
@@ -1655,6 +1692,76 @@ export class DatabaseExplorerComponent implements OnInit {
   }
   searchAll = '';
   colFilters: ExplorerFilters = { ...EMPTY_FILTERS };
+
+  // Field filter (any collection): <field> <condition> <value>
+  showFieldFilter = false;
+  fieldOptions: string[] = [];
+  fieldKey = '';
+  fieldOp: 'contains' | 'equals' | 'not' | 'blank' | 'notblank' = 'contains';
+  fieldValue = '';
+
+  // Visitors: assistance needed
+  readonly assistOptions = [
+    { key: 'physicalAssistance', icon: '🦽', label: 'Physical' },
+    { key: 'visualAssistance', icon: '👁️', label: 'Visual' },
+    { key: 'hearingAssistance', icon: '🦻', label: 'Hearing' },
+  ];
+  assistFilter = new Set<string>();
+
+  fieldFilterOn(): boolean {
+    return !!this.fieldKey && (this.fieldOp === 'blank' || this.fieldOp === 'notblank' || !!this.fieldValue.trim());
+  }
+
+  setFieldFilter(key: 'fieldKey' | 'fieldOp' | 'fieldValue', value: string) {
+    (this as any)[key] = value || (key === 'fieldOp' ? 'contains' : '');
+    this.refilter();
+  }
+
+  clearFieldFilter() {
+    this.fieldKey = ''; this.fieldOp = 'contains'; this.fieldValue = '';
+    this.refilter();
+  }
+
+  toggleAssist(key: string) {
+    if (this.assistFilter.has(key)) this.assistFilter.delete(key); else this.assistFilter.add(key);
+    this.refilter();
+  }
+
+  private refilter() {
+    this.filters$.next({ search: this.searchAll, cols: this.colFilters });
+  }
+
+  /** Text of one field for the field filter: dates as YYYY-MM-DD, true/false as yes/no, lists joined. */
+  private fieldText(v: any): string {
+    if (v === null || v === undefined) return '';
+    const day = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    if (typeof v?.toDate === 'function') return day(v.toDate());
+    if (v instanceof Date) return day(v);
+    if (typeof v === 'boolean') return v ? 'yes' : 'no';
+    if (Array.isArray(v)) return v.map(x => this.fieldText(x)).filter(Boolean).join(', ');
+    if (typeof v === 'object') return Object.values(v).map(x => this.fieldText(x)).filter(Boolean).join(', ');
+    return String(v).trim();
+  }
+
+  private matchesFieldFilter(record: any): boolean {
+    if (!this.fieldFilterOn()) return true;
+    const text = this.fieldText(record[this.fieldKey]).toLowerCase();
+    let want = this.fieldValue.trim().toLowerCase();
+    if (want === 'true') want = 'yes';
+    if (want === 'false') want = 'no';
+    switch (this.fieldOp) {
+      case 'blank':    return !text;
+      case 'notblank': return !!text;
+      case 'equals':   return text === want;
+      case 'not':      return !text.includes(want);
+      default:         return text.includes(want);
+    }
+  }
+
+  private matchesAssist(record: any): boolean {
+    if (this.currentSchema !== 'owners' || !this.assistFilter.size) return true;
+    return [...this.assistFilter].every(k => !!record[k]);
+  }
   showFilters = false;
   rawCount = 0;
   currentSchema: string = 'unknown';
@@ -1839,6 +1946,9 @@ export class DatabaseExplorerComponent implements OnInit {
 
   selectCollection(colName: string) {
     this.selectedCollection = colName;
+    // Field names differ per collection, so start the field and visitor filters afresh.
+    this.fieldKey = ''; this.fieldOp = 'contains'; this.fieldValue = ''; this.showFieldFilter = false;
+    this.assistFilter.clear();
     this.selectedItems.clear(); // Clear selection
     // Reset sort when switching, or set default for repairItems
     if (colName === 'repairItems') {
@@ -1856,6 +1966,8 @@ export class DatabaseExplorerComponent implements OnInit {
           this.missingSeqCount = colName === 'repairItems'
             ? data.filter(d => typeof d[SEQUENCE_FIELD] !== 'number').length : 0;
           if (this.currentSchema === 'repairItems') this.buildFilterOptions(data);
+          this.fieldOptions = [...new Set(data.flatMap(d => Object.keys(d)))]
+            .filter(k => k !== 'photos').sort((a, b) => a.localeCompare(b));
           return data.map(record => ({ record, text: this.searchableText(record) }));
         })
       ),
@@ -1868,7 +1980,8 @@ export class DatabaseExplorerComponent implements OnInit {
         const data = rows
           .filter(r => !search || search.split(/\s+/).every(word => r.text.includes(word)))
           .map(r => r.record)
-          .filter(record => !useCols || this.matchesColFilters(record, filters.cols));
+          .filter(record => !useCols || this.matchesColFilters(record, filters.cols))
+          .filter(record => this.matchesFieldFilter(record) && this.matchesAssist(record));
 
         if (!sort.column) return data;
         const sign = sort.direction === 'asc' ? 1 : -1;
@@ -1972,6 +2085,8 @@ export class DatabaseExplorerComponent implements OnInit {
 
   clearFilters() {
     this.searchAll = '';
+    this.fieldKey = ''; this.fieldOp = 'contains'; this.fieldValue = '';
+    this.assistFilter.clear();
     this.clearColFilters();
   }
 
@@ -1980,7 +2095,8 @@ export class DatabaseExplorerComponent implements OnInit {
   }
 
   isFiltering(): boolean {
-    return !!this.searchAll.trim() || this.columnFilterCount() > 0;
+    return !!this.searchAll.trim() || this.columnFilterCount() > 0 || this.fieldFilterOn() ||
+      (this.currentSchema === 'owners' && this.assistFilter.size > 0);
   }
 
   /** "Saturday, 17, 05, 2025" → "17 May 2025" */
