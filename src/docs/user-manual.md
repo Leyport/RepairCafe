@@ -339,6 +339,17 @@ A full view of all repair records across all sessions.
 
 Lists all users who have logged in. People waiting for approval are shown first — press **Approve** to let them see the repair records. Admins can also grant or revoke admin access.
 
+**Deleting a user:** press the red **🗑** button on their row, then **Delete user** to confirm. Use this when someone asks for their data to be deleted, or to remove an account that shouldn't be there. Deleting a user removes:
+
+- their Google sign-in for the app;
+- their profile (name, email, photo, last seen);
+- their approval, and admin access if they had it;
+- their entries in the activity log, so their sign-ins also disappear from Notifications.
+
+**Repair records are kept**, including their name as a repairer on items they worked on, because these are the café's records. Their entry in **Admin → Repairers** is a separate record and is not deleted. Remove it there too if needed.
+
+> Deleting can't be undone. You can't delete yourself: there is no 🗑 button on your own row. If a deleted person signs in with Google again, they appear as a new user *waiting for approval*. To stop someone using the app without deleting their history, use **Remove approval** instead.
+
 ### Notifications (bell icon)
 
 Admins see a **bell** icon in the header. When someone new signs in and is waiting for approval:
