@@ -430,7 +430,9 @@ Lists all users who have logged in. People waiting for approval are shown first 
 Admins see a **bell** icon in the header. When someone new signs in and is waiting for approval:
 
 - a red number on the bell shows how many people are waiting;
-- if you are signed in at the time, a pop-up appears in the bottom-right corner — click it to review.
+- if you are signed in at the time, a pop-up appears in the bottom-right corner a few seconds after they sign in — click it to review. It closes by itself after 15 seconds, or straight away once that person has been approved.
+
+> **No false alarms:** the pop-up only appears for someone who has just signed in and is still waiting a few seconds later, so you won't be asked to review a person who isn't there. If you delete a user who still has the app open on a device, they won't reappear as a nameless person waiting for approval.
 
 Click the bell to see who is waiting and press **Approve** next to their name. They get in straight away, without needing to sign in again. Below that, **Recent** shows the last few people who signed in (👋) or were approved (✅). Use **See all notifications →** for the full list, or **Open Admin → Users** for more options.
 
