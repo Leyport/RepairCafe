@@ -344,6 +344,12 @@ Filters above the list help you find issues quickly:
 
 Clicking the **Status** column heading still sorts the list.
 
+### Making the List Easier to Read
+
+Above the right-hand side of the table is a **Fewer columns** switch. Slide it on to hide the **#**, **Date Raised** and **Actions** columns — the **Description** and **Fix** columns then spread out to fill the space, so long descriptions wrap onto fewer lines. Slide it off to bring the hidden columns back.
+
+> **Good to know:** the switch is remembered on each device, so it stays as you left it next time. The 🗑️ delete button is in the Actions column, so turn the switch off when you need to delete an issue. Issues with no fix yet keep their orange marker on the left edge either way.
+
 ### Managing Issues
 
 | Action | How |
