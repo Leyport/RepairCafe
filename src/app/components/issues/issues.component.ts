@@ -157,19 +157,26 @@ type StatusFilter = 'all' | 'open' | 'New' | 'Assigned' | 'Fixed';
       </div>
 
       <!-- Issues List -->
+      <div class="view-bar" *ngIf="(issues$ | async)?.length">
+        <label class="switch" title="Hide the #, Date Raised and Actions columns so the description and fix have more room">
+          <input type="checkbox" [ngModel]="compact" (ngModelChange)="setCompact($event)">
+          <span class="slider"></span>
+          <span class="switch-label">Fewer columns</span>
+        </label>
+      </div>
       <div class="issues-list table-container glass" *ngIf="(issueNumbers$ | async) as numMap">
-        <table *ngIf="(issues$ | async)?.length; else emptyState">
+        <table *ngIf="(issues$ | async)?.length; else emptyState" [class.compact]="compact">
           <thead>
             <tr>
               <th class="col-num">#</th>
               <th>Description</th>
               <th>Fix</th>
-              <th>Date Raised</th>
+              <th class="col-date">Date Raised</th>
               <th>Raised By</th>
               <th class="col-status-header sortable" (click)="toggleSort()">
                 Status <span class="sort-icon">{{ sortDir === 'asc' ? '▲' : '▼' }}</span>
               </th>
-              <th>Actions</th>
+              <th class="col-actions">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -526,6 +533,28 @@ type StatusFilter = 'all' | 'open' | 'New' | 'Assigned' | 'Fixed';
       cursor: pointer;
     }
 
+    .view-bar { display: flex; justify-content: flex-end; margin: 0 0 0.6rem; }
+    .switch { display: inline-flex; align-items: center; gap: 0.55rem; cursor: pointer; user-select: none; }
+    .switch input { position: absolute; opacity: 0; width: 0; height: 0; }
+    .slider {
+      position: relative; width: 38px; height: 22px; border-radius: 99px; flex-shrink: 0;
+      background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.2); transition: background 0.2s;
+    }
+    .slider::after {
+      content: ''; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%;
+      background: white; transition: transform 0.2s;
+    }
+    .switch input:checked + .slider { background: rgba(0,242,255,0.45); border-color: rgba(0,242,255,0.7); }
+    .switch input:checked + .slider::after { transform: translateX(16px); }
+    .switch input:focus-visible + .slider { outline: 2px solid var(--accent-color, #00f2ff); outline-offset: 2px; }
+    .switch-label { font-size: 0.85rem; color: rgba(255,255,255,0.75); }
+
+    /* "Fewer columns": hide #, date and actions; description and fix share the room */
+    table.compact .col-num, table.compact .col-date, table.compact .col-actions { display: none; }
+    table.compact .col-desc { width: 50%; }
+    table.compact .col-fix { width: 32%; }
+    table.compact tr.needs-fix td.col-desc { border-left: 3px solid rgba(255, 180, 0, 0.6); }
+
     .table-container {
       padding: 0;
       overflow-x: auto;
@@ -838,6 +867,13 @@ export class IssuesComponent implements OnDestroy {
   fRaisedBy = '';
   fAge: '' | '7' | '30' | '90' | 'old' = '';
   fUnread = false;
+
+  /** "Fewer columns" switch, remembered on this device. */
+  compact = (() => { try { return localStorage.getItem('issuesCompact') === '1'; } catch { return false; } })();
+  setCompact(on: boolean) {
+    this.compact = on;
+    try { localStorage.setItem('issuesCompact', on ? '1' : '0'); } catch { /* storage unavailable */ }
+  }
   private filters$ = new BehaviorSubject<void>(undefined);
 
   get isFiltered(): boolean {
