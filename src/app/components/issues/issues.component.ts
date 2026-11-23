@@ -293,7 +293,7 @@ type StatusFilter = 'all' | 'open' | 'New' | 'Assigned' | 'Fixed';
     .link-btn { background: none; border: none; color: #00f2ff; cursor: pointer; text-decoration: underline; font: inherit; padding: 0; }
     .issues-container {
       padding: 2rem;
-      max-width: 800px;
+      max-width: 1300px;
       margin: 0 auto;
     }
 
@@ -567,8 +567,10 @@ type StatusFilter = 'all' | 'open' | 'New' | 'Assigned' | 'Fixed';
       font-size: 0.85rem;
     }
     .col-desc {
-      width: 22%;
+      width: 38%;
+      min-width: 260px; /* on narrow screens the table scrolls sideways rather than squashing this */
       cursor: pointer;
+      line-height: 1.45;
     }
     .col-desc:hover .desc-text { color: white; }
     .desc-text {
@@ -626,11 +628,12 @@ type StatusFilter = 'all' | 'open' | 'New' | 'Assigned' | 'Fixed';
     }
     .col-date {
       width: 7%;
+      white-space: nowrap;
       font-size: 0.9rem;
       color: rgba(255, 255, 255, 0.6);
     }
     .col-raised-by {
-      width: 12%;
+      width: 9%;
       font-size: 0.85rem;
       color: rgba(255, 255, 255, 0.6);
       white-space: nowrap;
@@ -639,10 +642,10 @@ type StatusFilter = 'all' | 'open' | 'New' | 'Assigned' | 'Fixed';
       max-width: 120px;
     }
     .col-status {
-      width: 15%;
+      width: 10%;
     }
     .col-status-header {
-      width: 15%;
+      width: 10%;
     }
     .sortable {
       cursor: pointer;
@@ -651,7 +654,7 @@ type StatusFilter = 'all' | 'open' | 'New' | 'Assigned' | 'Fixed';
     .sortable:hover { color: white; }
     .sort-icon { font-size: 0.7rem; margin-left: 0.3rem; opacity: 0.7; }
     .col-actions {
-      width: 10%;
+      width: 8%;
       text-align: right;
     }
 
@@ -690,8 +693,10 @@ type StatusFilter = 'all' | 'open' | 'New' | 'Assigned' | 'Fixed';
     }
 
     .col-fix {
-      width: 43%;
+      width: 28%;
+      min-width: 200px;
       cursor: pointer;
+      line-height: 1.45;
     }
     .col-fix:hover .fix-text { color: white; }
     .fix-text {
