@@ -215,7 +215,7 @@ const words = (text: string): string[] =>
               </details>
             </ng-template>
 
-            <details class="ai-fold" *ngIf="aiSuggestions">
+            <details class="ai-fold" *ngIf="aiSuggestions" open>
               <summary>
                 <span class="fold-title">AI repair suggestions</span>
                 <span class="fold-hint show">Show</span><span class="fold-hint hide">Hide</span>
@@ -223,7 +223,7 @@ const words = (text: string): string[] =>
               <div class="ai-result" [innerHTML]="formattedSuggestions"></div>
             </details>
 
-            <details class="ai-fold followup" *ngFor="let f of followUps">
+            <details class="ai-fold followup" *ngFor="let f of followUps" open>
               <summary>
                 <span class="fold-title"><span class="fq-label">You asked</span>{{ f.question }}</span>
                 <span class="fold-hint show">Show</span><span class="fold-hint hide">Hide</span>
