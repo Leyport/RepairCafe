@@ -1,4 +1,4 @@
-import { Component, ElementRef, OnDestroy, OnInit, ViewChild, inject } from '@angular/core';
+import { Component, ElementRef, NgZone, OnDestroy, OnInit, ViewChild, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -106,6 +106,14 @@ const words = (text: string): string[] =>
                 </div>
               </div>
               <div class="ai-btn-group">
+                <ng-container *ngIf="canSpeak && aiSuggestions && !aiLoading">
+                  <button class="btn-speak" *ngIf="speech === 'idle'" (click)="readAloud()"
+                          title="Read the AI answer and follow-ups out loud">🔊 Read aloud</button>
+                  <ng-container *ngIf="speech !== 'idle'">
+                    <button class="btn-speak active" (click)="togglePause()">{{ speech === 'paused' ? '▶ Resume' : '⏸ Pause' }}</button>
+                    <button class="btn-speak" (click)="stopReading()" title="Stop reading">⏹ Stop</button>
+                  </ng-container>
+                </ng-container>
                 <button class="btn-save-report" *ngIf="aiSuggestions" [disabled]="savingReport" (click)="saveAIReport()">
                   <span *ngIf="!savingReport">
                     <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
@@ -357,6 +365,9 @@ const words = (text: string): string[] =>
     .provider-btn.active { background: #9b59b659; color: #c39bd3; }
     .provider-btn:hover:not(.active) { color: #ffffffb3; }
     .ai-btn-group { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; }
+    .btn-speak { background: #ffffff0d; border: 1px solid rgba(255,255,255,.18); color: #ffffffcc; padding: .5rem .9rem; border-radius: 7px; cursor: pointer; font-size: .85rem; font-weight: 700; font-family: inherit; transition: all .15s; }
+    .btn-speak:hover { background: #ffffff1a; color: #fff; }
+    .btn-speak.active { background: #00f2ff1a; border-color: rgba(0,242,255,.45); color: var(--accent-color); }
     .btn-save-report:hover:not(:disabled) { background: #3498db38; }
     .report-saved-bar { display: flex; align-items: center; gap: .4rem; font-size: .82rem; color: #58d68d; background: #28b46314; border: 1px solid rgba(40,180,99,.2); border-radius: 7px; padding: .45rem .8rem; margin-bottom: .5rem; flex-wrap: wrap; }
     .report-link { color: #58d68d; text-decoration: underline; cursor: pointer; }
@@ -605,6 +616,7 @@ export class InvestigationComponent implements OnInit, OnDestroy {
   /** Take a saved answer as this item's AI suggestions, without asking the AI again. */
   async useSaved(s: SavedAnswer) {
     if (!this.item) return;
+    this.stopReading();
     this.aiError = '';
     this.aiSuggestions = s.answer;
     this.formattedSuggestions = this.renderMarkdown(s.answer);
@@ -627,6 +639,76 @@ export class InvestigationComponent implements OnInit, OnDestroy {
   ngOnDestroy() {
     this.sub?.unsubscribe();
     this.stopStream();
+    this.stopReading();
+  }
+
+  // --- Read aloud (browser speech, no AI call) ---
+
+  private zone = inject(NgZone);
+  readonly canSpeak = typeof window !== 'undefined' && 'speechSynthesis' in window;
+  speech: 'idle' | 'playing' | 'paused' = 'idle';
+  private speakChunks: string[] = [];
+  private speakIndex = 0;
+
+  /** Plain sentences to read: the answer, then each follow-up question and answer. */
+  private speakText(): string[] {
+    const clean = (t: string) => t
+      .replace(/\*\*|__|`/g, '')
+      .replace(/^#{1,6}\s*/gm, '')
+      .replace(/^\s*(?:[-*•]|\d+[.)])\s+/gm, '')
+      .replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}]/gu, '')
+      .replace(/https?:\/\/\S+/g, 'link');
+    const parts = [clean(this.aiSuggestions)];
+    for (const f of this.followUps) parts.push('You asked: ' + clean(f.question), clean(f.answer));
+    // One chunk per line, long lines split at sentence ends (some voices stop on very long text).
+    return parts.join('\n').split(/\n+/).map(l => l.trim()).filter(Boolean)
+      .flatMap(l => l.length <= 220 ? [l] : (l.match(/[^.!?]+[.!?]+["')]?\s*|[^.!?]+$/g) || [l]).map(x => x.trim()).filter(Boolean));
+  }
+
+  readAloud() {
+    if (!this.canSpeak || !this.aiSuggestions) return;
+    speechSynthesis.cancel();
+    this.speakChunks = this.speakText();
+    this.speakIndex = 0;
+    this.speech = 'playing';
+    this.activity.log('Listened to the AI answer', this.item?.id, this.item?.itemDescription);
+    this.speakNext();
+  }
+
+  private speakNext() {
+    if (this.speech !== 'playing') return;
+    if (this.speakIndex >= this.speakChunks.length) { this.speech = 'idle'; return; }
+    const u = new SpeechSynthesisUtterance(this.speakChunks[this.speakIndex]);
+    u.lang = 'en-GB';
+    const voice = speechSynthesis.getVoices().find(v => /en-GB/i.test(v.lang));
+    if (voice) u.voice = voice;
+    const advance = () => this.zone.run(() => {
+      if (this.speech !== 'playing') return;
+      this.speakIndex++;
+      this.speakNext();
+    });
+    u.onend = advance;
+    u.onerror = (e: SpeechSynthesisErrorEvent) => {
+      if (e.error === 'interrupted' || e.error === 'canceled') return; // we stopped it on purpose
+      advance();
+    };
+    speechSynthesis.speak(u);
+  }
+
+  /** Pause by stopping and remembering the place — speechSynthesis.pause() is unreliable in some browsers. */
+  togglePause() {
+    if (this.speech === 'playing') {
+      this.speech = 'paused';
+      speechSynthesis.cancel();
+    } else if (this.speech === 'paused') {
+      this.speech = 'playing';
+      this.speakNext();
+    }
+  }
+
+  stopReading() {
+    this.speech = 'idle';
+    if (this.canSpeak) speechSynthesis.cancel();
   }
 
   setProvider(provider: 'claude' | 'gemini') {
@@ -682,6 +764,7 @@ export class InvestigationComponent implements OnInit, OnDestroy {
 
   async askAI() {
     if (!this.item || this.aiLoading) return;
+    this.stopReading();
     this.aiLoading = true;
     this.aiError = '';
     this.aiSuggestions = '';
