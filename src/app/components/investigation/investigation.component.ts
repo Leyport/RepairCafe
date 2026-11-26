@@ -1,4 +1,4 @@
-import { Component, ElementRef, NgZone, OnDestroy, OnInit, ViewChild, inject } from '@angular/core';
+import { Component, ElementRef, HostListener, NgZone, OnDestroy, OnInit, ViewChild, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -87,8 +87,18 @@ const words = (text: string): string[] =>
             <span class="detail-label">{{ d.label }}</span>
             <span class="detail-val">{{ d.value }}</span>
           </div>
-          <div class="photo-strip" *ngIf="item.photos && item.photos.length">
-            <img class="photo-thumb" alt="Item photo" *ngFor="let photo of item.photos" [src]="getPhotoUrl(photo)">
+          <div class="photo-carousel" *ngIf="photoUrls.length">
+            <div class="pc-stage" (touchstart)="onTouchStart($event)" (touchend)="onTouchEnd($event, false)">
+              <img class="pc-main" alt="Item photo" [src]="photoUrls[photoIdx]" (click)="openLightbox(photoIdx)" title="Click to enlarge">
+              <button class="pc-nav prev" *ngIf="photoUrls.length > 1" (click)="stepPhoto(-1)" aria-label="Previous photo">&#8249;</button>
+              <button class="pc-nav next" *ngIf="photoUrls.length > 1" (click)="stepPhoto(1)" aria-label="Next photo">&#8250;</button>
+              <span class="pc-count" *ngIf="photoUrls.length > 1">{{ photoIdx + 1 }} / {{ photoUrls.length }}</span>
+              <button class="pc-zoom" (click)="openLightbox(photoIdx)" title="Enlarge" aria-label="Enlarge photo">⤢</button>
+            </div>
+            <div class="photo-strip" *ngIf="photoUrls.length > 1">
+              <img class="photo-thumb" alt="Item photo" *ngFor="let url of photoUrls; let i = index" [src]="url"
+                   [class.active]="i === photoIdx" (click)="photoIndex = i">
+            </div>
           </div>
           <p class="sent-hint">All of these details are sent to the AI when you press <strong>Ask AI</strong>.</p>
         </div>
@@ -237,7 +247,8 @@ const words = (text: string): string[] =>
 
             <div class="followup-compose" *ngIf="aiSuggestions && !aiLoading">
               <div class="followup-photos" *ngIf="item.photos && item.photos.length">
-                <img class="followup-photo-thumb" alt="Item photo" *ngFor="let photo of item.photos" [src]="getPhotoUrl(photo)">
+                <img class="followup-photo-thumb" alt="Item photo" *ngFor="let url of photoUrls; let i = index" [src]="url"
+                     (click)="openLightbox(i)" title="Click to enlarge">
                 <span class="followup-photo-status" *ngIf="addingPhoto"><span class="spinner-small"></span> Adding…</span>
               </div>
               <div class="followup-photo-error" *ngIf="photoError">{{ photoError }}</div>
@@ -290,6 +301,19 @@ const words = (text: string): string[] =>
         </div>
       </div>
 
+      <!-- Full-screen photo carousel -->
+      <div class="lb-overlay" *ngIf="lightboxIndex !== null" (click)="closeLightbox()"
+           (touchstart)="onTouchStart($event)" (touchend)="onTouchEnd($event, true)">
+        <button class="lb-close" (click)="closeLightbox()" aria-label="Close">✕</button>
+        <button class="lb-nav prev" *ngIf="photoUrls.length > 1" (click)="$event.stopPropagation(); stepLightbox(-1)" aria-label="Previous photo">&#8249;</button>
+        <img class="lb-image" alt="Item photo" [src]="photoUrls[lightboxIndex]" (click)="$event.stopPropagation()">
+        <button class="lb-nav next" *ngIf="photoUrls.length > 1" (click)="$event.stopPropagation(); stepLightbox(1)" aria-label="Next photo">&#8250;</button>
+        <div class="lb-footer" *ngIf="photoUrls.length > 1" (click)="$event.stopPropagation()">
+          <span *ngFor="let u of photoUrls; let i = index" class="lb-dot" [class.active]="i === lightboxIndex" (click)="lightboxIndex = i"></span>
+          <span class="lb-count">{{ lightboxIndex + 1 }} / {{ photoUrls.length }}</span>
+        </div>
+      </div>
+
       <div class="webcam-overlay" *ngIf="showWebcam" (click)="closeWebcam()">
         <div class="webcam-modal" (click)="$event.stopPropagation()">
           <div class="webcam-header">
@@ -336,7 +360,36 @@ const words = (text: string): string[] =>
     .fault-label { font-size: .7rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: #ffffff59; margin-bottom: .4rem; }
     .fault-text { margin: 0; font-size: .9rem; color: #fffc; line-height: 1.5; }
     .photo-strip { display: flex; gap: .5rem; flex-wrap: wrap; }
-    .photo-thumb { width: 70px; height: 70px; border-radius: 8px; object-fit: cover; border: 1px solid rgba(255,255,255,.15); }
+    .photo-thumb { width: 56px; height: 56px; border-radius: 8px; object-fit: cover; border: 2px solid rgba(255,255,255,.15); cursor: pointer; opacity: .65; transition: opacity .15s, border-color .15s; }
+    .photo-thumb:hover { opacity: 1; }
+    .photo-thumb.active { opacity: 1; border-color: var(--accent-color); }
+    .photo-carousel { display: flex; flex-direction: column; gap: .5rem; }
+    .pc-stage { position: relative; background: #0000004d; border: 1px solid rgba(255,255,255,.1); border-radius: 10px; overflow: hidden; height: 240px; display: flex; align-items: center; justify-content: center; }
+    .pc-main { max-width: 100%; max-height: 100%; object-fit: contain; cursor: zoom-in; display: block; }
+    .pc-nav { position: absolute; top: 50%; transform: translateY(-50%); width: 34px; height: 34px; border-radius: 50%; border: 1px solid rgba(255,255,255,.25); background: #00000080; color: #fff; font-size: 1.6rem; line-height: 1; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0 0 3px; }
+    .pc-nav:hover { background: #00f2ff40; border-color: var(--accent-color); }
+    .pc-nav.prev { left: 8px; }
+    .pc-nav.next { right: 8px; }
+    .pc-count { position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%); background: #000000a6; color: #fffc; font-size: .72rem; padding: .1rem .5rem; border-radius: 99px; }
+    .pc-zoom { position: absolute; top: 8px; right: 8px; width: 28px; height: 28px; border-radius: 6px; border: 1px solid rgba(255,255,255,.25); background: #00000080; color: #fff; cursor: pointer; font-size: .9rem; padding: 0; }
+    .pc-zoom:hover { background: #00f2ff40; }
+    .lb-overlay { position: fixed; inset: 0; z-index: 9999; background: #000000eb; display: flex; align-items: center; justify-content: center; gap: .75rem; padding: 3.5rem 1rem; box-sizing: border-box; }
+    .lb-image { max-width: min(88vw, 1400px); max-height: 82vh; object-fit: contain; border-radius: 8px; box-shadow: 0 8px 40px #000c; }
+    .lb-nav { flex-shrink: 0; width: 48px; height: 48px; border-radius: 50%; border: 1px solid rgba(255,255,255,.25); background: #ffffff1a; color: #fff; font-size: 2.2rem; line-height: 1; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0 0 4px; }
+    .lb-nav:hover { background: #00f2ff33; border-color: var(--accent-color); }
+    .lb-close { position: absolute; top: .75rem; right: 1rem; background: none; border: none; color: #ffffffb3; font-size: 1.6rem; cursor: pointer; }
+    .lb-close:hover { color: #fff; }
+    .lb-footer { position: absolute; bottom: 1rem; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 6px; }
+    .lb-dot { width: 9px; height: 9px; border-radius: 50%; background: #ffffff4d; cursor: pointer; }
+    .lb-dot.active { background: var(--accent-color); }
+    .lb-count { margin-left: .5rem; font-size: .8rem; color: #ffffff80; }
+    @media (max-width: 600px) {
+      .lb-overlay { padding: 3rem .25rem; gap: .25rem; }
+      .lb-nav { width: 38px; height: 38px; font-size: 1.8rem; position: absolute; top: 50%; transform: translateY(-50%); background: #00000099; }
+      .lb-nav.prev { left: .4rem; }
+      .lb-nav.next { right: .4rem; }
+      .lb-image { max-width: 100%; }
+    }
     .spinner-small { display: inline-block; width: 14px; height: 14px; border: 2px solid rgba(255,255,255,.2); border-top-color: var(--accent-color); border-radius: 50%; animation: spin .7s linear infinite; }
     .ai-panel { display: flex; flex-direction: column; gap: 1.2rem; min-width: 0; }
     .ai-card { border-radius: 14px; padding: 1.5rem; }
@@ -425,7 +478,7 @@ const words = (text: string): string[] =>
     */
     .followup-compose { border-top: 1px solid rgba(255,255,255,.07); margin-top: 1rem; padding-top: 1rem; display: flex; flex-direction: column; gap: .6rem; }
     .followup-photos { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
-    .followup-photo-thumb { width: 44px; height: 44px; border-radius: 6px; object-fit: cover; border: 1px solid rgba(255,255,255,.15); }
+    .followup-photo-thumb { width: 44px; height: 44px; border-radius: 6px; object-fit: cover; border: 1px solid rgba(255,255,255,.15); cursor: zoom-in; }
     .followup-photo-status { display: flex; align-items: center; gap: .35rem; font-size: .78rem; color: #ffffff73; }
     .followup-photo-error { color: #f1948a; font-size: .78rem; }
     /*
@@ -640,6 +693,61 @@ export class InvestigationComponent implements OnInit, OnDestroy {
     this.sub?.unsubscribe();
     this.stopStream();
     this.stopReading();
+  }
+
+  // --- Photo carousel ---
+
+  photoIndex = 0;
+  lightboxIndex: number | null = null;
+  private touchX: number | null = null;
+
+  get photoUrls(): string[] {
+    return (this.item?.photos || []).map(p => this.getPhotoUrl(p));
+  }
+
+  /** Current photo, kept in range if photos are added or removed. */
+  get photoIdx(): number {
+    const n = this.item?.photos?.length || 0;
+    return n ? Math.min(this.photoIndex, n - 1) : 0;
+  }
+
+  stepPhoto(dir: number) {
+    const n = this.photoUrls.length;
+    if (n) this.photoIndex = (this.photoIdx + dir + n) % n;
+  }
+
+  openLightbox(i: number) { this.lightboxIndex = i; }
+
+  closeLightbox() {
+    if (this.lightboxIndex !== null) this.photoIndex = this.lightboxIndex; // stay on the same photo
+    this.lightboxIndex = null;
+  }
+
+  stepLightbox(dir: number) {
+    const n = this.photoUrls.length;
+    if (n && this.lightboxIndex !== null) this.lightboxIndex = (this.lightboxIndex + dir + n) % n;
+  }
+
+  onTouchStart(e: TouchEvent) { this.touchX = e.changedTouches[0]?.clientX ?? null; }
+
+  /** Swipe left/right to move between photos. */
+  onTouchEnd(e: TouchEvent, inLightbox: boolean) {
+    if (this.touchX === null) return;
+    const dx = (e.changedTouches[0]?.clientX ?? this.touchX) - this.touchX;
+    this.touchX = null;
+    if (Math.abs(dx) < 40) return;
+    const dir = dx < 0 ? 1 : -1;
+    if (inLightbox) this.stepLightbox(dir); else this.stepPhoto(dir);
+  }
+
+  @HostListener('document:keydown', ['$event'])
+  onKey(e: KeyboardEvent) {
+    if (this.lightboxIndex === null) return;
+    if (e.key === 'Escape') this.closeLightbox();
+    else if (e.key === 'ArrowLeft') this.stepLightbox(-1);
+    else if (e.key === 'ArrowRight') this.stepLightbox(1);
+    else return;
+    e.preventDefault();
   }
 
   // --- Read aloud (browser speech, no AI call) ---
@@ -1030,6 +1138,7 @@ export class InvestigationComponent implements OnInit, OnDestroy {
       const photos = [...(this.item.photos || []), { url, type: 'before' as const }];
       await this.repairService.updateRepairItem(this.item.id, { photos });
       this.item.photos = photos;
+      this.photoIndex = photos.length - 1; // show the photo just added
     } catch (e) {
       console.error('Photo upload failed:', e);
       this.photoError = 'Failed to upload photo. Please try again.';
