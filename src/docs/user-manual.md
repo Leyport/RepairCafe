@@ -164,13 +164,22 @@ The AI helper can suggest what might be wrong with an item and how to fix it. It
 
 Every AI answer is saved with its item, so before you ask the AI it's worth seeing if a similar item has already been answered. The repair ideas page shows:
 
-- **📌 Already asked for this item** — the answer (and any follow-ups) from an earlier visit.
+- **📌 Already asked for this item** — the answer (and any follow-ups) from an earlier visit. It opens already showing; click its heading to hide it.
 - **💡 Similar items with a saved AI answer** — up to three items whose description, fault, make or model match this one.
 - **A search box** — search every saved answer by item, make, model, fault or anything in the answer, for example *kettle*, *Dyson* or *no power*.
 
-Press **Show** to read a saved answer. If it fits, press **Use this answer for this item**: it is copied to this item (noting which item it came from) without asking the AI again, and you can still ask follow-up questions. If none of them help, press **Ask AI** for a fresh answer.
+Press **Show** to read a saved answer from another item (or **🔊 Read aloud** to listen to it). If it fits, press **Use this answer for this item**: it is copied to this item (noting which item it came from) without asking the AI again, and you can still ask follow-up questions. If none of them help, press **Ask AI** for a fresh answer.
 
 > **Why check first?** Searching saved answers is instant and free; each **Ask AI** is a new request to the AI service.
+
+### The Item's Photos
+
+The item's photos are shown on the left as a carousel:
+
+- Use the **‹ ›** arrows, click a thumbnail underneath, or swipe on a phone or tablet to move between photos.
+- Click the photo (or **⤢** in its corner) to see it full screen. Move between photos with the arrows, a swipe or the ← → keys; close with **✕**, Esc or by clicking outside the photo.
+- **📷 Take photo** or **🖼 Add from file** adds a photo to the item straight away.
+- **🗑** in the top-left corner of the photo removes that photo from the item (you're asked first).
 
 ### What is sent to the AI
 
@@ -180,6 +189,12 @@ Press **Show** to read a saved answer. If it fits, press **Use this answer for t
 The AI looks at the photos and says what it can see, so a clear picture of the fault or the rating label often helps a lot.
 
 > **Photo limit:** up to the 6 most recent photos are sent with each question. If an item has more, add the most useful close-up last.
+
+### Reading the Answer
+
+The AI's answer and each follow-up open already showing — click a heading to hide it, and again to show it.
+
+Press **🔊 Read aloud** to have the answer and its follow-ups read out. The button is at the top and bottom of every answer, including saved ones. While it reads, use **⏸ Pause** / **▶ Resume** and **⏹ Stop** (at either end). Only one answer is read at a time. The reading uses your device's own voice, so it doesn't use the AI and costs nothing.
 
 ### Asking follow-up questions
 
