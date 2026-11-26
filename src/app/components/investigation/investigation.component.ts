@@ -94,12 +94,25 @@ const words = (text: string): string[] =>
               <button class="pc-nav next" *ngIf="photoUrls.length > 1" (click)="stepPhoto(1)" aria-label="Next photo">&#8250;</button>
               <span class="pc-count" *ngIf="photoUrls.length > 1">{{ photoIdx + 1 }} / {{ photoUrls.length }}</span>
               <button class="pc-zoom" (click)="openLightbox(photoIdx)" title="Enlarge" aria-label="Enlarge photo">⤢</button>
+              <button class="pc-delete" (click)="deletePhoto(photoIdx)" [disabled]="addingPhoto || deletingPhoto"
+                      title="Remove this photo from the item" aria-label="Remove this photo">🗑</button>
             </div>
             <div class="photo-strip" *ngIf="photoUrls.length > 1">
               <img class="photo-thumb" alt="Item photo" *ngFor="let url of photoUrls; let i = index" [src]="url"
                    [class.active]="i === photoIdx" (click)="photoIndex = i">
             </div>
           </div>
+          <div class="photo-tools">
+            <span class="photo-none" *ngIf="!photoUrls.length">No photos yet.</span>
+            <button class="btn-photo" (click)="openWebcam()" [disabled]="addingPhoto || deletingPhoto">📷 Take photo</button>
+            <label class="btn-photo" [class.disabled]="addingPhoto || deletingPhoto">
+              <input type="file" accept="image/*" style="display:none" [disabled]="addingPhoto || deletingPhoto" (change)="onPhotoSelected($event)">
+              🖼 Add from file
+            </label>
+            <span class="followup-photo-status" *ngIf="addingPhoto"><span class="spinner-small"></span> Adding…</span>
+            <span class="followup-photo-status" *ngIf="deletingPhoto"><span class="spinner-small"></span> Removing…</span>
+          </div>
+          <div class="followup-photo-error" *ngIf="photoError">{{ photoError }}</div>
           <p class="sent-hint">All of these details are sent to the AI when you press <strong>Ask AI</strong>.</p>
         </div>
 
@@ -373,6 +386,14 @@ const words = (text: string): string[] =>
     .pc-count { position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%); background: #000000a6; color: #fffc; font-size: .72rem; padding: .1rem .5rem; border-radius: 99px; }
     .pc-zoom { position: absolute; top: 8px; right: 8px; width: 28px; height: 28px; border-radius: 6px; border: 1px solid rgba(255,255,255,.25); background: #00000080; color: #fff; cursor: pointer; font-size: .9rem; padding: 0; }
     .pc-zoom:hover { background: #00f2ff40; }
+    .pc-delete { position: absolute; top: 8px; left: 8px; width: 28px; height: 28px; border-radius: 6px; border: 1px solid rgba(255,89,89,.45); background: #00000080; color: #fff; cursor: pointer; font-size: .85rem; padding: 0; }
+    .pc-delete:hover:not(:disabled) { background: #ff595940; }
+    .pc-delete:disabled { opacity: .4; cursor: not-allowed; }
+    .photo-tools { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; }
+    .photo-none { font-size: .82rem; color: #ffffff59; }
+    .btn-photo { display: inline-flex; align-items: center; gap: .3rem; background: #ffffff0d; border: 1px solid rgba(255,255,255,.18); color: #ffffffcc; padding: .4rem .75rem; border-radius: 7px; cursor: pointer; font-size: .8rem; font-weight: 600; font-family: inherit; }
+    .btn-photo:hover:not(:disabled):not(.disabled) { background: #ffffff1a; color: #fff; }
+    .btn-photo:disabled, .btn-photo.disabled { opacity: .45; cursor: not-allowed; pointer-events: none; }
     .lb-overlay { position: fixed; inset: 0; z-index: 9999; background: #000000eb; display: flex; align-items: center; justify-content: center; gap: .75rem; padding: 3.5rem 1rem; box-sizing: border-box; }
     .lb-image { max-width: min(88vw, 1400px); max-height: 82vh; object-fit: contain; border-radius: 8px; box-shadow: 0 8px 40px #000c; }
     .lb-nav { flex-shrink: 0; width: 48px; height: 48px; border-radius: 50%; border: 1px solid rgba(255,255,255,.25); background: #ffffff1a; color: #fff; font-size: 2.2rem; line-height: 1; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0 0 4px; }
@@ -709,6 +730,36 @@ export class InvestigationComponent implements OnInit, OnDestroy {
   get photoIdx(): number {
     const n = this.item?.photos?.length || 0;
     return n ? Math.min(this.photoIndex, n - 1) : 0;
+  }
+
+  deletingPhoto = false;
+
+  /** Take a photo off this item (asks first). The file itself is kept, in case a saved report links to it. */
+  async deletePhoto(index: number) {
+    const photos = this.item?.photos || [];
+    if (!this.item?.id || !photos[index] || this.deletingPhoto) return;
+    const ok = await this.dialog.confirm({
+      title: 'Remove this photo?',
+      message: `Photo ${index + 1} of ${photos.length} will be taken off this item.`,
+      confirmText: 'Remove',
+      cancelText: 'Keep it',
+      danger: true,
+    });
+    if (!ok) return;
+    this.deletingPhoto = true;
+    this.photoError = '';
+    try {
+      const updated = photos.filter((_, i) => i !== index);
+      await this.repairService.updateRepairItem(this.item.id, { photos: updated });
+      this.item.photos = updated;
+      this.photoIndex = Math.max(0, Math.min(index, updated.length - 1));
+      this.activity.log('Removed a photo', this.item.id, this.item.itemDescription);
+    } catch (e) {
+      console.error('Photo removal failed:', e);
+      this.photoError = "Couldn't remove the photo. Please try again.";
+    } finally {
+      this.deletingPhoto = false;
+    }
   }
 
   stepPhoto(dir: number) {
