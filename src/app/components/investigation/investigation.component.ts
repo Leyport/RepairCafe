@@ -34,6 +34,7 @@ interface SavedAnswer {
   category: string;
   date: string;
   answer: string;          // the first AI answer
+  followUps: { question: string; answer: string }[];
   html: string;            // answer plus any follow-ups, ready to show
   searchText: string;      // lower-case, for the search box
   score?: number;
@@ -130,9 +131,9 @@ const words = (text: string): string[] =>
               </div>
               <div class="ai-btn-group">
                 <ng-container *ngIf="canSpeak && aiSuggestions && !aiLoading">
-                  <button class="btn-speak" *ngIf="speech === 'idle'" (click)="readAloud()"
+                  <button class="btn-speak" *ngIf="speech === 'idle' || speakingKey !== 'current'" (click)="readAloud()"
                           title="Read the AI answer and follow-ups out loud">🔊 Read aloud</button>
-                  <ng-container *ngIf="speech !== 'idle'">
+                  <ng-container *ngIf="speech !== 'idle' && speakingKey === 'current'">
                     <button class="btn-speak active" (click)="togglePause()">{{ speech === 'paused' ? '▶ Resume' : '⏸ Pause' }}</button>
                     <button class="btn-speak" (click)="stopReading()" title="Stop reading">⏹ Stop</button>
                   </ng-container>
@@ -220,7 +221,7 @@ const words = (text: string): string[] =>
             </div>
 
             <ng-template #bankList let-list>
-              <details class="ai-fold bank-entry" *ngFor="let s of list">
+              <details class="ai-fold bank-entry" *ngFor="let s of list; trackBy: trackSaved" [open]="s.own">
                 <summary>
                   <span class="fold-title">
                     <span class="fq-label">{{ s.own ? 'This item' : '#' + s.displayNumber }} · {{ s.date }}</span>
@@ -231,6 +232,14 @@ const words = (text: string): string[] =>
                 </summary>
                 <div class="ai-result" [innerHTML]="s.html"></div>
                 <div class="bank-use">
+                  <ng-container *ngIf="canSpeak">
+                    <button class="btn-speak" *ngIf="speech === 'idle' || speakingKey !== savedKey(s)" (click)="readAloud(s)"
+                            title="Read this answer out loud">🔊 Read aloud</button>
+                    <ng-container *ngIf="speech !== 'idle' && speakingKey === savedKey(s)">
+                      <button class="btn-speak active" (click)="togglePause()">{{ speech === 'paused' ? '▶ Resume' : '⏸ Pause' }}</button>
+                      <button class="btn-speak" (click)="stopReading()" title="Stop reading">⏹ Stop</button>
+                    </ng-container>
+                  </ng-container>
                   <button class="btn-use" (click)="useSaved(s)">
                     {{ s.own ? 'Carry on with this answer' : 'Use this answer for this item' }}</button>
                   <span>You can then ask follow-up questions.</span>
@@ -626,13 +635,15 @@ export class InvestigationComponent implements OnInit, OnDestroy {
         const own = it.id === this.item?.id;
         if (!answer || (!own && seen.has(key))) continue; // the same answer re-used on another item
         if (!own) seen.add(key);
-        const followUpsHtml = qAt >= 0
+        const followUps = qAt >= 0
           ? body.slice(qAt).split(/\n\nQ: /).filter(Boolean).map(qa => {
               const [q, ...a] = qa.split(/\nA: /);
-              return `<p style="margin:1em 0 .3em;color:#c39bd3"><strong>Follow-up: ${this.escapeHtml(q.trim())}</strong></p>` +
-                this.renderMarkdown(a.join('\nA: ').trim());
-            }).join('')
-          : '';
+              return { question: q.trim(), answer: a.join('\nA: ').trim() };
+            })
+          : [];
+        const followUpsHtml = followUps.map(f =>
+          `<p style="margin:1em 0 .3em;color:#c39bd3"><strong>Follow-up: ${this.escapeHtml(f.question)}</strong></p>` +
+          this.renderMarkdown(f.answer)).join('');
         const makeModel = [it.make, it.model].filter(v => v && v.trim()).join(' ');
         all.push({
           itemId: it.id, own, key,
@@ -640,7 +651,7 @@ export class InvestigationComponent implements OnInit, OnDestroy {
           description: it.itemDescription || 'Item', makeModel, fault: (it.fault || '').trim(),
           category: (it.category || '').toLowerCase(),
           date: m[1].replace(/, from item.*$/, ''),
-          answer, html: this.renderMarkdown(answer) + followUpsHtml,
+          answer, followUps, html: this.renderMarkdown(answer) + followUpsHtml,
           searchText: [it.itemDescription, makeModel, it.fault, it.category, answer].join(' ').toLowerCase(),
         });
       }
@@ -806,29 +817,37 @@ export class InvestigationComponent implements OnInit, OnDestroy {
   private zone = inject(NgZone);
   readonly canSpeak = typeof window !== 'undefined' && 'speechSynthesis' in window;
   speech: 'idle' | 'playing' | 'paused' = 'idle';
+  /** What is being read: 'current' (the answer on screen) or a saved answer's key. */
+  speakingKey = '';
   private speakChunks: string[] = [];
   private speakIndex = 0;
 
   /** Plain sentences to read: the answer, then each follow-up question and answer. */
-  private speakText(): string[] {
+  private speakText(answer: string, followUps: { question: string; answer: string }[]): string[] {
     const clean = (t: string) => t
       .replace(/\*\*|__|`/g, '')
       .replace(/^#{1,6}\s*/gm, '')
       .replace(/^\s*(?:[-*•]|\d+[.)])\s+/gm, '')
       .replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}]/gu, '')
       .replace(/https?:\/\/\S+/g, 'link');
-    const parts = [clean(this.aiSuggestions)];
-    for (const f of this.followUps) parts.push('You asked: ' + clean(f.question), clean(f.answer));
+    const parts = [clean(answer)];
+    for (const f of followUps) parts.push('You asked: ' + clean(f.question), clean(f.answer));
     // One chunk per line, long lines split at sentence ends (some voices stop on very long text).
     return parts.join('\n').split(/\n+/).map(l => l.trim()).filter(Boolean)
       .flatMap(l => l.length <= 220 ? [l] : (l.match(/[^.!?]+[.!?]+["')]?\s*|[^.!?]+$/g) || [l]).map(x => x.trim()).filter(Boolean));
   }
 
-  readAloud() {
-    if (!this.canSpeak || !this.aiSuggestions) return;
+  savedKey(s: SavedAnswer) { return 'saved:' + s.itemId + ':' + s.key; }
+  trackSaved = (_: number, s: SavedAnswer) => this.savedKey(s);
+
+  /** Read the answer on screen, or a saved answer if one is given. */
+  readAloud(saved?: SavedAnswer) {
+    const answer = saved ? saved.answer : this.aiSuggestions;
+    if (!this.canSpeak || !answer) return;
     speechSynthesis.cancel();
-    this.speakChunks = this.speakText();
+    this.speakChunks = this.speakText(answer, saved ? saved.followUps : this.followUps);
     this.speakIndex = 0;
+    this.speakingKey = saved ? this.savedKey(saved) : 'current';
     this.speech = 'playing';
     this.activity.log('Listened to the AI answer', this.item?.id, this.item?.itemDescription);
     this.speakNext();
