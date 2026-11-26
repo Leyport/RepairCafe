@@ -130,13 +130,8 @@ const words = (text: string): string[] =>
                 </div>
               </div>
               <div class="ai-btn-group">
-                <ng-container *ngIf="canSpeak && aiSuggestions && !aiLoading">
-                  <button class="btn-speak" *ngIf="speech === 'idle' || speakingKey !== 'current'" (click)="readAloud()"
-                          title="Read the AI answer and follow-ups out loud">🔊 Read aloud</button>
-                  <ng-container *ngIf="speech !== 'idle' && speakingKey === 'current'">
-                    <button class="btn-speak active" (click)="togglePause()">{{ speech === 'paused' ? '▶ Resume' : '⏸ Pause' }}</button>
-                    <button class="btn-speak" (click)="stopReading()" title="Stop reading">⏹ Stop</button>
-                  </ng-container>
+                <ng-container *ngIf="aiSuggestions && !aiLoading">
+                  <ng-container *ngTemplateOutlet="speakControls; context: { saved: null }"></ng-container>
                 </ng-container>
                 <button class="btn-save-report" *ngIf="aiSuggestions" [disabled]="savingReport" (click)="saveAIReport()">
                   <span *ngIf="!savingReport">
@@ -220,6 +215,18 @@ const words = (text: string): string[] =>
               </ng-container>
             </div>
 
+            <!-- Read aloud controls; key = 'current' or a saved answer's key -->
+            <ng-template #speakControls let-saved="saved">
+              <ng-container *ngIf="canSpeak">
+                <button class="btn-speak" *ngIf="speech === 'idle' || speakingKey !== (saved ? savedKey(saved) : 'current')"
+                        (click)="readAloud(saved)" title="Read this answer out loud">🔊 Read aloud</button>
+                <ng-container *ngIf="speech !== 'idle' && speakingKey === (saved ? savedKey(saved) : 'current')">
+                  <button class="btn-speak active" (click)="togglePause()">{{ speech === 'paused' ? '▶ Resume' : '⏸ Pause' }}</button>
+                  <button class="btn-speak" (click)="stopReading()" title="Stop reading">⏹ Stop</button>
+                </ng-container>
+              </ng-container>
+            </ng-template>
+
             <ng-template #bankList let-list>
               <details class="ai-fold bank-entry" *ngFor="let s of list; trackBy: trackSaved" [open]="s.own">
                 <summary>
@@ -230,16 +237,12 @@ const words = (text: string): string[] =>
                   </span>
                   <span class="fold-hint show">Show</span><span class="fold-hint hide">Hide</span>
                 </summary>
+                <div class="speak-top" *ngIf="canSpeak">
+                  <ng-container *ngTemplateOutlet="speakControls; context: { saved: s }"></ng-container>
+                </div>
                 <div class="ai-result" [innerHTML]="s.html"></div>
                 <div class="bank-use">
-                  <ng-container *ngIf="canSpeak">
-                    <button class="btn-speak" *ngIf="speech === 'idle' || speakingKey !== savedKey(s)" (click)="readAloud(s)"
-                            title="Read this answer out loud">🔊 Read aloud</button>
-                    <ng-container *ngIf="speech !== 'idle' && speakingKey === savedKey(s)">
-                      <button class="btn-speak active" (click)="togglePause()">{{ speech === 'paused' ? '▶ Resume' : '⏸ Pause' }}</button>
-                      <button class="btn-speak" (click)="stopReading()" title="Stop reading">⏹ Stop</button>
-                    </ng-container>
-                  </ng-container>
+                  <ng-container *ngTemplateOutlet="speakControls; context: { saved: s }"></ng-container>
                   <button class="btn-use" (click)="useSaved(s)">
                     {{ s.own ? 'Carry on with this answer' : 'Use this answer for this item' }}</button>
                   <span>You can then ask follow-up questions.</span>
@@ -301,6 +304,7 @@ const words = (text: string): string[] =>
 
             <!-- Second Save button at the bottom, so there's no need to scroll back up after reading -->
             <div class="save-bottom" *ngIf="aiSuggestions && !aiLoading">
+              <ng-container *ngTemplateOutlet="speakControls; context: { saved: null }"></ng-container>
               <span class="save-bottom-note" *ngIf="currentReportUrl && !savingReport">
                 {{ reportUrl ? 'Report saved.' : 'A saved report exists.' }}
                 <a class="report-link" [href]="currentReportUrl" target="_blank">Open report</a>
@@ -450,6 +454,7 @@ const words = (text: string): string[] =>
     .ai-btn-group { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; }
     .btn-speak { background: #ffffff0d; border: 1px solid rgba(255,255,255,.18); color: #ffffffcc; padding: .5rem .9rem; border-radius: 7px; cursor: pointer; font-size: .85rem; font-weight: 700; font-family: inherit; transition: all .15s; }
     .btn-speak:hover { background: #ffffff1a; color: #fff; }
+    .speak-top { display: flex; flex-wrap: wrap; gap: .5rem; justify-content: flex-end; padding: .1rem 1rem 0; }
     .btn-speak.active { background: #00f2ff1a; border-color: rgba(0,242,255,.45); color: var(--accent-color); }
     .btn-save-report:hover:not(:disabled) { background: #3498db38; }
     .report-saved-bar { display: flex; align-items: center; gap: .4rem; font-size: .82rem; color: #58d68d; background: #28b46314; border: 1px solid rgba(40,180,99,.2); border-radius: 7px; padding: .45rem .8rem; margin-bottom: .5rem; flex-wrap: wrap; }
